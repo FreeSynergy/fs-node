@@ -48,7 +48,7 @@ It handles:
 
 | Category | Module | Description |
 |---|---|---|
-| `proxy` | **zentinel** | Reverse proxy + TLS + DNS (Caddy-based) |
+| `proxy` | **zentinel** | Reverse proxy + TLS + DNS (Pingora/Rust) |
 | `auth` | **kanidm** | Identity provider (OIDC, OAuth2, WebAuthn) |
 | `mail` | **stalwart** | Mail server (SMTP, IMAP, JMAP) |
 | `git` | **forgejo** | Git hosting + CI/CD |
