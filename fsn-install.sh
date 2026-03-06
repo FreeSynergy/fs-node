@@ -47,9 +47,12 @@ set -euo pipefail
 FSN_DEFAULT_REPO="https://github.com/FreeSynergyNet/FreeSynergy.Node"
 
 # --- Detect whether this script is running from inside the FSN repo ---
-# If yes, we skip cloning and use the current directory as FSN_ROOT.
+# Requires both the playbook AND a .git directory to avoid false positives
+# when the script is run via bash <(curl ...) from inside an unrelated repo.
+# NOTE: curl/wget are NOT required by this installer. Only git + python3/ansible.
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || pwd)"
-if [ -f "${_SCRIPT_DIR}/playbooks/deploy-stack.yml" ]; then
+if [ -f "${_SCRIPT_DIR}/playbooks/deploy-stack.yml" ] \
+   && [ -d "${_SCRIPT_DIR}/.git" ]; then
     _FSN_IN_REPO=true
 else
     _FSN_IN_REPO=false
@@ -258,15 +261,15 @@ fetch_platform() {
 select_dns_provider() {
     step "DNS Provider"
     info "Which DNS provider manages your domain?"
-    info "  1) Hetzner DNS"
+    info "  0) Skip  (manage DNS records manually)"
+    info "  1) Hetzner DNS  [default]"
     info "  2) Cloudflare"
-    info "  3) None (manage DNS records manually)"
-    ask "Choose [1/2/3, default: 1]:"
+    ask "Choose [0/1/2, default: 1]:"
     read -r _dns_choice
 
     case "${_dns_choice}" in
+        0) DNS_PROVIDER="none" ;;
         2) DNS_PROVIDER="cloudflare" ;;
-        3) DNS_PROVIDER="none" ;;
         *) DNS_PROVIDER="hetzner" ;;
     esac
     log "DNS provider: ${DNS_PROVIDER}"
@@ -301,15 +304,15 @@ select_dns_provider() {
 select_acme_provider() {
     step "SSL Certificates (ACME)"
     info "Which provider should issue SSL certificates?"
+    info "  0) Skip  (manage certificates manually)"
     info "  1) Let's Encrypt – free, public CA  [default]"
     info "  2) Smallstep CA  – self-hosted CA"
-    info "  3) None (manage certificates manually)"
-    ask "Choose [1/2/3, default: 1]:"
+    ask "Choose [0/1/2, default: 1]:"
     read -r _acme_choice
 
     case "${_acme_choice}" in
+        0) ACME_PROVIDER="none" ;;
         2) ACME_PROVIDER="smallstep-ca" ;;
-        3) ACME_PROVIDER="none" ;;
         *) ACME_PROVIDER="letsencrypt" ;;
     esac
     log "ACME provider: ${ACME_PROVIDER}"
@@ -388,10 +391,85 @@ select_modules() {
     fi
 }
 
-# Try to auto-detect the server's primary IP address.
+# Try to auto-detect the server's primary (non-loopback) IP address.
+# Tries three methods in order, returns the first result found.
 detect_server_ip() {
-    ip route get 1.1.1.1 2>/dev/null \
-        | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}'
+    local _ip
+    # Method 1: ip route – most reliable on modern Linux
+    _ip=$(ip route get 1.1.1.1 2>/dev/null \
+        | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')
+    [ -n "${_ip}" ] && echo "${_ip}" && return
+    # Method 2: hostname -I – works without internet access
+    _ip=$(hostname -I 2>/dev/null \
+        | awk '{for(i=1;i<=NF;i++) if($i!~/^127\./) {print $i; exit}}')
+    [ -n "${_ip}" ] && echo "${_ip}" && return
+    # Method 3: ip addr – last resort
+    ip addr show 2>/dev/null \
+        | awk '/inet / && !/127\.0\.0\.1/ {gsub(/\/.*/, "", $2); print $2; exit}'
+}
+
+# Check for active firewalls and port conflicts before Ansible runs.
+# Warns but does not abort – the user may have already configured everything.
+check_network_prerequisites() {
+    step "Network Check"
+
+    # Firewall detection
+    local _fw_found=false
+    if command -v ufw &>/dev/null; then
+        if ufw status 2>/dev/null | grep -q "Status: active"; then
+            _fw_found=true
+            warn "ufw firewall is active. Required open ports:"
+            warn "  sudo ufw allow 80/tcp && sudo ufw allow 443/tcp"
+            warn "  Mail (if using Stalwart): sudo ufw allow 25/tcp 143/tcp 465/tcp 587/tcp 993/tcp"
+        fi
+    fi
+    if command -v firewall-cmd &>/dev/null; then
+        if firewall-cmd --state 2>/dev/null | grep -q "running"; then
+            _fw_found=true
+            warn "firewalld is active. Required services:"
+            warn "  sudo firewall-cmd --permanent --add-service=http --add-service=https"
+            warn "  sudo firewall-cmd --reload"
+        fi
+    fi
+    ${_fw_found} || log "No active firewall detected."
+
+    # Port conflict check (80 and 443 must be free for Zentinel)
+    local _port_conflict=false
+    for _port in 80 443; do
+        if ss -tlnp 2>/dev/null | grep -q ":${_port} "; then
+            warn "Port ${_port} is already in use – may conflict with Zentinel (reverse proxy)."
+            _port_conflict=true
+        fi
+    done
+    ${_port_conflict} || log "Ports 80 and 443 are free."
+}
+
+# Check sudo availability.
+# Without sudo, setup-server.yml cannot create system users or set sysctl.
+# In that case: skip server setup and deploy as the current user instead.
+check_sudo() {
+    # NOPASSWD sudo: no action needed
+    if sudo -n true 2>/dev/null; then
+        log "sudo access confirmed."
+        return
+    fi
+
+    warn "Passwordless sudo not detected."
+    warn "setup-server.yml needs sudo for: Podman install, sysctl, user creation."
+    echo ""
+    info "Options:"
+    info "  Y – I have sudo (password will be prompted by Ansible during setup)"
+    info "  N – No sudo. Skip server setup, deploy as current user '${USER}'"
+    ask "Do you have sudo access? [Y/n]:"
+    read -r _sudo_ans
+    if [[ "${_sudo_ans,,}" == "n"* ]]; then
+        warn "Skipping server setup. Deploying as current user: ${USER}"
+        warn "Note: sysctl (port 80) and linger must already be configured."
+        SKIP_SETUP="true"
+        DEPLOY_USER="${USER}"
+    else
+        log "Proceeding with sudo – Ansible will prompt for password when needed."
+    fi
 }
 
 # Write the project.yml to projects/PROJECT_NAME/PROJECT_NAME.project.yml
@@ -471,7 +549,11 @@ generate_host_yml() {
 show_setup_summary() {
     echo ""
     echo -e "${BOLD}━━ Setup Summary ${NC}"
-    info "Install to:    ${FSN_TARGET}"
+    if ${_FSN_IN_REPO}; then
+        info "Platform root: ${FSN_TARGET}  (existing repo – no clone needed)"
+    else
+        info "Install to:    ${FSN_TARGET}"
+    fi
     info "Repo:          ${FSN_REPO}"
     info "Project:       ${PROJECT_NAME}"
     info "Domain:        ${PROJECT_DOMAIN}"
@@ -544,11 +626,43 @@ setup_project_interactive() {
     ask "Domain name (e.g. example.com):"
     read -r PROJECT_DOMAIN
     [ -z "${PROJECT_DOMAIN}" ] && { err "Domain is required."; exit 1; }
+    [[ "${PROJECT_DOMAIN}" =~ \. ]] \
+        || { err "Invalid domain '${PROJECT_DOMAIN}': must contain at least one dot."; exit 1; }
 
     # Deploy user (system user that runs all containers; created if it doesn't exist)
+    # Show existing non-system users (UID >= 1000) for easy selection.
+    local _sys_users=()
+    while IFS=: read -r _uname _ _uid _; do
+        [[ "${_uid}" =~ ^[0-9]+$ ]] && [ "${_uid}" -ge 1000 ] && _sys_users+=("${_uname}")
+    done < /etc/passwd
+    step "Deploy User"
+    info "This user will own and run all containers (created if it does not exist)."
+    if [ ${#_sys_users[@]} -gt 0 ]; then
+        echo ""
+        info "Existing users on this system:"
+        local _ui=1
+        for _u in "${_sys_users[@]}"; do
+            printf "  ${CYAN}%d)${NC} %s\n" "${_ui}" "${_u}"
+            _ui=$((_ui + 1))
+        done
+        echo ""
+        info "Enter a number to select, or type any username (new user will be created)."
+    fi
     ask "Deploy user [${DEPLOY_USER}]:"
     read -r _user_input
-    DEPLOY_USER="${_user_input:-${DEPLOY_USER}}"
+    if [ -z "${_user_input}" ]; then
+        : # keep default
+    elif [[ "${_user_input}" =~ ^[0-9]+$ ]]; then
+        local _uidx=$((_user_input - 1))
+        if [[ ${_uidx} -ge 0 && ${_uidx} -lt ${#_sys_users[@]} ]]; then
+            DEPLOY_USER="${_sys_users[${_uidx}]}"
+        else
+            warn "Invalid number – keeping default: ${DEPLOY_USER}"
+        fi
+    else
+        DEPLOY_USER="${_user_input}"
+    fi
+    log "Deploy user: ${DEPLOY_USER}"
 
     # Server IP
     local detected_ip
@@ -972,6 +1086,8 @@ main() {
     fi
 
     # ── Phase 2: Install dependencies and fetch platform ────────────────────
+    check_sudo                  # detect sudo; may set SKIP_SETUP + DEPLOY_USER
+    check_network_prerequisites # firewall + port conflict warnings
     check_python
     check_git
     check_ansible
