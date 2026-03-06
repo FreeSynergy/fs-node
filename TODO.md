@@ -5,226 +5,137 @@ It is a working document, not a specification.
 
 ---
 
-## Architecture: Still Open
+## i18n – Installer Output Translation
 
-### Multi-Host Deployer Logic
-**Decision made:**
-- `deploy-stack.yml` reads ALL `*.project.yml` files in the project dir
-- For remote hosts: reads `*.{hostname}.yml` files
-- `sync-stack.yml` compares desired vs actual across all hosts (read-only)
-- `deploy-stack.yml` calls sync-stack then applies changes
-- `clean-stack.yml` removes orphans across all project hosts
-- Deploy supports `--local`, `--host {name}` flags
+The installer (`fsn-install.sh`) outputs all user-facing messages in English only.
 
 **TODO:**
-- Implement sync-stack.yml (read-only comparison)
-- Implement multi-host logic in deploy-stack.yml
-- Implement SSH connection to remote hosts for verification
-- Define output format for sync-stack (what does the report look like?)
+- Translate all `log()`, `warn()`, `err()`, `info()`, `ask()`, `step()` messages
+- Target: all European languages + the 20 most spoken languages worldwide
+- Detect system locale (`$LANG`, `$LC_ALL`) and select language automatically
+- Fallback to English if locale is not supported
+- Store translations as a separate `fsn-install-i18n.sh` (sourced by installer)
+  or inline as a `declare -A` lookup table
 
-### Proxy Route Collection
-**Decision made:** Marker-based KDL management.
-Deployer uses `FSN-MANAGED-START/END` markers per service.
-Only touches its own markers, never Control-Plane content.
-Zentinel hot-reload after changes (no restart).
-
-**TODO:**
-- Implement marker-based KDL template generation
-- Implement diff logic: compare marker blocks vs desired state
-- Trigger Zentinel hot-reload after KDL changes
-- Test coexistence with Control-Plane manual changes
-
-### Host File Location
-**Decision made:** Host files are git-ignored. Only `example.host.yml`
-is tracked in the repo. Each deployment creates its own host files.
-A host file is always required, even for localhost.
-The installer creates the host file automatically during setup.
-
-**TODO:**
-- Create `hosts/example.host.yml` template
-- Add `hosts/.gitignore` (ignore all except example*)
-- Installer must ask for IP and create host file
-
-### Module Constraints Enforcement
-**Decision made:**
-- Unique service names per project (duplicate = error, abort)
-- Constraints checked during sync-stack and deploy-stack
-- Checked across host file AND all project files on that host
-- Proxy in host file counts as a module for constraint checks
-
-**TODO:**
-- Implement constraint check in sync-stack.yml
-- Implement duplicate service name check per project
-- Clear error messages: "zentinel already running on this host (per_host: 1)"
-- Check constraints across: host file + all *.project.yml on this host
+**Languages (minimum):**
+- European: English, German, French, Spanish, Portuguese, Italian, Dutch, Polish,
+  Romanian, Hungarian, Czech, Slovak, Bulgarian, Croatian, Serbian, Greek,
+  Swedish, Norwegian, Danish, Finnish, Albanian, Slovenian, Estonian, Latvian, Lithuanian
+- Global top 20 by speakers: Mandarin, Hindi, Spanish, Arabic, Bengali, French,
+  Russian, Portuguese, Urdu, Indonesian, German, Japanese, Swahili, Marathi,
+  Telugu, Tamil, Turkish, Korean, Vietnamese, Italian
 
 ---
 
-## Installer: Mostly Decided
+## Code Quality – Comments and File Headers
 
-### Server Setup = Outside This Project
-Installing the OS (Butane/Ignition, provider-specific setup) is NOT
-part of FreeSynergy.Node. Prerequisite: server runs, SSH works.
-
-### fsn-install.sh (Bash Bootstrap)
-**Decision made:** Detects OS, installs Python3 + Ansible, hands off.
-
-Flow:
-```
-1. Detect OS (Debian/Ubuntu/Fedora/CoreOS/Arch...)
-2. Detect package manager (apt/dnf/rpm-ostree/pacman)
-3. Check Python3, install if missing
-4. Check Ansible, install if missing (pip or package manager)
-5. SSH key path (default: ~/.ssh/id_ed25519)
-6. Hand off to setup-server.yml
-```
+All files currently have inconsistent or missing headers and comments.
 
 **TODO:**
-- Implement OS detection logic
-- Implement package manager mapping
-- Handle pip vs system package for Ansible
+- Add a standardized English header to every file:
+  playbooks, tasks, module YAML files, shell scripts, templates, config files
+- Header format for YAML/Ansible files:
+  ```yaml
+  ---
+  # ==============================================================================
+  # FreeSynergy.Node – <Short description>
+  # File:    <relative path from repo root>
+  # Purpose: <one sentence>
+  # Called by: <who calls this>
+  # Variables required: <key vars>
+  # ==============================================================================
+  ```
+- Header format for shell scripts:
+  ```bash
+  # ==============================================================================
+  # FreeSynergy.Node – <Short description>
+  # File:    <relative path>
+  # Purpose: <one sentence>
+  # ==============================================================================
+  ```
+- All inline comments must be in English
+- Remove redundant comments (comments that just repeat what the code says)
+- Add comments where logic is non-obvious (Ansible set_fact scope, loop vars, etc.)
 
-### setup-server.yml (Ansible)
-**Decision made:** Prepares a running server for FreeSynergy.Node.
-
-Flow:
-```
-1. Check Podman version (minimum 5.0)
-2. Set net.ipv4.ip_unprivileged_port_start=80 in /etc/sysctl.d/
-3. Check/create deploy user (default: fsn)
-4. Enable loginctl enable-linger for the user
-5. Switch to deploy user
-6. Hand off to install-project.yml
-```
-
-**TODO:**
-- Implement setup-server.yml
-- Podman install logic per distro if not present
-
-### SSH Key Handling
-**Decision made:** Save SSH key path, never the key itself.
-Verification of key connectivity: nice to have, not critical.
+**Scope:** All files under `playbooks/`, `modules/`, `fsn-install.sh`, `playbooks/templates/`
 
 ---
 
-## Multi-Server Projects: Still Open
-
-### Deployer on Remote Hosts
-Currently all playbooks run on localhost. For remote hosts, the deployer
-needs to either SSH in or run on the remote host itself.
-
-**Open:**
-- Does each server run its own copy of the platform repo?
-- Or does one central machine SSH into all servers?
-- Recommendation: Each server runs its own deployer (decentralized)
-  but the initial setup can be done remotely
-
-### `{name}.{hostname}.yml` Files
-The file convention is defined but the deployer does not yet handle
-these files differently from `*.project.yml`.
+## Code Cleanup – File and Structure Review
 
 **TODO:**
-- Deployer copies `*.{hostname}.yml` to the target host
-- Containers ARE deployed on the remote host (not reference only)
-- The file is a full project file for that host
-- Config variables from the local project file are available for
-  cross-referencing (e.g. shared Kanidm URL)
+- Audit all module YAML files for consistency:
+  - Every module must have a `healthcheck` block
+  - Every module must have `health_path`, `health_port`, `health_scheme`
+  - Every module must have a `constraints` block
+- Audit all task files for:
+  - `loop_control` with `label` on every loop
+  - No raw `loop:` without `loop_control`
+  - `include_tasks` uses task-level `vars:` not `set_fact` for scope-sensitive data
+- Verify `.gitignore` covers all generated files (vault.yml, host files, data dirs)
+- Review module selection in installer: filter out infrastructure sub-modules
+  (dragonfly, postgres) from the interactive list — they are loaded automatically
 
 ---
 
-## Federation: Design Done, Implementation Open
+## Multi-Host Deploy
 
-### Decisions Made
-- Federation = mutual OIDC trust between autonomous Kanidm nodes
-- Every node is self-sufficient, no single point of failure
-- Signed provider list (Ed25519) distributed across nodes
-- Priority-based failover: if signer goes down, next node takes over
-- Invite tokens (Ed25519 signed) for partner onboarding
-- Trust levels 0-4, permissions managed via Kanidm groups
-- Module interface: `federation.enabled` + `federation.min_trust`
-- Project file: `{name}.federation.yml` (separate from project.yml)
-- Sub-projects: auto-generated project directory on host
+**Decision made:** Each server runs its own deployer. Central machine initiates
+setup via SSH; after that, servers are autonomous.
 
-### TODO: Implementation
+**TODO:**
+- Implement `{name}.{hostname}.yml` file handling in deploy-stack.yml
+- Copy project files to remote host and execute playbooks there
+- SSH connection verification step in the installer
+- `sync-stack.yml` must report status across all hosts in a project
 
-**Provider List:**
+---
+
+## Cloudflare DNS
+
+**TODO:**
+- Implement Cloudflare API calls in `dns-create-record.yml` (currently a fail-stub)
+- Implement Cloudflare record deletion in `dns-remove-record.yml`
+- Test with an actual Cloudflare API token
+
+---
+
+## Cache Slot Management
+
+**TODO:**
+- Scan all modules on a host for `cache_slot_*` environment variables
+- Assign slots sequentially (0–15) per dragonfly instance
+- When instance is full (16 slots used), create next instance (dragonfly-2)
+- Resolve `cache_host`, `cache_port`, `cache_slot_N` variables during Quadlet generation
+
+**Open decision:**
+- Should dragonfly be shared at project level (like postgres), or per-module?
+- Current model: each module that needs cache loads its own dragonfly sub-instance
+
+---
+
+## Federation
+
+**Decisions made:**
+- Mutual OIDC trust between autonomous Kanidm nodes
+- Ed25519-signed provider list distributed across nodes
+- Priority-based failover; invite tokens for partner onboarding
+- Trust levels 0–4 via Kanidm groups
+- `{name}.federation.yml` separate from project.yml
+
+**TODO:**
 - Implement Ed25519 signing/verification for provider list
-- Implement auto-update mechanism (fetch + verify + replace local copy)
-- Implement failover logic (try next priority when source unreachable)
-- Define how a new signer announces takeover to the network
-- Endpoint to serve the provider list (static file via Zentinel?)
-
-**Invite Tokens:**
-- Implement `fsn federation invite` command (generate signed token)
-- Implement `fsn federation join` command (redeem token at Kanidm)
-- Implement `fsn federation revoke` command (deactivate Kanidm group)
-- Define token format (JWT with Ed25519? Custom format?)
-
-**Kanidm Integration:**
-- Auto-create Kanidm groups from federation config
-- Map trust levels to Kanidm group permissions
-- Configure multiple OIDC providers per service (one per trusted issuer)
-- Test: what happens when an OIDC provider is unreachable?
-
-**Sub-Projects (Trust 4):**
-- Auto-generate project directory from federation.subprojects config
-- Set `parent:` and `managed_by: federation` in generated project file
-- DNS generation for sub-project subdomains
-- Cleanup when sub-project is removed
-
-**Playbooks:**
-- `federation-deploy.yml` – process federation.yml, create Kanidm groups
-- `federation-invite.yml` – generate invite token
-- `federation-revoke.yml` – deactivate partner
-- `federation-update-providers.yml` – fetch and verify provider list
-
-### Still Open
-
-**Q1: Provider list hosting**
-Where does the signed provider list live?
-- Static file served by Zentinel?
-- Dedicated lightweight endpoint?
-- Git repo that nodes pull from?
-
-**Q2: Takeover announcement**
-When priority 2 takes over as signer, how do other nodes know?
-- They just try the next URL and accept the new signature?
-- Or is there an explicit "takeover" message?
-- Recommendation: implicit – nodes try URLs in priority order,
-  accept any valid signature from a known public key
-
-**Q3: Token format**
-- JWT with Ed25519 signature? (standard, libraries exist)
-- Custom YAML-based format? (simpler, but no tooling)
-- Recommendation: JWT (widely supported, well-understood)
-
-**Q4: Future layers**
-VPN and Tor/I2P layers are architecturally compatible:
-- Zentinel gets additional listeners
-- Provider list can contain .onion addresses
-- Modules don't change (they don't know about transport)
-- Not designed yet, but nothing blocks it
-
----
-
-## Bugs to Fix
-
-No bugs yet – playbooks have not been created.
-When implementing, avoid these known pitfalls:
-
-| # | Pitfall | Correct approach |
-|---|---------|-----------------|
-| 1 | `import_playbook` inside a task | Use `include_role` or separate playbook step |
-| 2 | `hosts: localhost` hardcoded | Use variable `target_host` from inventory |
-| 3 | Missing inventory file | Generate inventory from host files |
-| 4 | Jinja2 env vars not resolved | Full variable resolver pass during Quadlet generation |
+- Implement auto-update mechanism (fetch + verify + replace)
+- Implement `fsn federation invite` / `join` / `revoke` commands
+- Implement Kanidm group auto-creation from federation config
+- Playbooks: `federation-deploy.yml`, `federation-invite.yml`, `federation-revoke.yml`
 
 ---
 
 ## Nice to Have (Later)
 
-- `fsn status` command: show all running services + health
-- Auto-update via `systemd timer` calling `update-stack.yml`
+- `fsn status` — show all running services + health
+- Auto-update via systemd timer calling `update-stack.yml`
 - Backup integration: Rustic/Restic hook after deploy
 - `fsn logs {instance}` shortcut
 - Web UI for non-technical users (much later)
@@ -232,55 +143,26 @@ When implementing, avoid these known pitfalls:
 
 ---
 
-## Cache Slot Management: TODO
-
-### Auto-Slot Assignment
-The deployer must automatically assign cache slots to services.
-
-**TODO:**
-- Scan all modules on a host for `cache_slot_*` environment variables
-- Assign slots sequentially (0-15) per dragonfly instance
-- When instance full (16 slots used), create next instance (dragonfly-2)
-- Resolve `cache_host`, `cache_port`, `cache_slot_N` variables during
-  Quadlet generation
-- No persistence needed – cache is ephemeral, slots can shift on re-deploy
-
-### Shared vs Per-Module Cache
-**Open:**
-- If postgres can be shared at project level, should dragonfly also
-  be shareable at project level?
-- Current model: each module loads its own dragonfly sub-instance
-- Alternative: one dragonfly at project level, modules reference via
-  `load.services`
-- This affects how slots are counted and assigned
-
----
-
 ## Decisions Already Made (for reference)
 
 | Topic | Decision |
 |-------|----------|
-| Installer language | Bash (bootstrap only) + Ansible (everything else) |
-| Port access | `net.ipv4.ip_unprivileged_port_start=80` – no sudo |
+| Installer language | Bash (bootstrap) + Ansible (everything else) |
+| Port access | `net.ipv4.ip_unprivileged_port_start=80` – no sudo needed |
 | Network isolation | Only Zentinel has external access |
 | SMTP/IMAP | Zentinel Layer-4 TCP forward to Stalwart |
-| Stalwart published_ports | REMOVED – Zentinel handles it |
+| Stalwart published_ports | Removed – Zentinel handles all external ports |
 | SSH key storage | Path only, never the key content |
-| Editor in installer | `$EDITOR` env var, fallback to `vi` |
 | Proxy location | Host file, not project file |
 | File naming | `{name}.project.yml` = local, `{name}.{host}.yml` = remote |
-| external flag | On host AND instance level independently |
-| Module constraints | Declared in module class, enforced by deployer |
+| Module constraints | Declared in module class YAML, enforced by deployer |
 | Federation | Designed: signed provider list, OIDC trust, priority failover |
-| Federation file | `{name}.federation.yml` separate from project file |
-| Federation auth | Kanidm groups + OIDC, Ed25519 signed invite tokens |
-| Cache slots | Auto-assigned, 16 per instance, overflow to new instance |
+| Cache slots | Auto-assigned, 16 per instance, overflow to new dragonfly instance |
 | load.services | Config access only, no container, module-level only |
-| Project-host files | Copied to remote host and executed there (not reference only) |
-| Proxy KDL management | Marker-based, deployer only touches own markers |
-| Host files in repo | Git-ignored, only example.host.yml tracked |
-| Host file required | Always, even for localhost. Created by installer |
-| Service name uniqueness | Must be unique per project, duplicate = abort |
-| Sync vs Deploy | sync-stack.yml (read-only) + deploy-stack.yml (sync + apply) |
-| Branding | project.branding block, git-tracked branding/ directory |
-| Plugins | Type-level, not module-level. Vars only, no containers |
+| Proxy KDL management | Marker-based; deployer only touches its own markers |
+| Host files in repo | Git-ignored; only `example.host.yml` is tracked |
+| Host file required | Always required, even for localhost; created by installer |
+| Service name uniqueness | Must be unique per project; duplicate = abort |
+| Sync vs Deploy | `sync-stack.yml` (read-only report) + `deploy-stack.yml` (sync + apply) |
+| vault.yml | Auto-generated on first install; never overwritten on re-run |
+| DNS token | Collected by installer wizard; baked directly into vault.yml |

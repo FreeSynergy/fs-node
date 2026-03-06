@@ -89,13 +89,17 @@ infrastructure-specific details that differ per deployment.
 project:
   name: "myproject"
   domain: "example.com"
+  contact:
+    acme_email: "admin@example.com"
 
-services:
-  - name: "git"
-    subdomain: "git"
-    module_class: "git/forgejo"
-    load:
-      services: ["database/postgres", "cache/dragonfly"]
+load:
+  modules:
+    zentinel:
+      module_class: "proxy/zentinel"
+    kanidm:
+      module_class: "auth/kanidm"
+    forgejo:
+      module_class: "git/forgejo"
 ```
 
 The same project name across multiple files = the same project on multiple hosts.
@@ -144,24 +148,29 @@ deploy-stack.yml
 
 ## Project Status
 
-**v0.0.1 — Architecture complete, deployment in progress**
+**v0.0.2 — First full install works end-to-end**
 
 | Component | Status |
 |---|---|
-| Module definitions (all 13 modules) | Done |
+| Module definitions (13 modules) | Done |
 | Project/host file schema | Done |
 | Ansible playbook structure | Done |
 | DNS management (Hetzner) | Done |
 | DNS reconciliation (rename cleanup) | Done |
 | Bootstrap installer (`fsn-install.sh`) | Done |
 | Quadlet generation | Done |
-| Deploy/undeploy playbooks | Stub (in progress) |
-| Proxy route collection (KDL markers) | In progress |
+| Deploy / undeploy / remove / restart / update | Done |
+| Sub-module lifecycle (postgres, dragonfly) | Done |
+| Proxy route collection (KDL marker system) | Done |
+| vault.yml auto-generation | Done |
+| Constraint enforcement (per\_host) | Done |
+| Ansible Galaxy collections auto-install | Done |
 | Multi-host deploy | Planned |
 | Federation | Designed, not yet implemented |
-| Cloudflare DNS | Stub (planned) |
+| Cloudflare DNS | Planned |
+| i18n (installer messages) | Planned |
 
-ansible-lint: **0 failures, 0 warnings** (Production Profile, 69 files)
+ansible-lint: **0 failures, 0 warnings** (Production Profile)
 
 ---
 
