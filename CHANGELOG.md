@@ -6,6 +6,23 @@ was sich geändert hat.
 
 ---
 
+## 2026-03-06 – Claude Code – Blocker-Fixes: vault.yml-Generierung, cache-Passwort, umap DB
+
+**Neue Datei:**
+- `playbooks/templates/vault.yml.j2` – Vault-Template mit auto-generierten Passwörtern (einmalig, idempotent)
+
+**Geänderte Dateien:**
+- `playbooks/install-project.yml` – Generiert `projects/<name>/vault.yml` wenn nicht vorhanden (chmod 600)
+- `playbooks/tasks/resolve-service.yml` – Fügt `vault_cache_password` ins services-Dict ein (war vergessen)
+- `modules/maps/umap/umap.yml` – `DATABASE_URL` und `REDIS_URL` nutzen jetzt `services.*.vault_*` statt eigene vault-Variablen
+
+**Was die Fixes beheben:**
+1. `vault.yml` wird beim `install` einmalig auto-generiert; Passwörter sind sofort einsatzbereit
+2. `services.cache.vault_cache_password` ist jetzt auflösbar (Forgejo, Outline, Vikunja, Pretix)
+3. umap's postgres-Passwort stimmt jetzt mit dem postgres-Container überein (war: `vault_umap_db_password` vs. `vault_db_password`)
+
+---
+
 ## 2026-03-05 – Claude Code – Bugfixes: services-Dict, environment-Template, postgres
 
 **Neue Datei:**

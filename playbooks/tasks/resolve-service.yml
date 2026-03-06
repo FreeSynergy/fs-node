@@ -28,5 +28,6 @@
         'port': (_svc_cfg.module.port | default(0)) | int,
         'db_name': instance_name,
         'db_user': instance_name,
-        'vault_db_password': vault_db_password | default('')
+        'vault_db_password': vault_db_password | default(''),
+        'vault_cache_password': vault_cache_password | default('')
       }}) }}

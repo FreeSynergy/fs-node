@@ -69,13 +69,13 @@ environment:
   # uMap needs PostGIS, not plain Postgres
   # The postgres module should use postgis/postgis image for this instance
   DATABASE_URL: >-
-    postgis://{{ vault_umap_db_user | default('umap') }}:{{ vault_umap_db_password }}@{{
-    services.postgres.container_name }}:{{ services.postgres.port }}/{{ umap_db_name | default('umap') }}
+    postgis://{{ services.postgres.db_user }}:{{ services.postgres.vault_db_password }}@{{
+    services.postgres.container_name }}:{{ services.postgres.port }}/{{ services.postgres.db_name }}
 
   # ------------------------------------------------------------------
   # Cache (Dragonfly via Redis protocol)
   # ------------------------------------------------------------------
-  REDIS_URL: "redis://:{{ vault_dragonfly_password }}@{{ services.dragonfly.container_name }}:{{ services.dragonfly.port }}/0"
+  REDIS_URL: "redis://:{{ services.dragonfly.vault_cache_password }}@{{ services.dragonfly.container_name }}:{{ services.dragonfly.port }}/0"
 
   # ------------------------------------------------------------------
   # Static and media files

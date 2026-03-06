@@ -30,6 +30,18 @@
         - "{{ project_root }}/data"
         - "{{ project_root }}/branding"
 
+    - name: "Check if vault file already exists"
+      ansible.builtin.stat:
+        path: "{{ project_root }}/vault.yml"
+      register: vault_file_check
+
+    - name: "Generate vault.yml with auto-generated secrets"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/vault.yml.j2"
+        dest: "{{ project_root }}/vault.yml"
+        mode: "0600"
+      when: not vault_file_check.stat.exists
+
     - name: "Generate config examples for each module"
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/generate-single-example.yml"
       loop: "{{ project_cfg.load.modules | dict2items }}"
