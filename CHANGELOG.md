@@ -6,6 +6,23 @@ was sich geändert hat.
 
 ---
 
+## 2026-03-06 – Claude Code – DNS-Vars-Fix in Stack-Playbooks
+
+**Was fehlte:**
+Die Zentinel-Deploy-Hook `deploy-dns.yml` referenziert `project_services`, `dns_provider` und `dns_api_token` – diese Variablen wurden in keinem Stack-Playbook gesetzt. DNS-Hooks wären sofort mit `undefined variable` fehlgeschlagen.
+
+**Geänderte Dateien:**
+- `playbooks/deploy-stack.yml` – `dns_provider` (aus Host-Datei), `dns_api_token` (aus Vault), `project_services` (Liste aller Top-Level-Module) hinzugefügt
+- `playbooks/undeploy-stack.yml` – Host-Datei lesen + dieselben DNS-Vars gesetzt (für undeploy-dns.yml Hook beim Stoppen)
+- `playbooks/remove-stack.yml` – Gleicher Block wie undeploy (konsistent + future-proof)
+
+**Details:**
+- `dns_provider` kommt aus `host_cfg.host.proxy.zentinel.load.plugins.dns` (z.B. `"hetzner"`)
+- `dns_api_token` wird daraus abgeleitet: hetzner → `vault_hetzner_dns_token`, cloudflare → `vault_cloudflare_api_token`
+- `project_services` = Liste von `{subdomain: <key>, aliases: []}` für alle Module aus `project_cfg.load.modules`
+
+---
+
 ## 2026-03-06 – Claude Code – Ansible Collections + Installer Fix
 
 **Neue Datei:**
