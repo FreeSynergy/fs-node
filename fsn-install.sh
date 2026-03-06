@@ -6,6 +6,7 @@
 #   1. Ask all setup questions FIRST (no downloads during the wizard)
 #   2. Check and install required tools (git, python3, ansible)
 #   3. Clone the FreeSynergy.Node repo to the chosen directory
+#      (skipped if the script is already running from inside the repo)
 #   4. Generate project and host config files
 #   5. Run the platform setup and deployment playbooks
 #
@@ -45,9 +46,18 @@ set -euo pipefail
 # --- Canonical repository (update when forking) ---
 FSN_DEFAULT_REPO="https://github.com/FreeSynergyNet/FreeSynergy.Node"
 
+# --- Detect whether this script is running from inside the FSN repo ---
+# If yes, we skip cloning and use the current directory as FSN_ROOT.
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || pwd)"
+if [ -f "${_SCRIPT_DIR}/playbooks/deploy-stack.yml" ]; then
+    _FSN_IN_REPO=true
+else
+    _FSN_IN_REPO=false
+fi
+
 # --- Built-in module list (mirrors modules/ directory in the repo) ---
-# Sub-modules (postgres, dragonfly) are excluded – they load automatically.
-# Update this list when new modules are added to the repo.
+# postgres and dragonfly can be selected explicitly AND also load automatically
+# as sub-modules when required by other services.
 FSN_MODULES_BUILTIN=(
     "proxy/zentinel:Reverse proxy + automatic TLS + DNS  [required for all setups]"
     "auth/kanidm:Identity provider (OIDC, OAuth2, WebAuthn)"
@@ -61,6 +71,8 @@ FSN_MODULES_BUILTIN=(
     "maps/umap:Self-hosted OpenStreetMap instance"
     "observability/openobserver:Metrics, logs, traces"
     "observability/otel-collector:OpenTelemetry collector"
+    "database/postgres:PostgreSQL database  [also loads automatically as sub-module]"
+    "cache/dragonfly:Redis-compatible cache  [also loads automatically as sub-module]"
 )
 
 # --- Colors ---
@@ -207,6 +219,19 @@ install_collections() {
 fetch_platform() {
     step "Fetching FreeSynergy.Node"
 
+    # If running from inside the repo, update in place instead of cloning.
+    if ${_FSN_IN_REPO}; then
+        log "Running from inside FSN repo – using current directory."
+        if [ -d "${FSN_TARGET}/.git" ]; then
+            log "Pulling latest changes..."
+            git -C "${FSN_TARGET}" pull --ff-only \
+                || warn "git pull failed – continuing with current version."
+        fi
+        FSN_ROOT="${FSN_TARGET}"
+        log "Platform ready at: ${FSN_ROOT}"
+        return
+    fi
+
     if [ "${FSN_REPO}" = "${FSN_DEFAULT_REPO}" ]; then
         info "Repo:   ${FSN_REPO}"
     else
@@ -235,14 +260,22 @@ select_dns_provider() {
     info "Which DNS provider manages your domain?"
     info "  1) Hetzner DNS"
     info "  2) Cloudflare"
-    ask "Choose [1/2, default: 1]:"
+    info "  3) None (manage DNS records manually)"
+    ask "Choose [1/2/3, default: 1]:"
     read -r _dns_choice
 
     case "${_dns_choice}" in
         2) DNS_PROVIDER="cloudflare" ;;
+        3) DNS_PROVIDER="none" ;;
         *) DNS_PROVIDER="hetzner" ;;
     esac
     log "DNS provider: ${DNS_PROVIDER}"
+
+    if [ "${DNS_PROVIDER}" = "none" ]; then
+        warn "DNS automation disabled. You will need to create DNS records manually."
+        DNS_TOKEN=""
+        return
+    fi
 
     local token_label
     case "${DNS_PROVIDER}" in
@@ -263,21 +296,40 @@ select_dns_provider() {
     fi
 }
 
-# Ask user to choose an ACME / SSL certificate provider.
-# Sets: ACME_PROVIDER
+# Ask user to choose an ACME / SSL certificate provider and collect the contact email.
+# Sets: ACME_PROVIDER, PROJECT_EMAIL
 select_acme_provider() {
     step "SSL Certificates (ACME)"
     info "Which provider should issue SSL certificates?"
     info "  1) Let's Encrypt – free, public CA  [default]"
     info "  2) Smallstep CA  – self-hosted CA"
-    ask "Choose [1/2, default: 1]:"
+    info "  3) None (manage certificates manually)"
+    ask "Choose [1/2/3, default: 1]:"
     read -r _acme_choice
 
     case "${_acme_choice}" in
         2) ACME_PROVIDER="smallstep-ca" ;;
+        3) ACME_PROVIDER="none" ;;
         *) ACME_PROVIDER="letsencrypt" ;;
     esac
     log "ACME provider: ${ACME_PROVIDER}"
+
+    if [ "${ACME_PROVIDER}" = "none" ]; then
+        warn "ACME disabled. You will need to provide TLS certificates manually."
+        return
+    fi
+
+    echo ""
+    info "The ACME provider sends certificate expiry warnings to this address."
+    ask "Contact email for ${ACME_PROVIDER} (recommended, press Enter to skip):"
+    read -r _acme_email
+    if [ -n "${_acme_email}" ]; then
+        PROJECT_EMAIL="${_acme_email}"
+        log "ACME contact email: ${PROJECT_EMAIL}"
+    else
+        warn "No email entered – certificate expiry notifications disabled."
+        PROJECT_EMAIL=""
+    fi
 }
 
 # Display the built-in module list and let the user pick which ones to install.
@@ -301,7 +353,8 @@ select_modules() {
         i=$((i + 1))
     done
     echo ""
-    info "Note: sub-modules (postgres, dragonfly) load automatically – not listed here."
+    info "Note: postgres and dragonfly also load automatically when required"
+    info "      by other services. You can still select them for a standalone install."
     echo ""
     ask "Enter numbers separated by spaces, or 'all':"
     read -r _selection
@@ -418,18 +471,21 @@ generate_host_yml() {
 show_setup_summary() {
     echo ""
     echo -e "${BOLD}━━ Setup Summary ${NC}"
-    info "Install to:  ${FSN_TARGET}"
-    info "Repo:        ${FSN_REPO}"
-    info "Project:     ${PROJECT_NAME}"
-    info "Domain:      ${PROJECT_DOMAIN}"
-    info "Email:       ${PROJECT_EMAIL:-(none)}"
-    info "Server IP:   ${SERVER_IP:-(not detected)}"
-    info "DNS:         ${DNS_PROVIDER}"
-    info "ACME:        ${ACME_PROVIDER}"
+    info "Install to:    ${FSN_TARGET}"
+    info "Repo:          ${FSN_REPO}"
+    info "Project:       ${PROJECT_NAME}"
+    info "Domain:        ${PROJECT_DOMAIN}"
+    info "Deploy user:   ${DEPLOY_USER}"
+    info "Server IP:     ${SERVER_IP:-(not detected)}"
+    info "DNS:           ${DNS_PROVIDER}"
+    info "ACME:          ${ACME_PROVIDER}"
+    if [ "${ACME_PROVIDER}" != "none" ]; then
+        info "ACME email:    ${PROJECT_EMAIL:-(none)}"
+    fi
     if [ -n "${DNS_TOKEN:-}" ]; then
-        info "DNS Token:   (entered, hidden)"
-    else
-        info "DNS Token:   (not entered)"
+        info "DNS Token:     (entered, hidden)"
+    elif [ "${DNS_PROVIDER}" != "none" ]; then
+        info "DNS Token:     (not entered)"
     fi
     if [ ${#SELECTED_MODULES[@]} -gt 0 ]; then
         info "Modules (${#SELECTED_MODULES[@]}):"
@@ -437,7 +493,7 @@ show_setup_summary() {
             info "  · ${m}"
         done
     else
-        info "Modules:     (none selected)"
+        info "Modules:       (none selected)"
     fi
     echo ""
     ask "Proceed with these settings? [Y/n]:"
@@ -447,8 +503,9 @@ show_setup_summary() {
 
 # Full interactive setup wizard.
 # Collects all configuration BEFORE any downloads or file writes.
-# Variables set: FSN_TARGET, PROJECT_NAME, PROJECT_DOMAIN, PROJECT_EMAIL,
-#                SERVER_IP, DNS_PROVIDER, DNS_TOKEN, ACME_PROVIDER, SELECTED_MODULES
+# Variables set: FSN_TARGET, FSN_REPO, PROJECT_NAME, PROJECT_DOMAIN, PROJECT_EMAIL,
+#                DEPLOY_USER, SERVER_IP, DNS_PROVIDER, DNS_TOKEN, ACME_PROVIDER,
+#                SELECTED_MODULES
 setup_project_interactive() {
     step "Project Setup Wizard"
     info "Answer a few questions to configure your deployment."
@@ -457,14 +514,25 @@ setup_project_interactive() {
     echo ""
 
     # Install directory
-    local default_target="${HOME}/FreeSynergy.Node"
+    # Default: the current directory when inside the repo, otherwise ./FreeSynergy.Node
+    local default_target
+    if ${_FSN_IN_REPO}; then
+        default_target="${_SCRIPT_DIR}"
+    else
+        default_target="$(pwd)/FreeSynergy.Node"
+    fi
     ask "Install directory [${default_target}]:"
     read -r _target_input
     FSN_TARGET="${_target_input:-${default_target}}"
 
-    # Repository source (show, don't ask – can be overridden with --repo flag)
-    if [ "${FSN_REPO}" = "${FSN_DEFAULT_REPO}" ]; then
-        info "Using official FSN repo. Override with: --repo YOUR_FORK_URL"
+    # Repository source – show current, offer to change
+    info "Repository: ${FSN_REPO}"
+    ask "Use a different repository? [y/N]:"
+    read -r _repo_ans
+    if [[ "${_repo_ans,,}" == "y"* ]]; then
+        ask "Repository URL:"
+        read -r _repo_url
+        [ -n "${_repo_url}" ] && FSN_REPO="${_repo_url}"
     fi
 
     # Project name
@@ -477,10 +545,10 @@ setup_project_interactive() {
     read -r PROJECT_DOMAIN
     [ -z "${PROJECT_DOMAIN}" ] && { err "Domain is required."; exit 1; }
 
-    # Contact email (for Let's Encrypt cert expiry notifications)
-    ask "Contact email for SSL notifications (recommended, press Enter to skip):"
-    read -r PROJECT_EMAIL
-    [ -z "${PROJECT_EMAIL}" ] && warn "No email entered – Let's Encrypt notifications disabled."
+    # Deploy user (system user that runs all containers; created if it doesn't exist)
+    ask "Deploy user [${DEPLOY_USER}]:"
+    read -r _user_input
+    DEPLOY_USER="${_user_input:-${DEPLOY_USER}}"
 
     # Server IP
     local detected_ip
@@ -567,30 +635,40 @@ collect_secrets() {
         echo "# Do NOT commit this file. It is git-ignored."
     } > "${tmp_secrets}"
 
-    # DNS token: reuse from wizard if already collected, otherwise ask
-    if [ -n "${DNS_TOKEN:-}" ]; then
+    if [ "${DNS_PROVIDER:-none}" = "none" ]; then
+        log "DNS provider is 'none' – skipping DNS token collection."
+    elif [ -n "${DNS_TOKEN:-}" ]; then
+        # Token already collected in wizard – reuse it
         case "${DNS_PROVIDER:-hetzner}" in
             hetzner)    echo "vault_hetzner_dns_token: \"${DNS_TOKEN}\"" >> "${tmp_secrets}" ;;
             cloudflare) echo "vault_cloudflare_api_token: \"${DNS_TOKEN}\"" >> "${tmp_secrets}" ;;
         esac
         log "DNS token saved from wizard (${DNS_PROVIDER:-hetzner})."
     else
+        # Provider is set but token was not entered in the wizard – ask now
         info "Input is hidden (you will not see what you type). Press Enter when done."
-        ask "Hetzner DNS API Token (press Enter to skip):"
-        read -rs _hz_token; echo
-        if [ -n "${_hz_token}" ]; then
-            echo "vault_hetzner_dns_token: \"${_hz_token}\"" >> "${tmp_secrets}"
-            log "Hetzner token saved."
-        else
-            warn "No Hetzner token entered."
-        fi
-
-        ask "Cloudflare API Token (press Enter to skip):"
-        read -rs _cf_token; echo
-        if [ -n "${_cf_token}" ]; then
-            echo "vault_cloudflare_api_token: \"${_cf_token}\"" >> "${tmp_secrets}"
-            log "Cloudflare token saved."
-        fi
+        case "${DNS_PROVIDER:-hetzner}" in
+            hetzner)
+                ask "Hetzner DNS API Token (press Enter to skip):"
+                read -rs _hz_token; echo
+                if [ -n "${_hz_token}" ]; then
+                    echo "vault_hetzner_dns_token: \"${_hz_token}\"" >> "${tmp_secrets}"
+                    log "Hetzner token saved."
+                else
+                    warn "No Hetzner token entered."
+                fi
+                ;;
+            cloudflare)
+                ask "Cloudflare API Token (press Enter to skip):"
+                read -rs _cf_token; echo
+                if [ -n "${_cf_token}" ]; then
+                    echo "vault_cloudflare_api_token: \"${_cf_token}\"" >> "${tmp_secrets}"
+                    log "Cloudflare token saved."
+                else
+                    warn "No Cloudflare token entered."
+                fi
+                ;;
+        esac
     fi
 
     mv "${tmp_secrets}" "${secrets_file}"
@@ -787,13 +865,16 @@ run_playbooks() {
     local secrets_file="${FSN_ROOT}/hosts/secrets.yml"
     local secrets_args=()
     local project_args=()
+    local user_args=()
 
     [ -f "${secrets_file}" ] && secrets_args=(-e "@${secrets_file}")
     [ -n "${FSN_PROJECT:-}" ] && project_args=(-e "project_config=${FSN_PROJECT}")
+    [ -n "${DEPLOY_USER:-}" ] && user_args=(-e "deploy_user=${DEPLOY_USER}")
 
     if [ "${SKIP_SETUP:-false}" != "true" ]; then
         log "Step 1/4 – setup-server.yml"
-        ansible-playbook "${pb}/setup-server.yml" "${secrets_args[@]}"
+        ansible-playbook "${pb}/setup-server.yml" \
+            "${user_args[@]}" "${secrets_args[@]}"
     else
         info "Skipping setup-server.yml (--skip-setup)"
     fi
@@ -842,6 +923,7 @@ main() {
     PROJECT_NAME=""
     PROJECT_DOMAIN=""
     PROJECT_EMAIL=""
+    DEPLOY_USER="fsn"
     SERVER_IP=""
     DNS_PROVIDER="hetzner"
     DNS_TOKEN=""
@@ -881,7 +963,11 @@ main() {
 
     # Ensure FSN_TARGET is set even when --project or --config was given
     if [ -z "${FSN_TARGET}" ]; then
-        FSN_TARGET="${HOME}/FreeSynergy.Node"
+        if ${_FSN_IN_REPO}; then
+            FSN_TARGET="${_SCRIPT_DIR}"
+        else
+            FSN_TARGET="$(pwd)/FreeSynergy.Node"
+        fi
         info "Install target: ${FSN_TARGET}  (override with --target)"
     fi
 
