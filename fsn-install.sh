@@ -156,6 +156,18 @@ check_ansible() {
     fi
 }
 
+# --- Install required Ansible Galaxy collections ---
+install_collections() {
+    step "Installing Ansible Collections"
+    local req_file="${FSN_ROOT}/requirements.yml"
+    if [ -f "${req_file}" ]; then
+        log "Installing collections from requirements.yml..."
+        ansible-galaxy collection install -r "${req_file}"
+    else
+        warn "requirements.yml not found – skipping collection install"
+    fi
+}
+
 # --- Clone or update the platform repo ---
 fetch_platform() {
     step "Fetching FreeSynergy.Node"
@@ -606,6 +618,7 @@ main() {
     check_git
     check_ansible
     fetch_platform
+    install_collections
 
     # Project configuration – three modes:
     #   1. --config FILE  → import external project.yml, skip wizard

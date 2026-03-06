@@ -6,6 +6,19 @@ was sich geändert hat.
 
 ---
 
+## 2026-03-06 – Claude Code – Ansible Collections + Installer Fix
+
+**Neue Datei:**
+- `requirements.yml` – Deklariert `ansible.posix` (≥1.5) und `community.general` (≥8.0)
+
+**Geänderte Datei:**
+- `fsn-install.sh` – `install_collections()` Funktion hinzugefügt; wird nach `fetch_platform` aufgerufen
+
+**Was das behebt:**
+`setup-server.yml` benutzt `ansible.posix.sysctl` und `community.general.pacman`. Ohne Collections schlägt der Setup-Step komplett fehl. Jetzt werden sie automatisch via `ansible-galaxy collection install -r requirements.yml` installiert.
+
+---
+
 ## 2026-03-06 – Claude Code – Playbook Architektur-Review: 11 Dateien
 
 **Kritischer Bug behoben – set_fact scope in deploy-module.yml:**
