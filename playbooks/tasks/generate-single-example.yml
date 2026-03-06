@@ -19,4 +19,4 @@
     dest: "{{ project_root }}/configs/{{ instance_name }}/{{ instance_name }}.example.env"
     mode: "0644"
   vars:
-    tpl_environment: "{{ example_module_cfg.environment | default({}) }}"
+    module_environment: "{{ example_module_cfg.environment | default({}) }}"

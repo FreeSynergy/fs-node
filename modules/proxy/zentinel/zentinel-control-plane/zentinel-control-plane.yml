@@ -37,6 +37,13 @@ container:
     - "{{ module_vars.config_dir }}/data:/data:Z"
   published_ports: []
 
+  healthcheck:
+    cmd: "wget -qO- http://localhost:8080/health || exit 1"
+    interval: "30s"
+    timeout: "5s"
+    retries: 3
+    start_period: "15s"
+
 environment:
   ZENTINEL_API_URL: "http://{{ services.zentinel.container_name }}:{{ services.zentinel.port }}"
   ZENTINEL_CP_PORT: "8080"

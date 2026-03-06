@@ -94,6 +94,11 @@
 
     - name: "Generate Quadlet"
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/generate-quadlet.yml"
+      vars:
+        container_dependencies: >-
+          {{ module_cfg.load.modules | default({}) | list
+             | map('regex_replace', '(.*)', instance_name ~ '-\1')
+             | list }}
 
     - name: "Reload systemd user daemon"
       ansible.builtin.systemd:

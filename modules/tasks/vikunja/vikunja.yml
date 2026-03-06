@@ -81,7 +81,7 @@ environment:
   # ------------------------------------------------------------------
   VIKUNJA_REDIS_ENABLED: "true"
   VIKUNJA_REDIS_HOST: "{{ services.dragonfly.container_name }}:{{ services.dragonfly.port }}"
-  VIKUNJA_REDIS_PASSWORD: "{{ vault_dragonfly_password }}"
+  VIKUNJA_REDIS_PASSWORD: "{{ services.dragonfly.vault_cache_password }}"
   VIKUNJA_REDIS_DB: "{{ vikunja_redis_db | default('3') }}"
 
   # ------------------------------------------------------------------

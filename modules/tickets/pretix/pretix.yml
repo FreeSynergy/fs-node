@@ -98,20 +98,20 @@ environment:
   PRETIX_DATABASE_HOST: "{{ services.postgres.container_name }}"
   PRETIX_DATABASE_PORT: "{{ services.postgres.port }}"
   PRETIX_DATABASE_NAME: "{{ pretix_db_name | default('pretix') }}"
-  PRETIX_DATABASE_USER: "{{ vault_pretix_db_user | default('pretix') }}"
-  PRETIX_DATABASE_PASSWORD: "{{ vault_pretix_db_password }}"
+  PRETIX_DATABASE_USER: "{{ services.postgres.db_user }}"
+  PRETIX_DATABASE_PASSWORD: "{{ services.postgres.vault_db_password }}"
 
   # ------------------------------------------------------------------
   # Cache (Dragonfly via Redis protocol)
   # ------------------------------------------------------------------
-  PRETIX_REDIS_LOCATION: "redis://:{{ vault_dragonfly_password }}@{{ services.dragonfly.container_name }}:{{ services.dragonfly.port }}/4"
+  PRETIX_REDIS_LOCATION: "redis://:{{ services.dragonfly.vault_cache_password }}@{{ services.dragonfly.container_name }}:{{ services.dragonfly.port }}/4"
   PRETIX_REDIS_SESSIONS: "true"
 
   # ------------------------------------------------------------------
   # Celery (task queue via Dragonfly)
   # ------------------------------------------------------------------
-  PRETIX_CELERY_BROKER: "redis://:{{ vault_dragonfly_password }}@{{ services.dragonfly.container_name }}:{{ services.dragonfly.port }}/5"
-  PRETIX_CELERY_BACKEND: "redis://:{{ vault_dragonfly_password }}@{{ services.dragonfly.container_name }}:{{ services.dragonfly.port }}/6"
+  PRETIX_CELERY_BROKER: "redis://:{{ services.dragonfly.vault_cache_password }}@{{ services.dragonfly.container_name }}:{{ services.dragonfly.port }}/5"
+  PRETIX_CELERY_BACKEND: "redis://:{{ services.dragonfly.vault_cache_password }}@{{ services.dragonfly.container_name }}:{{ services.dragonfly.port }}/6"
 
   # ------------------------------------------------------------------
   # Mail (Stalwart)

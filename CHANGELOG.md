@@ -6,6 +6,25 @@ was sich geändert hat.
 
 ---
 
+## 2026-03-06 – Claude Code – Code-Review Fixes: 6 Fehler behoben
+
+**Geänderte Dateien:**
+- `modules/tickets/pretix/pretix.yml` – `vault_dragonfly_password` → `services.dragonfly.vault_cache_password`; DB → `services.postgres.*`
+- `modules/tasks/vikunja/vikunja.yml` – `vault_dragonfly_password` → `services.dragonfly.vault_cache_password`
+- `playbooks/templates/vault.yml.j2` – `vault_pretix_db_password` entfernt; `vault_vikunja_mailer_*` und `vault_pretix_mail_*` als optionale Leer-Felder ergänzt
+- `modules/proxy/zentinel/zentinel-control-plane/zentinel-control-plane.yml` – `healthcheck` Block hinzugefügt
+- `playbooks/tasks/generate-single-example.yml` – Bug: `tpl_environment` → `module_environment`
+- `playbooks/tasks/deploy-module.yml` – `container_dependencies` bei Quadlet-Generierung gesetzt
+
+**Was die Fixes beheben:**
+1. pretix/vikunja: Dragonfly-Verbindung funkioniert jetzt (richtiger Variablenname)
+2. pretix: DB-Passwort stimmt mit postgres-Container überein
+3. zentinel-control-plane: Healthcheck war als einziges Modul fehlend
+4. Config-Beispiele enthalten jetzt alle Umgebungsvariablen (waren leer)
+5. Systemd-Startup-Reihenfolge: Sub-Module starten VOR der App (`After=`/`Requires=`)
+
+---
+
 ## 2026-03-06 – Claude Code – Blocker-Fixes: vault.yml-Generierung, cache-Passwort, umap DB
 
 **Neue Datei:**

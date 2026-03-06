@@ -39,12 +39,17 @@ vault_umap_secret_key: "{{ lookup('password', '/dev/null chars=ascii_letters,dig
 vault_vikunja_jwt_secret: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
 vault_vikunja_oidc_client_id: "vikunja"
 vault_vikunja_oidc_client_secret: "CHANGE_ME"   # fill after Kanidm is deployed
+# Optional – leave empty to disable mail notifications:
+vault_vikunja_mailer_user: ""
+vault_vikunja_mailer_password: ""
 
 # ── OpenObserve ───────────────────────────────────────────────────────────────
 vault_openobserver_admin_password: "CHANGE_ME"
 
 # ── Pretix ────────────────────────────────────────────────────────────────────
-vault_pretix_db_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+# Optional – leave empty to disable mail:
+vault_pretix_mail_user: ""
+vault_pretix_mail_password: ""
 
 # ── Zentinel / Proxy ──────────────────────────────────────────────────────────
 vault_zentinel_cp_oidc_client_id: "zentinel-cp"
