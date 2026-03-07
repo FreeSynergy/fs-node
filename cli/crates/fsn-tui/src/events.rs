@@ -8,6 +8,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKi
 use crate::app::{AppState, FormFieldType, FormTab, LogsState, NewProjectForm, Screen, ServiceStatus};
 
 pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
+    // Update ctrl-hint display (switches hint bar to show Ctrl shortcuts)
+    state.ctrl_hint = key.modifiers.contains(KeyModifiers::CONTROL);
+
     // Global: Ctrl-C always quits
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
         state.should_quit = true;
@@ -67,18 +70,8 @@ fn handle_new_project(key: KeyEvent, state: &mut AppState) -> Result<()> {
 
     match key.code {
         KeyCode::Esc => {
-            if let Some(ref mut form) = state.new_project {
-                if form.active_tab > 0 {
-                    // Go back one tab — data is preserved
-                    form.prev_tab();
-                    form.error = None;
-                } else {
-                    // On first tab: go back to Welcome, keep form data in case user returns
-                    state.screen = Screen::Welcome;
-                }
-            } else {
-                state.screen = Screen::Welcome;
-            }
+            // Close modal entirely; form data is preserved in state.new_project
+            state.screen = Screen::Welcome;
         }
 
         // Tab switches to next field
@@ -95,25 +88,32 @@ fn handle_new_project(key: KeyEvent, state: &mut AppState) -> Result<()> {
             }
         }
 
-        // Left arrow: previous tab (only when not in text field, or always)
-        KeyCode::Left => {
+        // Ctrl+Left: previous tab
+        KeyCode::Left if key.modifiers.contains(KeyModifiers::CONTROL) => {
             if let Some(ref mut form) = state.new_project {
-                if !is_text_field(form) {
-                    form.prev_tab();
-                } else {
-                    form.cursor_left();
-                }
+                form.prev_tab();
+                form.error = None;
             }
         }
 
-        // Right arrow: next tab or cursor right
+        // Ctrl+Right: next tab
+        KeyCode::Right if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            if let Some(ref mut form) = state.new_project {
+                form.next_tab();
+                form.error = None;
+            }
+        }
+
+        // Left/Right without Ctrl: cursor movement in text fields
+        KeyCode::Left => {
+            if let Some(ref mut form) = state.new_project {
+                form.cursor_left();
+            }
+        }
+
         KeyCode::Right => {
             if let Some(ref mut form) = state.new_project {
-                if !is_text_field(form) {
-                    form.next_tab();
-                } else {
-                    form.cursor_right();
-                }
+                form.cursor_right();
             }
         }
 

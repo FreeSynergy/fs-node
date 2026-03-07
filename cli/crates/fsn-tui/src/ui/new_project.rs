@@ -250,8 +250,9 @@ fn render_error(f: &mut Frame, state: &AppState, form: &NewProjectForm, area: Re
 // ── Hint bar ──────────────────────────────────────────────────────────────────
 
 fn render_hint(f: &mut Frame, state: &AppState, area: Rect) {
+    let key = if state.ctrl_hint { "form.hint.ctrl" } else { "form.hint" };
     f.render_widget(
-        Paragraph::new(Line::from(Span::styled(state.t("form.hint"), Style::default().fg(Color::DarkGray))))
+        Paragraph::new(Line::from(Span::styled(state.t(key), Style::default().fg(Color::DarkGray))))
             .alignment(Alignment::Center),
         area,
     );

@@ -72,19 +72,17 @@ impl ServiceStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FormTab {
     Project = 0,
-    Server  = 1,
-    Options = 2,
+    Options = 1,
 }
 
 impl FormTab {
     pub fn from_index(i: usize) -> Self {
-        match i { 1 => FormTab::Server, 2 => FormTab::Options, _ => FormTab::Project }
+        match i { 1 => FormTab::Options, _ => FormTab::Project }
     }
-    pub fn count() -> usize { 3 }
+    pub fn count() -> usize { 2 }
     pub fn i18n_key(self) -> &'static str {
         match self {
             FormTab::Project => "form.tab.project",
-            FormTab::Server  => "form.tab.server",
             FormTab::Options => "form.tab.options",
         }
     }
@@ -115,6 +113,8 @@ pub struct FormField {
     pub value:      String,
     /// Cursor position within `value`
     pub cursor:     usize,
+    /// True once the user has manually edited this field (disables auto-fill).
+    pub dirty:      bool,
     /// For Select fields — available options (i18n keys or static strings)
     pub options:    Vec<&'static str>,
 }
@@ -122,7 +122,7 @@ pub struct FormField {
 impl FormField {
     fn new(key: &'static str, label_key: &'static str, tab: FormTab, required: bool, field_type: FormFieldType) -> Self {
         Self { key, label_key, hint_key: None, tab, required, field_type,
-               value: String::new(), cursor: 0, options: vec![] }
+               value: String::new(), cursor: 0, dirty: false, options: vec![] }
     }
     fn hint(mut self, k: &'static str) -> Self { self.hint_key = Some(k); self }
     fn default_val(mut self, v: &str) -> Self { self.value = v.to_string(); self.cursor = v.len(); self }
@@ -141,32 +141,24 @@ impl NewProjectForm {
     pub fn new() -> Self {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/home/user".into());
         let fields = vec![
-            // ── Tab: Project ────────────────────────────────────────────────
-            FormField::new("name",   "form.project.name",   FormTab::Project, true,  FormFieldType::Text)
+            // ── Tab: Project ──────────────────────────────────────────────────
+            FormField::new("name",          "form.project.name",        FormTab::Project, true,  FormFieldType::Text)
                 .hint("form.project.name.hint"),
-            FormField::new("domain", "form.project.domain", FormTab::Project, true,  FormFieldType::Text)
+            FormField::new("domain",        "form.project.domain",      FormTab::Project, true,  FormFieldType::Text)
                 .hint("form.project.domain.hint"),
-            FormField::new("path",   "form.project.path",   FormTab::Project, true,  FormFieldType::Path)
-                .default_val(&format!("{}/fsn", home))
-                .hint("form.project.path.hint"),
-            FormField::new("contact_email", "form.project.email", FormTab::Project, true, FormFieldType::Email)
+            FormField::new("description",   "form.project.description", FormTab::Project, false, FormFieldType::Text)
+                .hint("form.project.description.hint"),
+            FormField::new("contact_email", "form.project.email",       FormTab::Project, true,  FormFieldType::Email)
                 .hint("form.project.email.hint"),
 
-            // ── Tab: Server ─────────────────────────────────────────────────
-            FormField::new("host_ip",       "form.server.ip",          FormTab::Server, true,  FormFieldType::Ip)
-                .hint("form.server.ip.hint"),
-            FormField::new("dns_provider",  "form.server.dns_provider",FormTab::Server, true,  FormFieldType::Select)
-                .opts(vec!["Hetzner DNS", "Cloudflare", "Manual"])
-                .hint("form.server.dns_provider.hint"),
-            FormField::new("dns_api_token", "form.server.dns_token",   FormTab::Server, true,  FormFieldType::Secret)
-                .hint("form.server.dns_token.hint"),
-
-            // ── Tab: Options ─────────────────────────────────────────────────
-            FormField::new("description", "form.options.description", FormTab::Options, false, FormFieldType::Text),
-            FormField::new("language",    "form.options.language",    FormTab::Options, false, FormFieldType::Select)
+            // ── Tab: Options ──────────────────────────────────────────────────
+            FormField::new("language", "form.options.language",  FormTab::Options, false, FormFieldType::Select)
                 .opts(vec!["de", "en", "fr", "es", "it", "pt"])
                 .default_val("de"),
-            FormField::new("version",     "form.options.version",     FormTab::Options, false, FormFieldType::Text)
+            FormField::new("path",     "form.project.path",      FormTab::Options, true,  FormFieldType::Path)
+                .default_val(&format!("{}/fsn", home))
+                .hint("form.project.path.hint"),
+            FormField::new("version",  "form.options.version",   FormTab::Options, false, FormFieldType::Text)
                 .default_val("0.1.0"),
         ];
 
@@ -213,22 +205,31 @@ impl NewProjectForm {
     /// Insert char at cursor of focused field.
     pub fn insert_char(&mut self, c: char) {
         if let Some(idx) = self.focused_field_idx() {
-            let f = &mut self.fields[idx];
-            f.value.insert(f.cursor, c);
-            f.cursor += c.len_utf8();
+            {
+                let f = &mut self.fields[idx];
+                f.value.insert(f.cursor, c);
+                f.cursor += c.len_utf8();
+                f.dirty = true;
+            }
+            self.on_field_changed(idx);
         }
     }
 
     /// Delete char before cursor.
     pub fn backspace(&mut self) {
         if let Some(idx) = self.focused_field_idx() {
-            let f = &mut self.fields[idx];
-            if f.cursor > 0 {
-                let prev = f.value[..f.cursor]
-                    .char_indices().next_back().map(|(i, _)| i).unwrap_or(0);
-                f.value.remove(prev);
-                f.cursor = prev;
-            }
+            let changed = {
+                let f = &mut self.fields[idx];
+                if f.cursor > 0 {
+                    let prev = f.value[..f.cursor]
+                        .char_indices().next_back().map(|(i, _)| i).unwrap_or(0);
+                    f.value.remove(prev);
+                    f.cursor = prev;
+                    f.dirty = true;
+                    true
+                } else { false }
+            };
+            if changed { self.on_field_changed(idx); }
         }
     }
 
@@ -255,13 +256,18 @@ impl NewProjectForm {
     /// Delete char at cursor position (forward delete).
     pub fn delete_char(&mut self) {
         if let Some(idx) = self.focused_field_idx() {
-            let f = &mut self.fields[idx];
-            if f.cursor < f.value.len() {
-                let next = f.value[f.cursor..].chars().next()
-                    .map(|c| f.cursor + c.len_utf8())
-                    .unwrap_or(f.cursor);
-                f.value.drain(f.cursor..next);
-            }
+            let changed = {
+                let f = &mut self.fields[idx];
+                if f.cursor < f.value.len() {
+                    let next = f.value[f.cursor..].chars().next()
+                        .map(|c| f.cursor + c.len_utf8())
+                        .unwrap_or(f.cursor);
+                    f.value.drain(f.cursor..next);
+                    f.dirty = true;
+                    true
+                } else { false }
+            };
+            if changed { self.on_field_changed(idx); }
         }
     }
 
@@ -302,6 +308,41 @@ impl NewProjectForm {
         }
     }
 
+    /// Called after any user edit — propagates smart defaults to dependent fields.
+    fn on_field_changed(&mut self, idx: usize) {
+        match self.fields[idx].key {
+            "name" => {
+                let slug = slugify(&self.fields[idx].value.clone());
+                if let Some(d) = self.fields.iter().position(|f| f.key == "domain") {
+                    if !self.fields[d].dirty {
+                        let len = slug.len();
+                        self.fields[d].value = slug;
+                        self.fields[d].cursor = len;
+                    }
+                }
+                self.sync_email_from_domain();
+            }
+            "domain" => self.sync_email_from_domain(),
+            _ => {}
+        }
+    }
+
+    fn sync_email_from_domain(&mut self) {
+        let domain = self.fields.iter()
+            .find(|f| f.key == "domain")
+            .map(|f| f.value.clone())
+            .unwrap_or_default();
+        if domain.is_empty() { return; }
+        if let Some(e) = self.fields.iter().position(|f| f.key == "contact_email") {
+            if !self.fields[e].dirty {
+                let email = format!("admin@{}", domain);
+                let len = email.len();
+                self.fields[e].value = email;
+                self.fields[e].cursor = len;
+            }
+        }
+    }
+
     /// How many required fields on the given tab are still empty.
     pub fn tab_missing_count(&self, tab_idx: usize) -> usize {
         let tab = FormTab::from_index(tab_idx);
@@ -319,6 +360,20 @@ impl NewProjectForm {
     }
 }
 
+// ── Slugify helper ────────────────────────────────────────────────────────────
+
+fn slugify(s: &str) -> String {
+    let mut out = String::new();
+    for c in s.to_lowercase().chars() {
+        match c {
+            'a'..='z' | '0'..='9' | '.' => out.push(c),
+            ' ' | '_' | '-' => { if !out.ends_with('-') { out.push('-'); } }
+            _ => {}
+        }
+    }
+    out.trim_matches('-').to_string()
+}
+
 // ── Full application state ────────────────────────────────────────────────────
 
 pub struct AppState {
@@ -333,6 +388,8 @@ pub struct AppState {
     /// Focused button on welcome screen (0=New, 1=Open)
     pub welcome_focus:      usize,
     pub new_project:        Option<NewProjectForm>,
+    /// True when last keypress included CONTROL — switches hint bar to Ctrl shortcuts.
+    pub ctrl_hint:          bool,
     last_refresh:           Instant,
 }
 
@@ -350,7 +407,7 @@ impl AppState {
             screen, lang: Lang::De, sysinfo, services,
             selected: 0, logs_overlay: None, lang_dropdown_open: false,
             should_quit: false, welcome_focus: 0, new_project: None,
-            last_refresh: Instant::now(),
+            ctrl_hint: false, last_refresh: Instant::now(),
         }
     }
 

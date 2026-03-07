@@ -6,6 +6,30 @@ was sich geändert hat.
 
 ---
 
+## 2026-03-07 – Claude Code – fsn-tui: Form-Umbau, Ctrl-Navigation, Smart Defaults
+
+### Geänderte Dateien
+- `cli/crates/fsn-tui/src/app.rs` – Server-Tab entfernt (2 Tabs: Projekt + Optionen). Description in Projekt-Tab. `dirty`-Flag pro Feld. `on_field_changed()` + `sync_email_from_domain()` für Auto-Defaults. `slugify()`. `ctrl_hint: bool` in AppState
+- `cli/crates/fsn-tui/src/events.rs` – ESC schließt Modal (nicht mehr Tab-by-Tab). Ctrl+←/→ = Tab wechseln. Ohne Ctrl = Cursor im Text. `ctrl_hint` wird bei jedem Tastendruck aktualisiert
+- `cli/crates/fsn-tui/src/i18n.rs` – `form.hint.ctrl` hinzugefügt. `form.hint` aktualisiert (^=Strg). Server-Schlüssel entfernt, `form.project.description` neu
+- `cli/crates/fsn-tui/src/ui/new_project.rs` – Hint-Bar: wechselt auf Ctrl-Shortcuts wenn `ctrl_hint=true`
+- `projects/FreeSynergy.Net/freesynergy.project.yml` – gelöscht (nicht mehr gebraucht)
+- `projects/FreeSynergy.Net/freesynergy.federation.yml` – gelöscht
+
+### Was sich geändert hat
+- Server-Tab aus Neues-Projekt-Formular entfernt (gehört in Host-Konfiguration, nicht in Projekt)
+- Projekt-Tab: Name + Domain (auto) + Beschreibung + E-Mail (auto)
+- Optionen-Tab: Sprache + Installationsverzeichnis + Version
+- Smart Defaults: Domain wird aus Projektname abgeleitet (Slugify), E-Mail aus Domain (`admin@domain`) — solange der User das Feld nicht selbst bearbeitet hat
+- ESC schließt Modal sofort (Daten bleiben in State erhalten)
+- Ctrl+← / Ctrl+→ wechseln zwischen Tabs
+- Hint-Bar zeigt Ctrl-Shortcuts wenn Strg gedrückt wird
+
+### Nächster Schritt
+- Submit-Handler: Verzeichnis + project.toml schreiben
+
+---
+
 ## 2026-03-07 – Claude Code – fsn-tui: UX-Verbesserungen (Zentrierung, Maus, Validierung)
 
 ### Geänderte Dateien
