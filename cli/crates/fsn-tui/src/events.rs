@@ -25,7 +25,7 @@ pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
     match state.screen {
         Screen::Welcome    => handle_welcome(key, state, root),
         Screen::Dashboard  => handle_dashboard(key, state, root),
-        Screen::NewProject => handle_new_project(key, state),
+        Screen::NewProject => handle_new_project(key, state, root),
     }
 }
 
@@ -59,7 +59,7 @@ fn handle_welcome(key: KeyEvent, state: &mut AppState, _root: &Path) -> Result<(
 
 // ── New Project form ──────────────────────────────────────────────────────────
 
-fn handle_new_project(key: KeyEvent, state: &mut AppState) -> Result<()> {
+fn handle_new_project(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
     // Language toggle available everywhere
     if matches!(key.code, KeyCode::Char('l') | KeyCode::Char('L'))
         && !is_typing(state)
@@ -136,28 +136,36 @@ fn handle_new_project(key: KeyEvent, state: &mut AppState) -> Result<()> {
 
         // Enter: go to next tab, or submit on last tab
         KeyCode::Enter => {
-            if let Some(ref mut form) = state.new_project {
-                let is_last_tab = form.active_tab == FormTab::count() - 1;
-                let missing_on_tab = form.tab_missing_count(form.active_tab);
-                if missing_on_tab > 0 {
-                    form.error = Some(format!(
+            // Determine action without holding a mutable borrow
+            let action = state.new_project.as_ref().map(|form| {
+                let is_last   = form.active_tab == FormTab::count() - 1;
+                let missing_t = form.tab_missing_count(form.active_tab);
+                if missing_t > 0 {
+                    FormAction::Error(format!(
                         "{} {}",
-                        missing_on_tab,
-                        if missing_on_tab == 1 { "Pflichtfeld fehlt" } else { "Pflichtfelder fehlen" },
-                    ));
-                } else if is_last_tab {
-                    let missing_total = form.missing_required();
-                    if missing_total.is_empty() {
-                        // TODO: trigger project creation
-                        form.error = None;
-                        state.screen = Screen::Welcome;
-                    } else {
-                        form.error = Some(format!("{} Pflichtfeld(er) auf anderen Tabs fehlen", missing_total.len()));
-                    }
+                        missing_t,
+                        if missing_t == 1 { "Pflichtfeld fehlt" } else { "Pflichtfelder fehlen" },
+                    ))
+                } else if is_last {
+                    let missing = form.missing_required();
+                    if missing.is_empty() { FormAction::Submit }
+                    else { FormAction::Error(format!("{} Pflichtfeld(er) auf anderen Tabs fehlen", missing.len())) }
                 } else {
-                    form.error = None;
-                    form.next_tab();
+                    FormAction::NextTab
                 }
+            });
+
+            match action {
+                Some(FormAction::Error(msg)) => {
+                    if let Some(ref mut form) = state.new_project { form.error = Some(msg); }
+                }
+                Some(FormAction::NextTab) => {
+                    if let Some(ref mut form) = state.new_project { form.error = None; form.next_tab(); }
+                }
+                Some(FormAction::Submit) => {
+                    submit_project(state, root)?;
+                }
+                None => {}
             }
         }
 
@@ -328,14 +336,14 @@ fn is_typing(state: &AppState) -> bool {
 // ── Mouse events ──────────────────────────────────────────────────────────────
 
 pub fn handle_mouse(event: MouseEvent, state: &mut AppState) -> Result<()> {
+    let (tw, _th) = crossterm::terminal::size().unwrap_or((80, 24));
+
     match event.kind {
-        // Scroll wheel in logs overlay
         MouseEventKind::ScrollDown => {
             if let Some(ref mut logs) = state.logs_overlay {
                 let max = logs.lines.len().saturating_sub(1);
                 if logs.scroll < max { logs.scroll += 1; }
             } else if let Some(ref mut form) = state.new_project {
-                // Scroll in form: cycle Select fields or move to next field
                 if is_select_field(form) { form.select_next(); }
             }
         }
@@ -346,17 +354,151 @@ pub fn handle_mouse(event: MouseEvent, state: &mut AppState) -> Result<()> {
                 if is_select_field(form) { form.select_prev(); }
             }
         }
-        // Left-click: toggle language button (top-right corner)
         MouseEventKind::Down(_) => {
-            // A click on [DE]/[EN] button — approximate position check
-            // We look for a click in the top-right 6 columns
-            let terminal_width = crossterm::terminal::size().map(|(w, _)| w).unwrap_or(80);
-            if event.column >= terminal_width.saturating_sub(6) && event.row <= 2 {
+            // Language button — top-right 6 columns
+            if event.column >= tw.saturating_sub(6) && event.row <= 2 {
                 state.lang = state.lang.toggle();
+                return Ok(());
+            }
+
+            // Form: click on dropdown option
+            if state.screen == Screen::NewProject {
+                if let Some(opt_idx) = find_clicked_dropdown(event.column, event.row, state.new_project.as_ref(), tw) {
+                    if let Some(ref mut form) = state.new_project {
+                        form.set_select_by_index(opt_idx);
+                    }
+                    return Ok(());
+                }
+                // Form: click on a field → focus it
+                if let Some(slot) = find_clicked_field(event.column, event.row, state.new_project.as_ref(), tw) {
+                    if let Some(ref mut form) = state.new_project {
+                        form.active_field = slot;
+                    }
+                }
             }
         }
         _ => {}
     }
+    Ok(())
+}
+
+// ── Layout helpers for mouse hit-testing ─────────────────────────────────────
+//
+// These reproduce the layout from ui/new_project.rs so we don't need to store
+// Rects in state (which would require &mut AppState in render functions).
+
+/// Returns the slot index of the form field the user clicked on (active tab only).
+fn find_clicked_field(col: u16, row: u16, form: Option<&NewProjectForm>, tw: u16) -> Option<usize> {
+    let form = form?;
+    let pad_x   = tw * 5 / 100;
+    let inner_x = pad_x;
+    let inner_w = tw - 2 * pad_x;
+    let fields_y = 6u16;  // header(3) + tabs(3)
+
+    if col < inner_x || col >= inner_x + inner_w { return None; }
+
+    let indices = form.tab_field_indices();
+    for (slot, _) in indices.iter().enumerate() {
+        let field_top = fields_y + slot as u16 * 5;
+        let field_bot = field_top + 5;
+        if row >= field_top && row < field_bot {
+            return Some(slot);
+        }
+    }
+    None
+}
+
+/// Returns the option index if the user clicked inside an open dropdown.
+fn find_clicked_dropdown(col: u16, row: u16, form: Option<&NewProjectForm>, tw: u16) -> Option<usize> {
+    let form = form?;
+    let idx   = form.focused_field_idx()?;
+    let field = &form.fields[idx];
+    if !matches!(field.field_type, crate::app::FormFieldType::Select) { return None; }
+
+    let pad_x    = tw * 5 / 100;
+    let inner_x  = pad_x;
+    let inner_w  = tw - 2 * pad_x;
+    let fields_y = 6u16;
+
+    if col < inner_x || col >= inner_x + inner_w { return None; }
+
+    // Input box: label(1) + input(3) → dropdown starts at field_y + 4
+    let field_y    = fields_y + form.active_field as u16 * 5;
+    let dropdown_y = field_y + 4;  // below input box
+
+    // Items start at dropdown_y + 1 (inside border)
+    if row > dropdown_y && row <= dropdown_y + field.options.len() as u16 {
+        let opt_idx = (row - dropdown_y - 1) as usize;
+        if opt_idx < field.options.len() {
+            return Some(opt_idx);
+        }
+    }
+    None
+}
+
+// ── Form submit ───────────────────────────────────────────────────────────────
+
+enum FormAction {
+    Error(String),
+    NextTab,
+    Submit,
+}
+
+fn submit_project(state: &mut AppState, root: &Path) -> Result<()> {
+    // Collect data while immutably borrowing form
+    let result = {
+        let form = state.new_project.as_ref().unwrap();
+        write_project_to_disk(form, root)
+    };
+
+    match result {
+        Ok(()) => {
+            state.screen = Screen::Dashboard;
+            state.new_project = None;
+        }
+        Err(e) => {
+            if let Some(ref mut form) = state.new_project {
+                form.error = Some(format!("{}", e));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn write_project_to_disk(form: &crate::app::NewProjectForm, root: &Path) -> anyhow::Result<()> {
+    let name = form.field_value("name");
+    let slug = crate::app::slugify(&name);
+
+    if slug.is_empty() {
+        return Err(anyhow::anyhow!("Projektname ist ungültig (leer nach Bereinigung)"));
+    }
+
+    let project_dir = root.join("projects").join(&slug);
+    std::fs::create_dir_all(&project_dir)?;
+
+    let toml_path = project_dir.join(format!("{}.project.toml", slug));
+    if toml_path.exists() {
+        // Project already exists — don't overwrite, just go to dashboard
+        return Ok(());
+    }
+
+    // Simple TOML escaping (replace \ and " in string values)
+    let ts = |s: String| -> String {
+        format!("\"{}\"", s.replace('\\', r"\\").replace('"', "\\\""))
+    };
+
+    let content = format!(
+        "[project]\nname        = {}\ndomain      = {}\ndescription = {}\nemail       = {}\nlanguage    = {}\nversion     = {}\npath        = {}\n",
+        ts(form.field_value("name")),
+        ts(form.field_value("domain")),
+        ts(form.field_value("description")),
+        ts(form.field_value("contact_email")),
+        ts(form.field_value("language")),
+        ts(form.field_value("version")),
+        ts(form.field_value("path")),
+    );
+
+    std::fs::write(toml_path, content)?;
     Ok(())
 }
 

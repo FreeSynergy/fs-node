@@ -6,6 +6,27 @@ was sich geändert hat.
 
 ---
 
+## 2026-03-07 – Claude Code – fsn-tui: Dropdown, Button-Fix, Maus-Klick, TOML-Speichern
+
+### Geänderte Dateien
+- `cli/crates/fsn-tui/src/app.rs` – `slugify` public gemacht, `field_value()` + `set_select_by_index()` hinzugefügt
+- `cli/crates/fsn-tui/src/ui/welcome.rs` – Button-Breite dynamisch aus Textlänge berechnet (kein Abschneiden mehr)
+- `cli/crates/fsn-tui/src/ui/new_project.rs` – Dropdown-Overlay für Select-Felder (List-Widget), Sprachname als Klartext (Deutsch, English, …)
+- `cli/crates/fsn-tui/src/events.rs` – Maus-Klick auf Formularfelder + Dropdown-Klick, Submit-Handler schreibt `{slug}.project.toml`, `handle_new_project` bekommt `root`-Parameter
+- `cli/crates/fsn-tui/src/lib.rs` – `project_toml_exists()` erkennt vorhandene Projekte → direkt zum Dashboard
+
+### Was sich geändert hat
+- **Dropdown**: Language-Feld zeigt beim Fokus eine Auswahlliste (▶ Deutsch, English, Français, Español, Italiano, Português)
+- **Button-Breite**: Welcome-Screen-Buttons berechnen ihre Breite aus dem Text — kein Abschneiden mehr
+- **Maus auf Felder**: Klick auf ein Feld fokussiert es direkt; Klick auf Dropdown-Eintrag wählt aus
+- **TOML speichern**: Auf dem letzten Tab → Enter erstellt `projects/{slug}/{slug}.project.toml` und wechselt zum Dashboard
+- **Vorhandenes Projekt**: Beim Start wird `projects/` nach `*.project.toml` gescannt — wenn gefunden, direkt Dashboard statt Welcome
+
+### Nächster Schritt
+- Dashboard: Neues Projekt anlegen + Bearbeiten + Löschen von bestehenden Projekten
+
+---
+
 ## 2026-03-07 – Claude Code – fsn-tui: Form-Umbau, Ctrl-Navigation, Smart Defaults
 
 ### Geänderte Dateien

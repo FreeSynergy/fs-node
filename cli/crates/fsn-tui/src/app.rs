@@ -351,6 +351,24 @@ impl NewProjectForm {
             .count()
     }
 
+    /// Get the current value of a field by config key.
+    pub fn field_value(&self, key: &str) -> String {
+        self.fields.iter()
+            .find(|f| f.key == key)
+            .map(|f| f.value.clone())
+            .unwrap_or_default()
+    }
+
+    /// Set a Select field's value by option index (for mouse click on dropdown).
+    pub fn set_select_by_index(&mut self, option_idx: usize) {
+        if let Some(idx) = self.focused_field_idx() {
+            let f = &mut self.fields[idx];
+            if matches!(f.field_type, FormFieldType::Select) && option_idx < f.options.len() {
+                f.value = f.options[option_idx].to_string();
+            }
+        }
+    }
+
     /// Validate — returns list of missing required fields (all tabs).
     pub fn missing_required(&self) -> Vec<&'static str> {
         self.fields.iter()
@@ -362,7 +380,7 @@ impl NewProjectForm {
 
 // ── Slugify helper ────────────────────────────────────────────────────────────
 
-fn slugify(s: &str) -> String {
+pub fn slugify(s: &str) -> String {
     let mut out = String::new();
     for c in s.to_lowercase().chars() {
         match c {

@@ -33,6 +33,12 @@ pub fn run(root: &Path) -> Result<()> {
 
     let mut state = AppState::new(sysinfo, services);
 
+    // If a project.toml already exists, go straight to Dashboard
+    // even when no containers are running yet
+    if state.screen == app::Screen::Welcome && project_toml_exists(root) {
+        state.screen = app::Screen::Dashboard;
+    }
+
     // Terminal setup
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -52,6 +58,29 @@ pub fn run(root: &Path) -> Result<()> {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Returns true if any *.project.toml exists under `root/projects/`.
+fn project_toml_exists(root: &Path) -> bool {
+    let projects_dir = root.join("projects");
+    if !projects_dir.exists() { return false; }
+    let Ok(entries) = std::fs::read_dir(&projects_dir) else { return false; };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() { continue; }
+        let Ok(inner) = std::fs::read_dir(&path) else { continue; };
+        for f in inner.flatten() {
+            let fp = f.path();
+            if fp.extension().and_then(|e| e.to_str()) == Some("toml")
+                && fp.file_stem().and_then(|s| s.to_str())
+                    .map(|s| s.ends_with(".project"))
+                    .unwrap_or(false)
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
 
 /// Try to load active services from the project config.
 /// Returns empty Vec if no project found — triggers Welcome screen.

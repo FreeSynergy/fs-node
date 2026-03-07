@@ -1,9 +1,9 @@
-// New Project form — three tabs: Projekt / Server / Optionen.
+// New Project form — two tabs: Project / Options.
 //
 // ┌──────────────────────────────────────────────────────────────────┐
 // │  FreeSynergy.Node – Neues Projekt                      [DE]     │
 // ├──────────────────────────────────────────────────────────────────┤
-// │ ┌─ Projekt ──┐  ┌─ Server ──┐  ┌─ Optionen ──┐                 │
+// │ ┌─ Projekt ──┐  ┌─ Optionen ──┐                                 │
 // │                                                                  │
 // │  Projektname *                                                   │
 // │  ┌──────────────────────────────────────────────────────────┐   │
@@ -11,19 +11,22 @@
 // │  └──────────────────────────────────────────────────────────┘   │
 // │  Kurzname ohne Leerzeichen, z.B. myproject                      │
 // │                                                                  │
-// │  Domain *                                                        │
+// │  Sprache (↑↓ zum Wählen)                                        │
 // │  ┌──────────────────────────────────────────────────────────┐   │
-// │  │ example.com_                                             │   │
+// │  │ Deutsch █                                                │   │
+// │  └──────────────────────────────────────────────────────────┘   │
+// │  ┌──────────────────────────────────────────────────────────┐   │  ← dropdown
+// │  │▶ Deutsch   │   English   │   Français   │ ...           │   │
 // │  └──────────────────────────────────────────────────────────┘   │
 // ├──────────────────────────────────────────────────────────────────┤
-// │  Tab=Nächstes Feld  ←→=Tab wechseln  Enter=Weiter  Esc=Zurück   │
+// │  Tab=Nächstes Feld  ^←=Voriger Tab  ^→=Nächster Tab  Esc=Zu    │
 // └──────────────────────────────────────────────────────────────────┘
 
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Tabs},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Tabs},
     Frame,
 };
 
@@ -76,7 +79,6 @@ fn render_tabs(f: &mut Frame, state: &AppState, form: &NewProjectForm, area: Rec
             let tab = FormTab::from_index(i);
             let label = state.t(tab.i18n_key());
 
-            // Count required-but-empty fields in this tab
             let tab_fields: Vec<_> = form.fields.iter()
                 .filter(|f| f.tab == tab)
                 .collect();
@@ -121,9 +123,7 @@ fn render_fields(f: &mut Frame, state: &AppState, form: &NewProjectForm, area: R
     let inner = padding[1];
     let tab_indices = form.tab_field_indices();
 
-    // Build constraints: each field = label(1) + input(3) + hint(1) + gap(1) = 5 lines
     let per_field = 5usize;
-    let total_height = tab_indices.len() * per_field;
     let mut field_areas: Vec<Rect> = Vec::new();
 
     let mut y = inner.y;
@@ -133,25 +133,24 @@ fn render_fields(f: &mut Frame, state: &AppState, form: &NewProjectForm, area: R
         y += per_field as u16;
     }
 
-    // Also compute submit button area after last field
-    let _ = total_height; // suppress warning
+    // Track the input Rect of the focused Select field for dropdown rendering
+    let mut dropdown_info: Option<(Rect, &NewProjectForm)> = None;
 
     for (slot, &field_idx) in tab_indices.iter().enumerate() {
         let Some(area) = field_areas.get(slot) else { break };
         let field = &form.fields[field_idx];
         let focused = form.active_field == slot;
 
-        // Layout per field: label / input box / hint
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1),  // label
-                Constraint::Length(3),  // input box (with border)
+                Constraint::Length(3),  // input box
                 Constraint::Length(1),  // hint text
             ])
             .split(*area);
 
-        // Label line: "Feldname *" (required) or "Feldname (optional)"
+        // Label
         let req_marker = if field.required {
             Span::styled(" *", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
         } else {
@@ -176,41 +175,58 @@ fn render_fields(f: &mut Frame, state: &AppState, form: &NewProjectForm, area: R
         };
         let input_block = Block::default().borders(Borders::ALL).border_style(border_style);
 
-        let display_value = match field.field_type {
-            FormFieldType::Secret => "•".repeat(field.value.len()),
-            FormFieldType::Select => field.value.clone(),
-            _ => field.value.clone(),
-        };
-
-        // Show cursor as a trailing block █ when focused
-        let input_text = if focused {
-            let before_cursor = &display_value[..field.cursor.min(display_value.len())];
-            let after_cursor  = &display_value[field.cursor.min(display_value.len())..];
-            Line::from(vec![
-                Span::styled(before_cursor.to_string(), Style::default().fg(Color::White)),
-                Span::styled("█", Style::default().fg(Color::Cyan)),
-                Span::styled(after_cursor.to_string(),  Style::default().fg(Color::White)),
-            ])
-        } else if display_value.is_empty() {
-            Line::from(Span::styled("", Style::default().fg(Color::DarkGray)))
+        let input_text = if matches!(field.field_type, FormFieldType::Select) {
+            // Select: show human-readable display name
+            let display = lang_display(&field.value);
+            if focused {
+                Line::from(vec![
+                    Span::styled(display.to_string(), Style::default().fg(Color::White)),
+                    Span::styled("█", Style::default().fg(Color::Cyan)),
+                ])
+            } else {
+                Line::from(Span::styled(display.to_string(), Style::default().fg(Color::White)))
+            }
         } else {
-            Line::from(Span::styled(display_value, Style::default().fg(Color::White)))
+            let display_value = match field.field_type {
+                FormFieldType::Secret => "•".repeat(field.value.len()),
+                _ => field.value.clone(),
+            };
+            if focused {
+                let before_cursor = &display_value[..field.cursor.min(display_value.len())];
+                let after_cursor  = &display_value[field.cursor.min(display_value.len())..];
+                Line::from(vec![
+                    Span::styled(before_cursor.to_string(), Style::default().fg(Color::White)),
+                    Span::styled("█", Style::default().fg(Color::Cyan)),
+                    Span::styled(after_cursor.to_string(),  Style::default().fg(Color::White)),
+                ])
+            } else if display_value.is_empty() {
+                Line::from(Span::styled("", Style::default().fg(Color::DarkGray)))
+            } else {
+                Line::from(Span::styled(display_value, Style::default().fg(Color::White)))
+            }
         };
 
-        let input = Paragraph::new(input_text).block(input_block);
-        f.render_widget(input, rows[1]);
+        f.render_widget(Paragraph::new(input_text).block(input_block), rows[1]);
 
-        // Hint line
-        if let Some(hint_key) = field.hint_key {
-            let hint = Paragraph::new(Line::from(Span::styled(
-                state.t(hint_key),
-                Style::default().fg(Color::DarkGray),
-            )));
-            f.render_widget(hint, rows[2]);
+        // Hint line (hidden when dropdown is open for this field)
+        let show_hint = !(focused && matches!(field.field_type, FormFieldType::Select));
+        if show_hint {
+            if let Some(hint_key) = field.hint_key {
+                let hint = Paragraph::new(Line::from(Span::styled(
+                    state.t(hint_key),
+                    Style::default().fg(Color::DarkGray),
+                )));
+                f.render_widget(hint, rows[2]);
+            }
+        }
+
+        // Collect dropdown info — rendered after all fields to appear on top
+        if focused && matches!(field.field_type, FormFieldType::Select) {
+            dropdown_info = Some((rows[1], form));
         }
     }
 
-    // Submit button at the bottom (only on last tab — Options)
+    // Submit button (only on last tab — Options)
     if form.active_tab == FormTab::count() - 1 {
         if let Some(last) = field_areas.last() {
             let btn_y = last.y + last.height + 1;
@@ -226,6 +242,65 @@ fn render_fields(f: &mut Frame, state: &AppState, form: &NewProjectForm, area: R
                 f.render_widget(btn, btn_area);
             }
         }
+    }
+
+    // Render dropdown overlay on top (after all other widgets)
+    if let Some((input_rect, form)) = dropdown_info {
+        render_select_dropdown(f, form, input_rect, inner);
+    }
+}
+
+// ── Select dropdown overlay ───────────────────────────────────────────────────
+
+fn render_select_dropdown(f: &mut Frame, form: &NewProjectForm, input_rect: Rect, inner: Rect) {
+    let Some(idx) = form.focused_field_idx() else { return };
+    let field = &form.fields[idx];
+
+    let dropdown_y = input_rect.bottom();
+    let avail_h = inner.bottom().saturating_sub(dropdown_y);
+    let want_h  = (field.options.len() as u16 + 2).min(avail_h);
+    if want_h < 3 { return; }  // not enough space
+
+    let dropdown = Rect {
+        x: input_rect.x,
+        y: dropdown_y,
+        width: input_rect.width,
+        height: want_h,
+    };
+
+    let cur = field.options.iter().position(|&o| o == field.value).unwrap_or(0);
+
+    let items: Vec<ListItem> = field.options.iter().enumerate().map(|(i, &opt)| {
+        let display = lang_display(opt);
+        let prefix  = if i == cur { "▶ " } else { "  " };
+        let style   = if i == cur {
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        ListItem::new(Line::from(Span::styled(format!("{}{}", prefix, display), style)))
+    }).collect();
+
+    let list = List::new(items)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan)));
+
+    f.render_widget(Clear, dropdown);
+    f.render_widget(list, dropdown);
+}
+
+// ── Language display name helper ──────────────────────────────────────────────
+
+fn lang_display(code: &str) -> &'static str {
+    match code {
+        "de" => "Deutsch",
+        "en" => "English",
+        "fr" => "Français",
+        "es" => "Español",
+        "it" => "Italiano",
+        "pt" => "Português",
+        _    => "—",
     }
 }
 

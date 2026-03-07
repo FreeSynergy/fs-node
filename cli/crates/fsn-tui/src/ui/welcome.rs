@@ -162,19 +162,29 @@ fn sysinfo_row(
 // ── Buttons ───────────────────────────────────────────────────────────────────
 
 fn render_buttons(f: &mut Frame, state: &AppState, area: Rect) {
+    let btn1_text = state.t("welcome.new_project");
+    let btn2_text = format!("{} {}", state.t("welcome.open_project"), state.t("welcome.open_disabled"));
+
+    // Width = text chars + 6 (padding + borders), minimum 22
+    let btn1_w = (btn1_text.chars().count() as u16 + 6).max(22);
+    let btn2_w = (btn2_text.chars().count() as u16 + 6).max(22);
+    let gap    = 4u16;
+    let total  = btn1_w + btn2_w + gap;
+    let side   = area.width.saturating_sub(total) / 2;
+
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(15),
-            Constraint::Percentage(30),
-            Constraint::Percentage(10),
-            Constraint::Percentage(30),
-            Constraint::Percentage(15),
+            Constraint::Length(side),
+            Constraint::Length(btn1_w),
+            Constraint::Length(gap),
+            Constraint::Length(btn2_w),
+            Constraint::Min(0),
         ])
         .split(area);
 
     let btn1_focused = state.welcome_focus == 0;
-    let btn1 = Paragraph::new(widgets::button_line(state.t("welcome.new_project"), btn1_focused, false))
+    let btn1 = Paragraph::new(widgets::button_line(btn1_text, btn1_focused, false))
         .block(Block::default().borders(Borders::ALL).border_style(
             if btn1_focused { Style::default().fg(Color::Cyan) } else { Style::default().fg(Color::DarkGray) }
         ))
@@ -182,8 +192,7 @@ fn render_buttons(f: &mut Frame, state: &AppState, area: Rect) {
     f.render_widget(btn1, cols[1]);
 
     let btn2_focused = state.welcome_focus == 1;
-    let btn2_label = format!("{} {}", state.t("welcome.open_project"), state.t("welcome.open_disabled"));
-    let btn2 = Paragraph::new(widgets::button_line(&btn2_label, btn2_focused, true))
+    let btn2 = Paragraph::new(widgets::button_line(&btn2_text, btn2_focused, true))
         .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::DarkGray)))
         .alignment(Alignment::Center);
     f.render_widget(btn2, cols[3]);
