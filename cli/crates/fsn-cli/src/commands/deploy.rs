@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use fsn_core::{
-    config::{HostConfig, ModuleRegistry, ProjectConfig, VaultConfig},
+    config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig},
 };
 use fsn_engine::{
     deploy::{DeployOpts, deploy_all},
@@ -35,7 +35,7 @@ pub async fn run(
         vault_pass.as_deref(),
     )?;
 
-    let registry = ModuleRegistry::load(&root.join("modules"))?;
+    let registry = ServiceRegistry::load(&root.join("modules"))?;
 
     // ── Resolve desired state ─────────────────────────────────────────────────
     let desired = resolve_desired(&proj, &host, &registry, &vault)
@@ -57,10 +57,10 @@ pub async fn run(
     // Filter to a single service if requested
     let deploy_desired = if let Some(svc) = service {
         use fsn_core::state::DesiredState;
-        let modules = desired.modules.into_iter()
-            .filter(|m| m.name == svc || m.sub_modules.iter().any(|s| s.name == svc))
+        let services = desired.services.into_iter()
+            .filter(|m| m.name == svc || m.sub_services.iter().any(|s| s.name == svc))
             .collect();
-        DesiredState { modules, ..desired }
+        DesiredState { services, ..desired }
     } else {
         desired
     };
@@ -74,7 +74,7 @@ pub async fn run(
     deploy_all(&deploy_desired, &proj, &vault, &opts, root, &data_root).await
         .context("Deploy failed")?;
 
-    println!("\n✓ Deploy complete ({} service(s))", deploy_desired.modules.len());
+    println!("\n✓ Deploy complete ({} service(s))", deploy_desired.services.len());
     Ok(())
 }
 

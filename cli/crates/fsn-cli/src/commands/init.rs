@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use fsn_core::config::{
-    module::FieldType,
-    registry::ModuleRegistry,
+    service::FieldType,
+    registry::ServiceRegistry,
     vault::VaultConfig,
 };
 use fsn_engine::setup::collect_requirements;
@@ -67,7 +67,7 @@ fn ensure_project_skeleton(root: &Path) -> Result<(String, PathBuf)> {
     std::fs::write(
         proj_dir.join(format!("{}.project.toml", slug)),
         format!(
-            "[project]\nname        = \"{name}\"\ndomain      = \"{domain}\"\ndescription = \"\"\n\n[project.contact]\nemail       = \"{contact}\"\nacme_email  = \"{contact}\"\n\n[load.modules]\n# Added by wizard\n",
+            "[project]\nname        = \"{name}\"\ndomain      = \"{domain}\"\ndescription = \"\"\n\n[project.contact]\nemail       = \"{contact}\"\nacme_email  = \"{contact}\"\n\n[load.services]\n# Added by wizard\n",
             name = project_name, domain = domain, contact = contact,
         ),
     )?;
@@ -78,7 +78,7 @@ fn ensure_project_skeleton(root: &Path) -> Result<(String, PathBuf)> {
     std::fs::write(
         hosts_dir.join(format!("{}.host.toml", slug)),
         format!(
-            "[host]\nname = \"{slug}\"\nip   = \"{ip}\"{ipv6}\n\n[proxy.zentinel]\nmodule_class = \"proxy/zentinel\"\n\n[proxy.zentinel.load.plugins]\ndns        = \"{dns}\"\nacme       = \"{acme}\"\nacme_email = \"{contact}\"\n",
+            "[host]\nname = \"{slug}\"\nip   = \"{ip}\"{ipv6}\n\n[proxy.zentinel]\nservice_class = \"proxy/zentinel\"\n\n[proxy.zentinel.load.plugins]\ndns        = \"{dns}\"\nacme       = \"{acme}\"\nacme_email = \"{contact}\"\n",
             slug = slug, ip = host_ip, ipv6 = ipv6_line,
             dns = dns_provider, acme = acme, contact = contact,
         ),
@@ -96,8 +96,8 @@ fn ensure_project_skeleton(root: &Path) -> Result<(String, PathBuf)> {
 // ── Phase 2: Module selection ─────────────────────────────────────────────
 
 fn select_modules(root: &Path, proj_dir: &Path, slug: &str, modules_dir: &Path) -> Result<()> {
-    let registry = ModuleRegistry::load(modules_dir)?;
-    let mut all_classes: Vec<(&str, &fsn_core::config::module::ModuleClass)> =
+    let registry = ServiceRegistry::load(modules_dir)?;
+    let mut all_classes: Vec<(&str, &fsn_core::config::service::ServiceClass)> =
         registry.all().collect();
     all_classes.sort_by_key(|(k, _)| *k);
 
@@ -111,12 +111,12 @@ fn select_modules(root: &Path, proj_dir: &Path, slug: &str, modules_dir: &Path) 
     let mut selected: Vec<(String, String)> = Vec::new();
 
     for (class_key, class) in &all_classes {
-        let desc = class.module.description.as_deref().unwrap_or("");
+        let desc = class.meta.description.as_deref().unwrap_or("");
         let label = format!("  [{:<22}]  {}", class_key, desc);
         if confirm_default_no(&label)? {
             let instance_name = prompt(
                 &format!("    Instance name for {}", class_key),
-                Some(&class.module.name),
+                Some(&class.meta.name),
             )?;
             selected.push((instance_name, class_key.to_string()));
         }
@@ -133,7 +133,7 @@ fn select_modules(root: &Path, proj_dir: &Path, slug: &str, modules_dir: &Path) 
     let mut additions = String::new();
     for (instance_name, class_key) in &selected {
         additions.push_str(&format!(
-            "\n[load.modules.{}]\nmodule_class = \"{}\"\n",
+            "\n[load.services.{}]\nservice_class = \"{}\"\n",
             instance_name, class_key
         ));
     }
@@ -157,11 +157,11 @@ fn collect_module_secrets(root: &Path, proj_dir: &Path, modules_dir: &Path) -> R
     let project = fsn_core::config::ProjectConfig::load(&proj_toml)
         .with_context(|| format!("Loading {}", proj_toml.display()))?;
 
-    if project.load.modules.is_empty() || !modules_dir.exists() {
+    if project.load.services.is_empty() || !modules_dir.exists() {
         return Ok(());
     }
 
-    let registry = ModuleRegistry::load(modules_dir)?;
+    let registry = ServiceRegistry::load(modules_dir)?;
     // During init, vault may not exist yet – load without passphrase (plaintext or empty)
     let vault = VaultConfig::load(proj_dir, None).unwrap_or_default();
 

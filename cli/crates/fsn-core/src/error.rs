@@ -13,7 +13,7 @@ pub enum FsnError {
     },
 
     #[error("Module class not found: {class}")]
-    ModuleClassNotFound { class: String },
+    ServiceClassNotFound { class: String },
 
     #[error("Constraint violation: {message}")]
     ConstraintViolation { message: String },

@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use anyhow::{bail, Result};
-use fsn_core::state::{desired::ModuleInstance, HealthStatus};
+use fsn_core::state::{desired::ServiceInstance, HealthStatus};
 use tracing::{debug, warn};
 
 const DEFAULT_TIMEOUT:  Duration = Duration::from_secs(120);
@@ -12,14 +12,14 @@ const POLL_INTERVAL:    Duration = Duration::from_secs(3);
 
 /// Wait until the service is reachable and returns a successful HTTP response,
 /// or until `timeout` is exceeded.
-pub async fn wait_for_ready(instance: &ModuleInstance, timeout: Duration) -> Result<()> {
-    let Some(path) = &instance.class.module.health_path else {
+pub async fn wait_for_ready(instance: &ServiceInstance, timeout: Duration) -> Result<()> {
+    let Some(path) = &instance.class.meta.health_path else {
         debug!("{}: no health_path configured, skipping health check", instance.name);
         return Ok(());
     };
 
-    let port   = instance.class.module.health_port.unwrap_or(instance.class.module.port);
-    let scheme = instance.class.module.health_scheme.as_deref().unwrap_or("http");
+    let port   = instance.class.meta.health_port.unwrap_or(instance.class.meta.port);
+    let scheme = instance.class.meta.health_scheme.as_deref().unwrap_or("http");
     let url    = format!("{}://localhost:{}{}", scheme, port, path);
 
     let client = reqwest::Client::builder()
@@ -58,12 +58,12 @@ pub async fn wait_for_ready(instance: &ModuleInstance, timeout: Duration) -> Res
 }
 
 /// Single health check without waiting – returns current status.
-pub async fn check_once(instance: &ModuleInstance) -> HealthStatus {
-    let Some(path) = &instance.class.module.health_path else {
+pub async fn check_once(instance: &ServiceInstance) -> HealthStatus {
+    let Some(path) = &instance.class.meta.health_path else {
         return HealthStatus::Unknown;
     };
-    let port   = instance.class.module.health_port.unwrap_or(instance.class.module.port);
-    let scheme = instance.class.module.health_scheme.as_deref().unwrap_or("http");
+    let port   = instance.class.meta.health_port.unwrap_or(instance.class.meta.port);
+    let scheme = instance.class.meta.health_scheme.as_deref().unwrap_or("http");
     let url    = format!("{}://localhost:{}{}", scheme, port, path);
 
     let client = reqwest::Client::builder()

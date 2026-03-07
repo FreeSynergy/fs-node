@@ -5,19 +5,19 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
-use crate::config::module::ModuleClass;
+use crate::config::service::ServiceClass;
 use crate::error::FsnError;
 
 /// In-memory index of all available module classes.
 /// Key = "{type}/{name}" (e.g. "auth/kanidm", "git/forgejo")
 #[derive(Debug, Default)]
-pub struct ModuleRegistry {
-    classes: HashMap<String, ModuleClass>,
+pub struct ServiceRegistry {
+    classes: HashMap<String, ServiceClass>,
     /// Base path of the modules/ directory
     modules_dir: PathBuf,
 }
 
-impl ModuleRegistry {
+impl ServiceRegistry {
     /// Scan a modules/ directory and load all class TOMLs.
     /// Expected layout: modules/{type}/{name}/{name}.toml
     pub fn load(modules_dir: &Path) -> Result<Self, FsnError> {
@@ -76,7 +76,7 @@ impl ModuleRegistry {
         Ok(registry)
     }
 
-    fn load_class(path: &Path) -> Result<ModuleClass, FsnError> {
+    fn load_class(path: &Path) -> Result<ServiceClass, FsnError> {
         let content = std::fs::read_to_string(path).map_err(FsnError::Io)?;
         toml::from_str(&content).map_err(|e| FsnError::ConfigParse {
             path: path.display().to_string(),
@@ -85,12 +85,12 @@ impl ModuleRegistry {
     }
 
     /// Look up a module class by its "{type}/{name}" key.
-    pub fn get(&self, class_key: &str) -> Option<&ModuleClass> {
+    pub fn get(&self, class_key: &str) -> Option<&ServiceClass> {
         self.classes.get(class_key)
     }
 
     /// All loaded module classes.
-    pub fn all(&self) -> impl Iterator<Item = (&str, &ModuleClass)> {
+    pub fn all(&self) -> impl Iterator<Item = (&str, &ServiceClass)> {
         self.classes.iter().map(|(k, v)| (k.as_str(), v))
     }
 

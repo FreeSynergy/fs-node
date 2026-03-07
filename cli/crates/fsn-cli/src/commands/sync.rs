@@ -3,7 +3,7 @@
 
 use std::path::Path;
 use anyhow::Result;
-use fsn_core::config::{HostConfig, ModuleRegistry, ProjectConfig, VaultConfig};
+use fsn_core::config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig};
 use fsn_engine::{diff::compute_diff, observe::observe, resolve::resolve_desired};
 
 use crate::commands::deploy::{find_project, find_host};
@@ -15,7 +15,7 @@ pub async fn run(root: &Path, project: Option<&Path>) -> Result<()> {
     let host      = HostConfig::load(&host_path)?;
     let vault_pass = std::env::var("FSN_VAULT_PASS").ok();
     let vault = VaultConfig::load(proj_path.parent().unwrap_or(root), vault_pass.as_deref())?;
-    let registry  = ModuleRegistry::load(&root.join("modules"))?;
+    let registry  = ServiceRegistry::load(&root.join("modules"))?;
     let desired   = resolve_desired(&proj, &host, &registry, &vault)?;
     let actual    = observe().await?;
     let diff      = compute_diff(&desired, &actual);

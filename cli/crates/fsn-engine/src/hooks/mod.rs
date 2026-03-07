@@ -24,13 +24,13 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use fsn_core::{
     config::{ProjectConfig, VaultConfig},
-    state::desired::{DesiredState, ModuleInstance},
+    state::desired::{DesiredState, ServiceInstance},
 };
 
 /// Everything a hook needs to do its work.
 pub struct HookContext<'a> {
     /// The module instance that was just deployed.
-    pub instance: &'a ModuleInstance,
+    pub instance: &'a ServiceInstance,
 
     /// All modules in the project (needed by Kanidm to register OAuth2 clients).
     pub desired: &'a DesiredState,

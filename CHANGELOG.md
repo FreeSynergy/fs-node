@@ -6,6 +6,37 @@ was sich geändert hat.
 
 ---
 
+## 2026-03-07 – Claude Code – Datenstruktur: Module → Service + Ansible-Entfernung + Build-Fix
+
+### Geänderte Dateien
+- `cli/crates/fsn-core/src/config/service.rs` – neu (umbenannt von `module.rs`): `ServiceType`-Enum (Iam, Proxy, Mail, Git, Wiki, Chat, Collab, Tasks, Tickets, Maps, Monitoring, Database, Cache, Bot, Custom), `ServiceClass.meta` (serde rename „module"), `ServiceMeta.service_type` (serde rename „type"), `ServiceLoad.sub_services` (alias „modules"), Backward-Compat-Aliases für alle umbenannten Felder
+- `cli/crates/fsn-core/src/config/project.rs` – `ServiceSlots` (iam/mail/wiki/git/chat/collab/tasks/monitoring/extra), `ProjectMeta` bekommt `version`/`language`/`languages`, `ProjectLoad.services` (alias „modules"), `ServiceEntry` (war `ModuleRef`) mit alias für `module_class`, `type ModuleRef = ServiceEntry` für Rückwärtskompatibilität
+- `cli/crates/fsn-core/src/state/desired.rs` – `DesiredState.services` (war `.modules`), `ServiceInstance` bekommt `service_type: ServiceType`, `sub_services` (war `sub_modules`)
+- `cli/crates/fsn-core/src/config/mod.rs` – `pub mod service` statt `pub mod module`, alle Exporte aktualisiert
+- `cli/crates/fsn-engine/src/resolve.rs` – `.modules` → `.services`, `.module.alias` → `.meta.alias`, `class.load.services` → `class.load.sub_services`, `service_type` zu `ServiceInstance`-Initializer hinzugefügt
+- `cli/crates/fsn-engine/src/constraints.rs` – Import `config::module::Locality` → `config::service::Locality`
+- `cli/crates/fsn-engine/src/setup.rs` – Import `config::module::SetupField` → `config::service::SetupField`
+- `cli/crates/fsn-web/src/api.rs` – Import `config::module::FieldType` → `config::service::FieldType`
+- `cli/crates/fsn-cli/src/commands/init.rs` – Import `config::module::FieldType` → `config::service::FieldType`
+- `cli/crates/fsn-cli/src/commands/deploy.rs` – `modules`-Variable → `services`, `DesiredState { services, .. }`
+- `cli/Cargo.toml` – `fsn-ansible` aus Workspace entfernt, `libc` hinzugefügt
+- `playbooks/` – vollständig entfernt (25 Dateien, 11 Unterverzeichnisse)
+- `.ansible-lint`, `.yamllint.yml`, `.ansible/`, `requirements.yml` – entfernt
+- `README.md` – komplett neu geschrieben: Ansible raus, Rust CLI, Services statt Modules, Zentinel korrekt als Pingora, aktueller Status
+
+### Was sich konzeptuell geändert hat
+- **Module → Service**: Alle Typen intern umbenannt. TOML-Dateien auf Disk bleiben kompatibel (Backward-Compat via serde aliases).
+- **Ansible vollständig entfernt**: Deployment läuft jetzt ausschließlich über den Rust-CLI (`fsn`).
+- **ServiceType-System**: Typed Slots im Projekt (`[services] iam="kanidm" mail="stalwart"`).
+
+### Offene Probleme
+- Keine — `cargo build` ist sauber
+
+### Nächster Schritt
+- Zentinel KDL-Generator (korrektes Pingora-KDL-Format mit `upstreams {}` und `routes {}`)
+
+---
+
 ## 2026-03-06 – Claude Code – Installer: CoreOS-Fix + Wizard-Reihenfolge + UX
 
 **Was fehlte / falsch war:**

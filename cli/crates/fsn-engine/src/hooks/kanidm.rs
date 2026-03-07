@@ -80,7 +80,7 @@ async fn register_oauth2_clients(ctx: &HookContext<'_>) -> Result<()> {
 
     for client in oidc_clients {
         let client_id    = &client.name;
-        let display_name = &client.class.module.name;
+        let display_name = &client.class.meta.name;
         let origin       = format!("https://{}", client.service_domain);
 
         info!("{}: registering OAuth2 client '{}'…", name, client_id);
@@ -113,22 +113,22 @@ async fn register_oauth2_clients(ctx: &HookContext<'_>) -> Result<()> {
 /// Find all instances that have kanidm as a declared service dependency.
 fn collect_oidc_clients<'a>(
     ctx: &HookContext<'a>,
-) -> Vec<&'a fsn_core::state::desired::ModuleInstance> {
+) -> Vec<&'a fsn_core::state::desired::ServiceInstance> {
     let mut out = Vec::new();
-    collect_recursive(&ctx.desired.modules, &mut out);
+    collect_recursive(&ctx.desired.services, &mut out);
     // Exclude kanidm itself
     out.retain(|inst| inst.class_key != "auth/kanidm");
     out
 }
 
 fn collect_recursive<'a>(
-    modules: &'a [fsn_core::state::desired::ModuleInstance],
-    out: &mut Vec<&'a fsn_core::state::desired::ModuleInstance>,
+    modules: &'a [fsn_core::state::desired::ServiceInstance],
+    out: &mut Vec<&'a fsn_core::state::desired::ServiceInstance>,
 ) {
     for m in modules {
         if m.class.load.services.contains_key("kanidm") {
             out.push(m);
         }
-        collect_recursive(&m.sub_modules, out);
+        collect_recursive(&m.sub_services, out);
     }
 }

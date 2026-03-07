@@ -4,15 +4,15 @@
 // can update its own blocks without touching manually-edited config.
 
 use anyhow::Result;
-use fsn_core::state::desired::ModuleInstance;
+use fsn_core::state::desired::ServiceInstance;
 
 const MARKER_START: &str = "# === FSN-MANAGED-START:";
 const MARKER_END: &str = "# === FSN-MANAGED-END:";
 
 /// Generate the KDL block for a module instance's proxy route.
-pub fn generate_block(instance: &ModuleInstance) -> String {
+pub fn generate_block(instance: &ServiceInstance) -> String {
     let name = &instance.name;
-    let port = instance.class.module.port;
+    let port = instance.class.meta.port;
     let mut domains = vec![instance.service_domain.clone()];
     domains.extend(instance.alias_domains.clone());
 
@@ -31,7 +31,7 @@ pub fn generate_block(instance: &ModuleInstance) -> String {
 }
 
 /// Replace or insert an FSN-managed block in the full Zentinel config.
-pub fn upsert_block(config: &str, instance: &ModuleInstance) -> String {
+pub fn upsert_block(config: &str, instance: &ServiceInstance) -> String {
     let block = generate_block(instance);
     let start_marker = format!("{} {} ===", MARKER_START, instance.name);
     let end_marker = format!("{} {} ===", MARKER_END, instance.name);

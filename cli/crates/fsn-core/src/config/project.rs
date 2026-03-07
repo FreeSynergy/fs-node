@@ -17,19 +17,66 @@ use crate::error::FsnError;
 pub struct ProjectConfig {
     pub project: ProjectMeta,
 
+    /// Typed service slots – which instance fills each role.
+    #[serde(default)]
+    pub services: ServiceSlots,
+
     #[serde(default)]
     pub load: ProjectLoad,
 }
+
+// ── Service Slots ─────────────────────────────────────────────────────────────
+
+/// Typed service slots at the project level.
+/// Other services and bots use these to find the right instance.
+///
+/// In project.toml:
+/// [services]
+/// iam  = "kanidm"
+/// mail = "stalwart"
+/// wiki = "outline"
+/// git  = "forgejo"
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ServiceSlots {
+    pub iam:        Option<String>,
+    pub mail:       Option<String>,
+    pub wiki:       Option<String>,
+    pub git:        Option<String>,
+    pub chat:       Option<String>,
+    pub collab:     Option<String>,
+    pub tasks:      Option<String>,
+    pub monitoring: Option<String>,
+    #[serde(default, flatten)]
+    pub extra: IndexMap<String, String>,
+}
+
+// ── Project Metadata ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectMeta {
     pub name: String,
     pub domain: String,
     pub description: Option<String>,
+
+    /// Project version – increment to trigger config re-generation.
+    #[serde(default = "default_version")]
+    pub version: String,
+
+    /// Primary language (IETF tag, e.g. "en", "de").
+    #[serde(default = "default_lang")]
+    pub language: String,
+
+    /// Additional supported languages (ordered by preference).
+    #[serde(default)]
+    pub languages: Vec<String>,
+
     pub contact: Option<ContactInfo>,
     pub branding: Option<BrandingConfig>,
     pub sites: Option<IndexMap<String, SiteConfig>>,
 }
+
+fn default_version() -> String { "0.1.0".into() }
+fn default_lang()    -> String { "en".into() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContactInfo {
@@ -54,27 +101,33 @@ pub struct SiteConfig {
     pub domain: Option<String>,
 }
 
-/// The `[load]` table – which module instances to deploy.
+// ── Load (instance declarations) ──────────────────────────────────────────────
+
+/// The [load] table – which service instances to deploy.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProjectLoad {
-    /// key = instance name (e.g. "forgejo"), value = module reference
-    #[serde(default)]
-    pub modules: IndexMap<String, ModuleRef>,
+    /// key = instance name (e.g. "forgejo"), value = service entry.
+    /// Alias "modules" accepted for backward compatibility with existing project files.
+    #[serde(default, alias = "modules")]
+    pub services: IndexMap<String, ServiceEntry>,
 }
 
-/// A module instance declaration inside a project file.
+/// A service instance declaration inside a project file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModuleRef {
-    /// Path to the module class: "{type}/{name}" (e.g. "git/forgejo")
-    pub module_class: String,
+pub struct ServiceEntry {
+    /// Service class path, e.g. "git/forgejo".
+    /// Alias "module_class" accepted for backward compatibility.
+    #[serde(alias = "module_class")]
+    pub service_class: String,
 
-    /// Optional per-instance variable overrides.
     #[serde(default)]
     pub vars: IndexMap<String, Value>,
 }
 
+/// Backwards-compat alias.
+pub type ModuleRef = ServiceEntry;
+
 impl ProjectConfig {
-    /// Load a project config from a TOML file.
     pub fn load(path: &Path) -> Result<Self, FsnError> {
         let content = std::fs::read_to_string(path).map_err(|_| FsnError::ConfigNotFound {
             path: path.display().to_string(),

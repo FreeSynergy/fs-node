@@ -16,7 +16,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use fsn_core::config::module::FieldType;
+use fsn_core::config::service::FieldType;
 use fsn_podman::systemd::{self, UnitStatus};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -40,7 +40,7 @@ pub struct ServiceInfo {
     pub image:           String,
     pub version:         String,
     pub service_domain:  String,
-    pub sub_modules:     Vec<String>,
+    pub sub_services:     Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -185,7 +185,7 @@ async fn load_project_services(s: &AppState) -> (String, String, Vec<ServiceInfo
             image:          String::new(),
             version:        read_version_marker(&name, root),
             service_domain: String::new(),
-            sub_modules:    Vec::new(),
+            sub_services:    Vec::new(),
         });
     }
 
@@ -200,14 +200,14 @@ async fn load_project_services(s: &AppState) -> (String, String, Vec<ServiceInfo
 async fn try_load_project_config(
     root: &std::path::Path,
 ) -> Option<((String, String), Vec<ServiceInfo>)> {
-    use fsn_core::config::{HostConfig, ModuleRegistry, ProjectConfig, VaultConfig};
+    use fsn_core::config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig};
     use fsn_engine::{observe::observe, resolve::resolve_desired};
 
     let proj_path = super::find_project_file(root)?;
     let host_path = super::find_host_file(root)?;
     let proj      = ProjectConfig::load(&proj_path).ok()?;
     let host      = HostConfig::load(&host_path).ok()?;
-    let registry  = ModuleRegistry::load(&root.join("modules")).ok()?;
+    let registry  = ServiceRegistry::load(&root.join("modules")).ok()?;
     let vault_pass = std::env::var("FSN_VAULT_PASS").ok();
     let vault = VaultConfig::load(
         proj_path.parent().unwrap_or(root),
@@ -217,7 +217,7 @@ async fn try_load_project_config(
     let desired  = resolve_desired(&proj, &host, &registry, &vault).ok()?;
     let actual   = observe().await.unwrap_or_default();
 
-    let services = desired.modules.iter().map(|inst| {
+    let services = desired.services.iter().map(|inst| {
         let status = actual.find(&inst.name);
         ServiceInfo {
             name:          inst.name.clone(),
@@ -227,7 +227,7 @@ async fn try_load_project_config(
             image:         format!("{}:{}", inst.class.container.image, inst.class.container.image_tag),
             version:       inst.version.clone(),
             service_domain: inst.service_domain.clone(),
-            sub_modules:   inst.sub_modules.iter().map(|s| s.name.clone()).collect(),
+            sub_services:   inst.sub_services.iter().map(|s| s.name.clone()).collect(),
         }
     }).collect();
 
@@ -253,7 +253,7 @@ fn load_hosts(s: &AppState) -> Vec<HostInfo> {
 }
 
 async fn load_setup_requirements(s: &AppState) -> Vec<SetupRequirementJson> {
-    use fsn_core::config::{HostConfig, ModuleRegistry, ProjectConfig, VaultConfig};
+    use fsn_core::config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig};
     use fsn_engine::{resolve::resolve_desired, setup::collect_requirements};
 
     let root = s.fsn_root.as_ref();
@@ -261,7 +261,7 @@ async fn load_setup_requirements(s: &AppState) -> Vec<SetupRequirementJson> {
     let Some(host_path) = super::find_host_file(root)    else { return Vec::new() };
     let Ok(proj)     = ProjectConfig::load(&proj_path)               else { return Vec::new() };
     let Ok(host)     = HostConfig::load(&host_path)                  else { return Vec::new() };
-    let Ok(registry) = ModuleRegistry::load(&root.join("modules"))   else { return Vec::new() };
+    let Ok(registry) = ServiceRegistry::load(&root.join("modules"))   else { return Vec::new() };
     let vault_pass = std::env::var("FSN_VAULT_PASS").ok();
     let vault = VaultConfig::load(
         proj_path.parent().unwrap_or(root),

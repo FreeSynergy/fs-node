@@ -5,8 +5,8 @@
 // and returns an ordered list of what the wizard needs to ask.
 
 use fsn_core::{
-    config::module::SetupField,
-    state::desired::{DesiredState, ModuleInstance},
+    config::service::SetupField,
+    state::desired::{DesiredState, ServiceInstance},
 };
 
 /// A setup field requirement tied to the module that declared it.
@@ -25,7 +25,7 @@ pub fn collect_requirements(desired: &DesiredState) -> Vec<SetupRequirement> {
     let mut seen_keys: std::collections::HashSet<String> = Default::default();
     let mut out = Vec::new();
 
-    for instance in &desired.modules {
+    for instance in &desired.services {
         collect_from_instance(instance, &mut seen_keys, &mut out);
     }
 
@@ -33,7 +33,7 @@ pub fn collect_requirements(desired: &DesiredState) -> Vec<SetupRequirement> {
 }
 
 fn collect_from_instance(
-    instance: &ModuleInstance,
+    instance: &ServiceInstance,
     seen_keys: &mut std::collections::HashSet<String>,
     out: &mut Vec<SetupRequirement>,
 ) {
@@ -46,7 +46,7 @@ fn collect_from_instance(
             });
         }
     }
-    for sub in &instance.sub_modules {
+    for sub in &instance.sub_services {
         collect_from_instance(sub, seen_keys, out);
     }
 }

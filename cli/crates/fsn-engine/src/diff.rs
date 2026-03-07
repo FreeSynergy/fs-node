@@ -7,16 +7,16 @@ pub fn compute_diff(desired: &DesiredState, actual: &ActualState) -> StateDiff {
     let mut diff = StateDiff::default();
 
     // Check each desired module against actual state
-    for instance in &desired.modules {
+    for instance in &desired.services {
         check_instance(instance, actual, &mut diff);
     }
 
     // Find services running that are NOT in desired state → remove them
     for service in &actual.services {
         let still_desired = desired
-            .modules
+            .services
             .iter()
-            .any(|m| m.name == service.name || m.sub_modules.iter().any(|s| s.name == service.name));
+            .any(|m| m.name == service.name || m.sub_services.iter().any(|s| s.name == service.name));
 
         if !still_desired && service.state == RunState::Running {
             diff.to_remove.push(service.name.clone());
@@ -27,7 +27,7 @@ pub fn compute_diff(desired: &DesiredState, actual: &ActualState) -> StateDiff {
 }
 
 fn check_instance(
-    instance: &fsn_core::state::desired::ModuleInstance,
+    instance: &fsn_core::state::desired::ServiceInstance,
     actual: &ActualState,
     diff: &mut StateDiff,
 ) {
@@ -47,7 +47,7 @@ fn check_instance(
     }
 
     // Recurse into sub-modules
-    for sub in &instance.sub_modules {
+    for sub in &instance.sub_services {
         check_instance(sub, actual, diff);
     }
 }

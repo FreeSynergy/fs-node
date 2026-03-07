@@ -35,7 +35,7 @@ pub struct HostMeta {
 /// A proxy instance declaration (typically "zentinel").
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyInstance {
-    pub module_class: String,
+    pub service_class: String,
 
     #[serde(default)]
     pub load: ProxyLoad,

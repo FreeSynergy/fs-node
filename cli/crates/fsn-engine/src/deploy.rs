@@ -21,7 +21,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use fsn_core::{
     config::{ProjectConfig, VaultConfig},
-    state::desired::{DesiredState, ModuleInstance},
+    state::desired::{DesiredState, ServiceInstance},
 };
 use fsn_podman::systemd;
 use tracing::{info, warn};
@@ -79,7 +79,7 @@ pub async fn deploy_all(
     write_if_changed(&net_path, &net_content)?;
 
     // ── Phase 2: Write all .container + .env files ────────────────────────────
-    let instances = flatten_instances(&desired.modules);
+    let instances = flatten_instances(&desired.services);
     for instance in &instances {
         write_quadlet_files(instance, &network_name, opts)?;
     }
@@ -154,7 +154,7 @@ pub async fn undeploy_instance(name: &str, opts: &DeployOpts) -> Result<()> {
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /// Flatten instances into a list where sub-modules come before their parents.
-pub fn flatten_instances(modules: &[ModuleInstance]) -> Vec<&ModuleInstance> {
+pub fn flatten_instances(modules: &[ServiceInstance]) -> Vec<&ServiceInstance> {
     let mut out = Vec::new();
     for m in modules {
         flatten_recursive(m, &mut out);
@@ -162,16 +162,16 @@ pub fn flatten_instances(modules: &[ModuleInstance]) -> Vec<&ModuleInstance> {
     out
 }
 
-fn flatten_recursive<'a>(instance: &'a ModuleInstance, out: &mut Vec<&'a ModuleInstance>) {
+fn flatten_recursive<'a>(instance: &'a ServiceInstance, out: &mut Vec<&'a ServiceInstance>) {
     // Sub-modules first (database, cache before the app)
-    for sub in &instance.sub_modules {
+    for sub in &instance.sub_services {
         flatten_recursive(sub, out);
     }
     out.push(instance);
 }
 
 fn write_quadlet_files(
-    instance:       &ModuleInstance,
+    instance:       &ServiceInstance,
     network_name:   &str,
     opts:           &DeployOpts,
 ) -> Result<()> {
@@ -202,7 +202,7 @@ fn write_if_changed(path: &Path, content: &str) -> Result<()> {
         .with_context(|| format!("writing {}", path.display()))
 }
 
-fn write_version_marker(instance: &ModuleInstance, opts: &DeployOpts) -> Result<()> {
+fn write_version_marker(instance: &ServiceInstance, opts: &DeployOpts) -> Result<()> {
     let path = opts.state_dir.join(format!("{}.version", instance.name));
     std::fs::write(&path, &instance.version)
         .with_context(|| format!("writing version marker {}", path.display()))

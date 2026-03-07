@@ -34,14 +34,14 @@ pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
     }
 
     // OIDC source (always try – idempotent via "already exists" check)
-    if ctx.desired.modules.iter()
-        .any(|m| m.class_key == "auth/kanidm" || m.sub_modules.iter().any(|s| s.class_key == "auth/kanidm"))
+    if ctx.desired.services.iter()
+        .any(|m| m.class_key == "auth/kanidm" || m.sub_services.iter().any(|s| s.class_key == "auth/kanidm"))
     {
         let client_secret = ctx.vault.expose("vault_forgejo_oidc_client_secret")
             .unwrap_or("");
         if !client_secret.is_empty() {
             // Try to find the kanidm service domain
-            let kanidm_domain = ctx.desired.modules.iter()
+            let kanidm_domain = ctx.desired.services.iter()
                 .find(|m| m.class_key == "auth/kanidm")
                 .map(|m| m.service_domain.clone())
                 .unwrap_or_else(|| format!("kanidm.{}", ctx.project.project.domain));

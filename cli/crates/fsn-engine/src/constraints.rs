@@ -3,7 +3,7 @@
 
 use anyhow::{bail, Result};
 use fsn_core::{
-    config::module::Locality,
+    config::service::Locality,
     state::DesiredState,
 };
 
@@ -47,22 +47,22 @@ fn collect_all_instances(
     desired: &DesiredState,
 ) -> Vec<(String, String, Option<u32>)> {
     let mut out = Vec::new();
-    for m in &desired.modules {
+    for m in &desired.services {
         push_instance(m, &mut out);
     }
     out
 }
 
 fn push_instance(
-    instance: &fsn_core::state::desired::ModuleInstance,
+    instance: &fsn_core::state::desired::ServiceInstance,
     out: &mut Vec<(String, String, Option<u32>)>,
 ) {
     out.push((
         instance.class_key.clone(),
         instance.name.clone(),
-        instance.class.module.constraints.per_host,
+        instance.class.meta.constraints.per_host,
     ));
-    for sub in &instance.sub_modules {
+    for sub in &instance.sub_services {
         push_instance(sub, out);
     }
 }

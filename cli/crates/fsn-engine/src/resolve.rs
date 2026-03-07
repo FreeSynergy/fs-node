@@ -1,11 +1,11 @@
 // State resolution – build DesiredState from config files.
 //
 // Algorithm:
-//   1. For each module entry in project.yml load.modules:
-//      a. Look up the module class in ModuleRegistry
+//   1. For each module entry in project.yml load.services:
+//      a. Look up the module class in ServiceRegistry
 //      b. Resolve sub-modules recursively
 //      c. Expand Jinja2 vars with expand_template()
-//      d. Build ModuleInstance
+//      d. Build ServiceInstance
 //   2. Enforce that instance names are unique (duplicate = error)
 //   3. Return DesiredState
 
@@ -14,8 +14,8 @@ use std::collections::HashMap;
 use anyhow::{bail, Context, Result};
 
 use fsn_core::{
-    config::{HostConfig, ModuleRegistry, ProjectConfig, VaultConfig},
-    state::desired::{DesiredState, ModuleInstance},
+    config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig},
+    state::desired::{DesiredState, ServiceInstance},
 };
 
 use crate::template::TemplateContext;
@@ -24,15 +24,15 @@ use crate::template::TemplateContext;
 pub fn resolve_desired(
     project: &ProjectConfig,
     host: &HostConfig,
-    registry: &ModuleRegistry,
+    registry: &ServiceRegistry,
     vault: &VaultConfig,
 ) -> Result<DesiredState> {
     let mut instances = Vec::new();
     let mut seen_names = HashMap::new();
 
-    for (instance_name, module_ref) in &project.load.modules {
+    for (instance_name, module_ref) in &project.load.services {
         // Uniqueness check (per RULES.md: duplicate instance name = abort)
-        if let Some(existing) = seen_names.insert(instance_name.clone(), module_ref.module_class.clone()) {
+        if let Some(existing) = seen_names.insert(instance_name.clone(), module_ref.service_class.clone()) {
             bail!(
                 "Duplicate service name '{}' in project '{}' (already defined as {})",
                 instance_name,
@@ -43,7 +43,7 @@ pub fn resolve_desired(
 
         let instance = resolve_instance(
             instance_name,
-            &module_ref.module_class,
+            &module_ref.service_class,
             project,
             host,
             registry,
@@ -58,7 +58,7 @@ pub fn resolve_desired(
     Ok(DesiredState {
         project_name: project.project.name.clone(),
         domain: project.project.domain.clone(),
-        modules: instances,
+        services: instances,
     })
 }
 
@@ -68,10 +68,10 @@ fn resolve_instance(
     class_key: &str,
     project: &ProjectConfig,
     host: &HostConfig,
-    registry: &ModuleRegistry,
+    registry: &ServiceRegistry,
     vault: &VaultConfig,
     parent_name: Option<&str>,
-) -> Result<ModuleInstance> {
+) -> Result<ServiceInstance> {
     let class = registry
         .get(class_key)
         .with_context(|| format!("Module class '{}' not found in registry", class_key))?
@@ -79,7 +79,7 @@ fn resolve_instance(
 
     let service_domain = format!("{}.{}", name, project.project.domain);
     let alias_domains: Vec<String> = class
-        .module
+        .meta
         .alias
         .iter()
         .map(|a| format!("{}.{}", a, project.project.domain))
@@ -99,12 +99,12 @@ fn resolve_instance(
     let resolved_env = resolve_env(&class.environment, &ctx)?;
 
     // Resolve sub-modules recursively
-    let mut sub_modules = Vec::new();
-    for (sub_name_tpl, sub_ref) in &class.load.modules {
+    let mut sub_services = Vec::new();
+    for (sub_name_tpl, sub_ref) in &class.load.sub_services {
         let sub_name = format!("{}-{}", name, sub_name_tpl);
         let sub = resolve_instance(
             &sub_name,
-            &sub_ref.module_class,
+            &sub_ref.service_class,
             project,
             host,
             registry,
@@ -112,18 +112,19 @@ fn resolve_instance(
             Some(name),
         )
         .with_context(|| format!("Resolving sub-module '{}'", sub_name))?;
-        sub_modules.push(sub);
+        sub_services.push(sub);
     }
 
-    Ok(ModuleInstance {
+    Ok(ServiceInstance {
         name: name.to_string(),
         class_key: class_key.to_string(),
-        version: class.module.version.clone(),
+        service_type: class.meta.service_type.clone(),
+        version: class.meta.version.clone(),
         class,
         resolved_env,
         service_domain,
         alias_domains,
-        sub_modules,
+        sub_services,
     })
 }
 

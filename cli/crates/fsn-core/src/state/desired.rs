@@ -2,29 +2,33 @@
 
 use std::collections::HashMap;
 
-use crate::config::module::ModuleClass;
+use crate::config::service::{ServiceClass, ServiceType};
 
 /// The fully resolved desired state for a project on a host.
 #[derive(Debug, Clone)]
 pub struct DesiredState {
     pub project_name: String,
     pub domain: String,
-    pub modules: Vec<ModuleInstance>,
+    /// Top-level service instances (sub-services nested inside).
+    pub services: Vec<ServiceInstance>,
 }
 
-/// A resolved module instance – the module class with all Jinja2 vars expanded.
+/// A resolved service instance – the class with all Jinja2 vars expanded.
 #[derive(Debug, Clone)]
-pub struct ModuleInstance {
+pub struct ServiceInstance {
     /// Instance name (e.g. "forgejo") – unique per project.
     pub name: String,
 
-    /// Module class key (e.g. "git/forgejo").
+    /// Service class key (e.g. "git/forgejo").
     pub class_key: String,
 
     /// The class template this instance was resolved from.
-    pub class: ModuleClass,
+    pub class: ServiceClass,
 
-    /// Jinja2-expanded environment variables (ready for Quadlet/env file).
+    /// Functional type (convenience copy from class.meta.service_type).
+    pub service_type: ServiceType,
+
+    /// Jinja2-expanded environment variables (ready for Quadlet .env file).
     pub resolved_env: HashMap<String, String>,
 
     /// The full subdomain this service listens on (e.g. "forgejo.example.com").
@@ -33,8 +37,8 @@ pub struct ModuleInstance {
     /// Alias subdomains (CNAME targets).
     pub alias_domains: Vec<String>,
 
-    /// Sub-modules owned by this instance (e.g. postgres, dragonfly).
-    pub sub_modules: Vec<ModuleInstance>,
+    /// Sub-services owned by this instance (e.g. postgres, dragonfly).
+    pub sub_services: Vec<ServiceInstance>,
 
     /// Version from the class definition (used to detect updates).
     pub version: String,

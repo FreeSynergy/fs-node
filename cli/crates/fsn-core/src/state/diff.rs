@@ -1,15 +1,15 @@
 // State diff – what needs to change to reach desired state.
 
-use crate::state::desired::ModuleInstance;
+use crate::state::desired::ServiceInstance;
 
 /// The result of comparing desired state with actual state.
 #[derive(Debug, Clone, Default)]
 pub struct StateDiff {
     /// Modules to create (not currently running).
-    pub to_deploy: Vec<ModuleInstance>,
+    pub to_deploy: Vec<ServiceInstance>,
 
     /// Modules to update (running, but version changed).
-    pub to_update: Vec<ModuleInstance>,
+    pub to_update: Vec<ServiceInstance>,
 
     /// Service names to remove (running, but not in desired state).
     pub to_remove: Vec<String>,

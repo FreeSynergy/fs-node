@@ -5,13 +5,13 @@
 // (Podman Quadlet format, picked up by systemd after daemon-reload)
 
 use anyhow::Result;
-use fsn_core::state::desired::ModuleInstance;
+use fsn_core::state::desired::ServiceInstance;
 
 /// Generate a Podman Quadlet .container unit file for the given instance.
 ///
 /// `project_network` – the name of the shared project network Quadlet
 ///   (e.g. "fsn-myproject"). Injected automatically by the deploy engine.
-pub fn generate(instance: &ModuleInstance, project_network: Option<&str>) -> Result<String> {
+pub fn generate(instance: &ServiceInstance, project_network: Option<&str>) -> Result<String> {
     let c = &instance.class.container;
     let mut out = String::new();
 
