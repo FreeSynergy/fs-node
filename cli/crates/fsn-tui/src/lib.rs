@@ -3,6 +3,11 @@
 // Entry point: `run(root)` — called by `fsn tui`.
 // Detects whether a project exists → Welcome screen or Dashboard.
 
+/// Build timestamp (set by build.rs, e.g. "2026-03-07 14:22").
+pub const BUILD_TIME: &str = env!("FSN_BUILD_TIME");
+/// Short git commit hash (set by build.rs, e.g. "a1b2c3d").
+pub const GIT_HASH:   &str = env!("FSN_GIT_HASH");
+
 pub mod app;
 pub mod events;
 pub mod i18n;

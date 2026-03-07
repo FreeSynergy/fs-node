@@ -53,11 +53,17 @@ pub fn render(f: &mut Frame, state: &AppState) {
 // ── Header ────────────────────────────────────────────────────────────────────
 
 fn render_header(f: &mut Frame, state: &AppState, area: Rect) {
+    let build_info = format!(
+        " v{} · {} ({})",
+        env!("CARGO_PKG_VERSION"),
+        crate::BUILD_TIME,
+        crate::GIT_HASH,
+    );
+
     let title = Line::from(vec![
         Span::styled(" FreeSynergy", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         Span::styled(".Node",        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-        Span::styled(" v0.1.0 ",     Style::default().fg(Color::DarkGray)),
-        Span::styled("· by KalEl",   Style::default().fg(Color::DarkGray)),
+        Span::styled(build_info,     Style::default().fg(Color::DarkGray)),
     ]);
 
     let header = Paragraph::new(title)
