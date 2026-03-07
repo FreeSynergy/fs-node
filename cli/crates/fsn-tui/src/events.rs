@@ -5,7 +5,7 @@ use std::path::Path;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 
-use crate::app::{AppState, DashFocus, FormFieldType, FormTab, LogsState, NewProjectForm, Screen, ServiceStatus};
+use crate::app::{AppState, DashFocus, FormFieldType, FormTab, LogsState, NewProjectForm, RunState, Screen};
 
 pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
     // Update ctrl-hint display (switches hint bar to show Ctrl shortcuts)
@@ -295,7 +295,7 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
 
             KeyCode::Char('d') => {
                 if let Some(svc) = state.services.get_mut(state.selected) {
-                    svc.status = ServiceStatus::Unknown;
+                    svc.status = RunState::Missing;
                 }
             }
 
@@ -578,7 +578,7 @@ fn write_project_to_disk(form: &crate::app::NewProjectForm, root: &Path) -> anyh
 
 // ── Podman helpers ────────────────────────────────────────────────────────────
 
-pub fn podman_status(name: &str) -> ServiceStatus {
+pub fn podman_status(name: &str) -> RunState {
     let out = std::process::Command::new("podman")
         .args(["inspect", "--format", "{{.State.Status}}", name])
         .output();
@@ -586,13 +586,13 @@ pub fn podman_status(name: &str) -> ServiceStatus {
         Ok(o) => {
             let s = String::from_utf8_lossy(&o.stdout);
             match s.trim() {
-                "running"           => ServiceStatus::Running,
-                "exited" | "stopped" => ServiceStatus::Stopped,
-                "error"             => ServiceStatus::Error,
-                _                   => ServiceStatus::Unknown,
+                "running"            => RunState::Running,
+                "exited" | "stopped" => RunState::Stopped,
+                "error"              => RunState::Failed,
+                _                    => RunState::Missing,
             }
         }
-        Err(_) => ServiceStatus::Unknown,
+        Err(_) => RunState::Missing,
     }
 }
 

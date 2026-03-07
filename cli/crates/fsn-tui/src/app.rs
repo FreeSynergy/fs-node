@@ -8,6 +8,9 @@ use crossterm::event::{self, Event};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
+use fsn_core::config::project::ProjectConfig;
+pub use fsn_core::state::actual::RunState;
+
 use crate::sysinfo::SysInfo;
 use crate::ui;
 
@@ -45,19 +48,33 @@ impl Lang {
     }
 }
 
-// ── Project info (loaded from disk) ──────────────────────────────────────────
+// ── Project handle (loaded from disk) ─────────────────────────────────────────
 
+/// A project loaded from `projects/{slug}/{slug}.project.toml`.
+/// `config` is the parsed `ProjectConfig` from fsn-core.
+/// `slug` and `toml_path` are TUI-level metadata not stored inside the TOML.
 #[derive(Debug, Clone)]
-pub struct ProjectInfo {
-    pub slug:        String,
-    pub name:        String,
-    pub domain:      String,
-    pub description: String,
-    pub email:       String,
-    pub language:    String,
-    pub version:     String,
-    pub path:        String,
-    pub toml_path:   std::path::PathBuf,
+pub struct ProjectHandle {
+    pub slug:      String,
+    pub toml_path: std::path::PathBuf,
+    pub config:    ProjectConfig,
+}
+
+impl ProjectHandle {
+    /// Convenience: project display name.
+    pub fn name(&self) -> &str { &self.config.project.name }
+    /// Convenience: primary domain.
+    pub fn domain(&self) -> &str { &self.config.project.domain }
+    /// Convenience: contact e-mail (first non-empty of email / acme_email).
+    pub fn email(&self) -> &str {
+        self.config.project.contact.as_ref()
+            .and_then(|c| c.email.as_deref().or(c.acme_email.as_deref()))
+            .unwrap_or("")
+    }
+    /// Convenience: install directory.
+    pub fn install_dir(&self) -> &str {
+        self.config.project.install_dir.as_deref().unwrap_or("")
+    }
 }
 
 // ── Service table ─────────────────────────────────────────────────────────────
@@ -67,25 +84,16 @@ pub struct ServiceRow {
     pub name:         String,
     pub service_type: String,
     pub domain:       String,
-    pub status:       ServiceStatus,
+    pub status:       RunState,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ServiceStatus {
-    Running,
-    Stopped,
-    Error,
-    Unknown,
-}
-
-impl ServiceStatus {
-    pub fn i18n_key(self) -> &'static str {
-        match self {
-            ServiceStatus::Running => "status.running",
-            ServiceStatus::Stopped => "status.stopped",
-            ServiceStatus::Error   => "status.error",
-            ServiceStatus::Unknown => "status.unknown",
-        }
+/// Map `RunState` to an i18n key for the status column.
+pub fn run_state_i18n(state: RunState) -> &'static str {
+    match state {
+        RunState::Running => "status.running",
+        RunState::Stopped => "status.stopped",
+        RunState::Failed  => "status.error",
+        RunState::Missing => "status.unknown",
     }
 }
 
@@ -192,24 +200,26 @@ impl NewProjectForm {
     }
 
     /// Create a pre-filled edit form from an existing project.
-    pub fn from_project(info: &ProjectInfo) -> Self {
+    pub fn from_project(handle: &ProjectHandle) -> Self {
+        let p = &handle.config.project;
+        let desc = p.description.as_deref().unwrap_or("");
         let fields = vec![
             FormField::new("name",          "form.project.name",        FormTab::Project, true,  FormFieldType::Text)
-                .hint("form.project.name.hint").default_val(&info.name).dirty(),
+                .hint("form.project.name.hint").default_val(&p.name).dirty(),
             FormField::new("domain",        "form.project.domain",      FormTab::Project, true,  FormFieldType::Text)
-                .hint("form.project.domain.hint").default_val(&info.domain).dirty(),
+                .hint("form.project.domain.hint").default_val(&p.domain).dirty(),
             FormField::new("description",   "form.project.description", FormTab::Project, false, FormFieldType::Text)
-                .hint("form.project.description.hint").default_val(&info.description).dirty(),
+                .hint("form.project.description.hint").default_val(desc).dirty(),
             FormField::new("contact_email", "form.project.email",       FormTab::Project, true,  FormFieldType::Email)
-                .hint("form.project.email.hint").default_val(&info.email).dirty(),
+                .hint("form.project.email.hint").default_val(handle.email()).dirty(),
             FormField::new("language", "form.options.language",  FormTab::Options, false, FormFieldType::Select)
-                .opts(vec!["de", "en", "fr", "es", "it", "pt"]).default_val(&info.language).dirty(),
+                .opts(vec!["de", "en", "fr", "es", "it", "pt"]).default_val(&p.language).dirty(),
             FormField::new("path",     "form.project.path",      FormTab::Options, true,  FormFieldType::Path)
-                .hint("form.project.path.hint").default_val(&info.path).dirty(),
+                .hint("form.project.path.hint").default_val(handle.install_dir()).dirty(),
             FormField::new("version",  "form.options.version",   FormTab::Options, false, FormFieldType::Text)
-                .default_val(&info.version).dirty(),
+                .default_val(&p.version).dirty(),
         ];
-        Self { active_tab: 0, active_field: 0, fields, error: None, edit_slug: Some(info.slug.clone()) }
+        Self { active_tab: 0, active_field: 0, fields, error: None, edit_slug: Some(handle.slug.clone()) }
     }
 
     /// Indices of fields belonging to the active tab.
@@ -456,7 +466,7 @@ pub struct AppState {
     /// True when last keypress included CONTROL — switches hint bar to Ctrl shortcuts.
     pub ctrl_hint:          bool,
     /// Loaded projects from disk.
-    pub projects:           Vec<ProjectInfo>,
+    pub projects:           Vec<ProjectHandle>,
     pub selected_project:   usize,
     pub dash_focus:         DashFocus,
     /// True = waiting for delete-confirm (J/N).
@@ -472,7 +482,7 @@ pub struct LogsState {
 }
 
 impl AppState {
-    pub fn new(sysinfo: SysInfo, services: Vec<ServiceRow>, projects: Vec<ProjectInfo>) -> Self {
+    pub fn new(sysinfo: SysInfo, services: Vec<ServiceRow>, projects: Vec<ProjectHandle>) -> Self {
         let screen = if services.is_empty() { Screen::Welcome } else { Screen::Dashboard };
         Self {
             screen, lang: Lang::De, sysinfo, services,

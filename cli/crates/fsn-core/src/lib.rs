@@ -4,7 +4,9 @@
 // It is the foundation every other FSN crate depends on.
 
 pub mod config;
+pub mod resource;
 pub mod state;
 pub mod error;
 
 pub use error::FsnError;
+pub use resource::{Resource, ResourcePhase};

@@ -11,6 +11,7 @@ use std::path::Path;
 use toml::Value;
 
 use crate::error::FsnError;
+use crate::resource::Resource;
 
 /// Root structure of a project config file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +70,11 @@ pub struct ProjectMeta {
     /// Additional supported languages (ordered by preference).
     #[serde(default)]
     pub languages: Vec<String>,
+
+    /// Base installation directory on the host (e.g. "/opt/fsn" or "~/fsn").
+    /// Overrides the host-level default when set.
+    #[serde(default)]
+    pub install_dir: Option<String>,
 
     pub contact: Option<ContactInfo>,
     pub branding: Option<BrandingConfig>,
@@ -136,5 +142,19 @@ impl ProjectConfig {
             path: path.display().to_string(),
             source: e,
         })
+    }
+}
+
+impl Resource for ProjectConfig {
+    fn kind(&self) -> &'static str { "project" }
+
+    fn validate(&self) -> anyhow::Result<()> {
+        if self.project.name.is_empty() {
+            anyhow::bail!("project.name is required");
+        }
+        if self.project.domain.is_empty() {
+            anyhow::bail!("project.domain is required");
+        }
+        Ok(())
     }
 }

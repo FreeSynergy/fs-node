@@ -27,7 +27,7 @@ pub struct ServiceStatus {
     pub container_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunState {
     /// systemd unit active + container running
     Running,
@@ -50,7 +50,7 @@ impl std::fmt::Display for RunState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HealthStatus {
     Healthy,
     Unhealthy,

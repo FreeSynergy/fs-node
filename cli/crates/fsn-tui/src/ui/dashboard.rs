@@ -46,7 +46,7 @@ pub fn render(f: &mut Frame, state: &AppState) {
 fn render_header(f: &mut Frame, state: &AppState, area: Rect) {
     // Show active project's name + domain if available
     let (name, domain) = state.projects.get(state.selected_project)
-        .map(|p| (p.name.as_str(), p.domain.as_str()))
+        .map(|p| (p.name(), p.domain()))
         .unwrap_or(("FreeSynergy.Node", ""));
 
     let title = if domain.is_empty() {
@@ -136,10 +136,11 @@ fn render_sidebar(f: &mut Frame, state: &AppState, area: Rect) {
 
             // Truncate to fit sidebar width
             let max_w = inner.width.saturating_sub(2) as usize;
-            let display = if proj.name.len() > max_w {
-                format!("{}{}…", prefix, &proj.name[..max_w.saturating_sub(1)])
+            let proj_name = proj.name();
+            let display = if proj_name.len() > max_w {
+                format!("{}{}…", prefix, &proj_name[..max_w.saturating_sub(1)])
             } else {
-                format!("{}{}", prefix, proj.name)
+                format!("{}{}", prefix, proj_name)
             };
 
             lines.push(Line::from(Span::styled(display, style)));

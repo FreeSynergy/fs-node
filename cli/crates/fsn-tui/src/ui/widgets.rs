@@ -8,7 +8,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{AppState, ServiceStatus};
+use crate::app::{run_state_i18n, AppState, RunState};
 
 /// Language toggle button: "[DE]" or "[EN]" in the top-right corner.
 pub fn lang_button<'a>(state: &AppState) -> Span<'a> {
@@ -20,13 +20,13 @@ pub fn lang_button<'a>(state: &AppState) -> Span<'a> {
     )
 }
 
-/// Status badge with color.
-pub fn status_span(status: ServiceStatus, state: &AppState) -> Span<'static> {
+/// Status badge with color, backed by fsn-core's `RunState`.
+pub fn status_span(status: RunState, state: &AppState) -> Span<'static> {
     let (label, color) = match status {
-        ServiceStatus::Running => (state.t("status.running"), Color::Green),
-        ServiceStatus::Stopped => (state.t("status.stopped"), Color::Yellow),
-        ServiceStatus::Error   => (state.t("status.error"),   Color::Red),
-        ServiceStatus::Unknown => (state.t("status.unknown"), Color::Gray),
+        RunState::Running => (state.t(run_state_i18n(RunState::Running)), Color::Green),
+        RunState::Stopped => (state.t(run_state_i18n(RunState::Stopped)), Color::Yellow),
+        RunState::Failed  => (state.t(run_state_i18n(RunState::Failed)),  Color::Red),
+        RunState::Missing => (state.t(run_state_i18n(RunState::Missing)), Color::Gray),
     };
     Span::styled(label, Style::default().fg(color))
 }
