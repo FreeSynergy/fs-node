@@ -1,0 +1,65 @@
+[workspace]
+members = [
+    "crates/fsn-core",
+    "crates/fsn-engine",
+    "crates/fsn-podman",
+    "crates/fsn-dns",
+    "crates/fsn-ansible",
+    "crates/fsn-cli",
+    "crates/fsn-web",
+]
+resolver = "2"
+
+[workspace.package]
+version     = "0.1.0"
+edition     = "2021"
+license     = "MIT"
+authors     = ["FreeSynergy.Net"]
+repository  = "https://github.com/FreeSynergyNet/FreeSynergy.Node"
+
+# ── Shared dependency versions ────────────────────────────────────────────────
+[workspace.dependencies]
+# Internal crates
+fsn-core    = { path = "crates/fsn-core" }
+fsn-engine  = { path = "crates/fsn-engine" }
+fsn-podman  = { path = "crates/fsn-podman" }
+fsn-dns     = { path = "crates/fsn-dns" }
+fsn-ansible = { path = "crates/fsn-ansible" }
+fsn-web     = { path = "crates/fsn-web" }
+
+# Serialization
+serde          = { version = "1",    features = ["derive"] }
+toml           = { version = "0.8",  features = ["preserve_order"] }
+serde_json     = { version = "1" }
+indexmap       = { version = "2",    features = ["serde"] }
+
+# Async runtime
+tokio          = { version = "1",    features = ["full"] }
+
+# Error handling
+anyhow         = { version = "1" }
+thiserror      = { version = "2" }
+
+# Templating (Jinja2-compatible; same .j2 templates work)
+minijinja      = { version = "2",    features = ["loader"] }
+
+# CLI
+clap           = { version = "4",    features = ["derive", "color", "env"] }
+
+# HTTP client (DNS APIs)
+reqwest        = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# WebUI
+axum           = { version = "0.8" }
+tower-http     = { version = "0.6",  features = ["fs", "cors", "trace"] }
+
+# Logging / tracing
+tracing        = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Secrets (zero-on-drop, never Debug)
+secrecy        = { version = "0.10", features = ["serde"] }
+
+# Misc
+walkdir        = { version = "2" }
+async-trait    = { version = "0.1" }
