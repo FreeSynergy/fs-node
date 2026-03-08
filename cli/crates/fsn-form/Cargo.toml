@@ -1,0 +1,9 @@
+[package]
+name        = "fsn-form"
+description = "FreeSynergy.Node – backend-agnostic form schema and trait"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+fsn-form-derive = { path = "../fsn-form-derive" }

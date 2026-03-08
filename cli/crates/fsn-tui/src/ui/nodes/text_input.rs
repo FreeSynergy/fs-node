@@ -28,6 +28,8 @@ pub struct TextInputNode {
     pub dirty:     bool,
     /// Display value as bullet characters (passwords).
     pub secret:    bool,
+    /// Maximum allowed character count (0 = unlimited).
+    pub max_len:   usize,
     rect:          Option<Rect>,
 }
 
@@ -41,7 +43,7 @@ impl TextInputNode {
         Self {
             key, label_key, hint_key: None, tab, required,
             value: String::new(), default: String::new(),
-            cursor: 0, dirty: false, secret: false, rect: None,
+            cursor: 0, dirty: false, secret: false, max_len: 0, rect: None,
         }
     }
 
@@ -66,6 +68,9 @@ impl TextInputNode {
 
     pub fn secret(mut self) -> Self { self.secret = true; self }
 
+    /// Set maximum allowed character count (0 = unlimited).
+    pub fn max_len(mut self, n: usize) -> Self { self.max_len = n; self }
+
     // ── Internal helpers ───────────────────────────────────────────────────
 
     fn display_value(&self) -> String {
@@ -73,6 +78,7 @@ impl TextInputNode {
     }
 
     fn insert_char(&mut self, c: char) {
+        if self.max_len > 0 && self.value.chars().count() >= self.max_len { return; }
         self.value.insert(self.cursor, c);
         self.cursor += c.len_utf8();
         self.dirty = true;

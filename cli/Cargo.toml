@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "crates/fsn-form-derive",
+    "crates/fsn-form",
     "crates/fsn-core",
     "crates/fsn-engine",
     "crates/fsn-podman",
@@ -20,6 +22,8 @@ repository  = "https://github.com/FreeSynergyNet/FreeSynergy.Node"
 # ── Shared dependency versions ────────────────────────────────────────────────
 [workspace.dependencies]
 # Internal crates
+fsn-form-derive = { path = "crates/fsn-form-derive" }
+fsn-form    = { path = "crates/fsn-form" }
 fsn-core    = { path = "crates/fsn-core" }
 fsn-engine  = { path = "crates/fsn-engine" }
 fsn-podman  = { path = "crates/fsn-podman" }

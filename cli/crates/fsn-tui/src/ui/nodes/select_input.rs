@@ -221,8 +221,9 @@ impl FormNode for SelectInputNode {
             // Selection — handled internally, not forwarded as focus movement
             KeyCode::Up   => { self.prev_option(); FormAction::Consumed }
             KeyCode::Down => { self.next_option(); FormAction::Consumed }
-            // Enter confirms current selection without advancing the form
-            KeyCode::Enter => FormAction::Consumed,
+            // Enter confirms the current selection and advances to the next field,
+            // matching TextInputNode behaviour so the user can navigate with Enter.
+            KeyCode::Enter => FormAction::FocusNext,
 
             // Navigation
             KeyCode::Tab     => FormAction::FocusNext,

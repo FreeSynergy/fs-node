@@ -13,6 +13,7 @@ pub mod events;
 pub mod host_form;
 pub mod i18n;
 pub mod project_form;
+pub mod schema_form;
 pub mod service_form;
 pub mod sysinfo;
 pub mod ui;
