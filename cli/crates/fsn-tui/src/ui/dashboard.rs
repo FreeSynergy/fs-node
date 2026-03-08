@@ -1,17 +1,21 @@
-// Dashboard screen — sidebar (projects + hosts) + services table.
+// Dashboard screen — sidebar (projects + hosts + services) + context center panel.
 //
 // ┌──────────────────────────────────────────────────────────────────┐
 // │  FSN · myproject @ example.com                          [DE]    │
 // ├────────────────────┬─────────────────────────────────────────────┤
 // │ PROJEKTE           │  Services                                   │
-// │ ▶ myproject        │  ┌───────────────────────────────────────┐  │
-// │   testprojekt      │  │  Name      Typ    Domain    Status    │  │
-// │ + Neues Projekt    │  │▶ kanidm    iam    auth.ex   ● Aktiv   │  │
-// │ HOSTS              │  │  forgejo   git    git.ex    ○ Stopp   │  │
-// │   ⊡ srv1           │  └───────────────────────────────────────┘  │
+// │ ▶ myproject        │  Name      Typ    Domain    Status          │
+// │   testprojekt      │▶ kanidm    iam    auth.ex   ● Aktiv        │
+// │ + Neues Projekt    │  forgejo   git    git.ex    ○ Stopp        │
+// │ HOSTS              │                                             │
+// │   ⊡ srv1           │  (center shows details of selected item)   │
 // │ + Neuer Host       │                                             │
+// │ SERVICES           │                                             │
+// │   ◆ kanidm         │                                             │
+// │   ◆ forgejo        │                                             │
+// │ + Neuer Service    │                                             │
 // ├────────────────────┴─────────────────────────────────────────────┤
-// │  ↑↓=Nav  n=Neu  e=Bearbeiten  x=Löschen  Tab=Services  q=Quit   │
+// │  ↑↓=Nav  n=Neu  e=Bearbeiten  x=Löschen  Tab=Detail  q=Quit     │
 // └──────────────────────────────────────────────────────────────────┘
 
 use ratatui::{
@@ -22,7 +26,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{AppState, DashFocus, SidebarItem};
+use crate::app::{AppState, DashFocus, RunState, SidebarItem};
 use crate::ui::widgets;
 
 pub fn render(f: &mut Frame, state: &mut AppState, area: ratatui::layout::Rect) {
@@ -94,7 +98,7 @@ fn render_body(f: &mut Frame, state: &AppState, area: Rect) {
         .split(area);
 
     render_sidebar(f, state, cols[0]);
-    render_services(f, state, cols[1]);
+    render_center(f, state, cols[1]);
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -156,6 +160,30 @@ fn render_sidebar(f: &mut Frame, state: &AppState, area: Rect) {
                 };
                 Line::from(Span::styled(truncate(prefix, name, max_w), style))
             }
+            SidebarItem::Service { name, status, .. } => {
+                let status_char = match status {
+                    RunState::Running => "●",
+                    RunState::Stopped => "○",
+                    RunState::Failed  => "✕",
+                    RunState::Missing => "·",
+                };
+                let status_color = match status {
+                    RunState::Running => Color::Green,
+                    RunState::Stopped => Color::DarkGray,
+                    RunState::Failed  => Color::Red,
+                    RunState::Missing => Color::DarkGray,
+                };
+                let (prefix, name_style) = if is_cursor {
+                    ("  ▶ ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                } else {
+                    ("  ◆ ", Style::default().fg(Color::White))
+                };
+                let text = truncate(prefix, name, max_w.saturating_sub(2));
+                Line::from(vec![
+                    Span::styled(text, name_style),
+                    Span::styled(format!(" {}", status_char), Style::default().fg(status_color)),
+                ])
+            }
             SidebarItem::Action { label_key, .. } => {
                 let style = if is_cursor {
                     Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
@@ -179,6 +207,141 @@ fn truncate(prefix: &str, name: &str, max_w: usize) -> String {
     } else {
         format!("{}{}", prefix, name)
     }
+}
+
+// ── Center panel — context-sensitive ──────────────────────────────────────────
+
+fn render_center(f: &mut Frame, state: &AppState, area: Rect) {
+    match state.current_sidebar_item() {
+        Some(SidebarItem::Host { slug, .. }) => {
+            let slug = slug.clone();
+            render_host_detail(f, state, area, &slug);
+        }
+        Some(SidebarItem::Service { name, .. }) => {
+            let name = name.clone();
+            render_service_detail(f, state, area, &name);
+        }
+        // Project selected, New-Action, or nothing → show service table
+        _ => render_services(f, state, area),
+    }
+}
+
+// ── Host detail panel ─────────────────────────────────────────────────────────
+
+fn render_host_detail(f: &mut Frame, state: &AppState, area: Rect, slug: &str) {
+    let Some(host) = state.hosts.iter().find(|h| h.slug == slug) else {
+        f.render_widget(Paragraph::new("—"), area);
+        return;
+    };
+
+    let display = host.config.host.alias.as_deref().unwrap_or(&host.config.host.name);
+    let block = Block::default()
+        .borders(Borders::NONE)
+        .title(Span::styled(
+            format!(" {} ", display),
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+        ));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let addr     = host.config.host.addr();
+    let ssh_user = &host.config.host.ssh_user;
+    let ssh_port = host.config.host.ssh_port;
+    let external = if host.config.host.external { "extern" } else { "lokal" };
+    let alias    = host.config.host.alias.as_deref().unwrap_or("—");
+
+    let lines = vec![
+        Line::from(vec![
+            Span::styled("Adresse:   ", Style::default().fg(Color::DarkGray)),
+            Span::styled(addr.to_string(), Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("SSH:       ", Style::default().fg(Color::DarkGray)),
+            Span::styled(format!("{}@{}:{}", ssh_user, addr, ssh_port), Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("Alias:     ", Style::default().fg(Color::DarkGray)),
+            Span::styled(alias.to_string(), Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("Typ:       ", Style::default().fg(Color::DarkGray)),
+            Span::styled(external.to_string(), Style::default().fg(Color::White)),
+        ]),
+    ];
+    f.render_widget(Paragraph::new(lines), inner);
+}
+
+// ── Service detail panel ──────────────────────────────────────────────────────
+
+fn render_service_detail(f: &mut Frame, state: &AppState, area: Rect, svc_name: &str) {
+    let Some(proj) = state.projects.get(state.selected_project) else {
+        f.render_widget(Paragraph::new("—"), area);
+        return;
+    };
+    let Some(entry) = proj.config.load.services.get(svc_name) else {
+        f.render_widget(Paragraph::new("—"), area);
+        return;
+    };
+
+    let status = state.last_podman_statuses.get(svc_name).copied().unwrap_or(RunState::Missing);
+    let status_label = match status {
+        RunState::Running => "● Running",
+        RunState::Stopped => "○ Stopped",
+        RunState::Failed  => "✕ Failed",
+        RunState::Missing => "· Missing",
+    };
+    let status_color = match status {
+        RunState::Running => Color::Green,
+        RunState::Stopped => Color::DarkGray,
+        RunState::Failed  => Color::Red,
+        RunState::Missing => Color::DarkGray,
+    };
+
+    let block = Block::default()
+        .borders(Borders::NONE)
+        .title(Span::styled(
+            format!(" {} ", svc_name),
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+        ));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let subdomain = entry.subdomain.as_deref().unwrap_or("—");
+    let port      = entry.port.map(|p| p.to_string()).unwrap_or_else(|| "—".to_string());
+    let env_count = entry.env.len();
+    let domain    = format!("{}.{}", svc_name, proj.domain());
+
+    let lines = vec![
+        Line::from(vec![
+            Span::styled("Klasse:    ", Style::default().fg(Color::DarkGray)),
+            Span::styled(entry.service_class.clone(), Style::default().fg(Color::Cyan)),
+        ]),
+        Line::from(vec![
+            Span::styled("Projekt:   ", Style::default().fg(Color::DarkGray)),
+            Span::styled(proj.slug.clone(), Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("Domain:    ", Style::default().fg(Color::DarkGray)),
+            Span::styled(domain, Style::default().fg(Color::Blue)),
+        ]),
+        Line::from(vec![
+            Span::styled("Subdomain: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(subdomain.to_string(), Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("Port:      ", Style::default().fg(Color::DarkGray)),
+            Span::styled(port, Style::default().fg(Color::White)),
+        ]),
+        Line::from(vec![
+            Span::styled("Status:    ", Style::default().fg(Color::DarkGray)),
+            Span::styled(status_label.to_string(), Style::default().fg(status_color)),
+        ]),
+        Line::from(vec![
+            Span::styled("Env-Vars:  ", Style::default().fg(Color::DarkGray)),
+            Span::styled(env_count.to_string(), Style::default().fg(Color::White)),
+        ]),
+    ];
+    f.render_widget(Paragraph::new(lines), inner);
 }
 
 // ── Services table ────────────────────────────────────────────────────────────
@@ -257,8 +420,9 @@ fn render_hint(f: &mut Frame, state: &AppState, area: Rect) {
         match state.dash_focus {
             DashFocus::Services => "dash.hint.services",
             DashFocus::Sidebar  => match state.current_sidebar_item() {
-                Some(SidebarItem::Host { .. }) => "dash.hint.host",
-                _                              => "dash.hint",
+                Some(SidebarItem::Host    { .. }) => "dash.hint.host",
+                Some(SidebarItem::Service { .. }) => "dash.hint.service",
+                _                                 => "dash.hint",
             },
         }
     };

@@ -41,7 +41,7 @@ pub enum DashFocus {
 
 /// The action triggered when a sidebar item is activated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SidebarAction { NewProject, NewHost }
+pub enum SidebarAction { NewProject, NewHost, NewService }
 
 /// One navigable row in the sidebar.
 ///
@@ -56,7 +56,9 @@ pub enum SidebarItem {
     Project { slug: String, name: String },
     /// A host entry — selecting updates `selected_host`.
     Host    { slug: String, name: String },
-    /// An action button ("+ New Project", "+ New Host").
+    /// A service entry — selecting shows service detail in center panel.
+    Service { name: String, class: String, status: RunState },
+    /// An action button ("+ New Project", "+ New Host", "+ New Service").
     Action  { label_key: &'static str, kind: SidebarAction },
 }
 
@@ -524,7 +526,7 @@ pub struct AppState {
     /// Index into `sidebar_items` — always points to a selectable item.
     pub sidebar_cursor:     usize,
     last_refresh:           Instant,
-    last_podman_statuses:   HashMap<String, RunState>,
+    pub last_podman_statuses: HashMap<String, RunState>,
     /// Receiver for the background deploy/export thread.
     /// `None` when no deploy is running.
     pub deploy_rx:          Option<mpsc::Receiver<DeployMsg>>,
@@ -630,6 +632,19 @@ impl AppState {
             });
         }
         items.push(SidebarItem::Action { label_key: "dash.new_host", kind: SidebarAction::NewHost });
+
+        items.push(SidebarItem::Section("sidebar.services"));
+        if let Some(proj) = self.projects.get(self.selected_project) {
+            for (name, entry) in &proj.config.load.services {
+                let status = self.last_podman_statuses.get(name).copied().unwrap_or(RunState::Missing);
+                items.push(SidebarItem::Service {
+                    name:   name.clone(),
+                    class:  entry.service_class.clone(),
+                    status,
+                });
+            }
+        }
+        items.push(SidebarItem::Action { label_key: "dash.new_service", kind: SidebarAction::NewService });
 
         self.sidebar_items = items;
 

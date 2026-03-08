@@ -337,6 +337,10 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
                         state.current_form = Some(crate::host_form::new_host_form(project_slugs, current));
                         state.screen = Screen::NewProject;
                     }
+                    Some(SidebarItem::Action { kind: SidebarAction::NewService, .. }) => {
+                        state.current_form = Some(crate::service_form::new_service_form());
+                        state.screen = Screen::NewProject;
+                    }
                     Some(SidebarItem::Project { slug, .. }) => {
                         if let Some(idx) = state.projects.iter().position(|p| p.slug == slug) {
                             state.selected_project = idx;
@@ -345,7 +349,8 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
                         }
                         state.dash_focus = DashFocus::Services;
                     }
-                    Some(SidebarItem::Host { .. }) | Some(SidebarItem::Action { .. }) => {
+                    Some(SidebarItem::Host { .. }) | Some(SidebarItem::Service { .. })
+                    | Some(SidebarItem::Action { .. }) => {
                         state.dash_focus = DashFocus::Services;
                     }
                     _ => {}
