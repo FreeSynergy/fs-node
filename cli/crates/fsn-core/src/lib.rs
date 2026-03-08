@@ -8,5 +8,9 @@ pub mod resource;
 pub mod state;
 pub mod error;
 
+pub use config::bot::{BotConfig, BotMeta, BotType};
 pub use error::FsnError;
-pub use resource::{Resource, ResourcePhase};
+pub use resource::{
+    Resource, ResourcePhase,
+    ProjectResource, HostResource, ServiceResource, BotResource,
+};

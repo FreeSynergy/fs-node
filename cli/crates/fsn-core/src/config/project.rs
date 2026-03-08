@@ -11,7 +11,7 @@ use std::path::Path;
 use toml::Value;
 
 use crate::error::FsnError;
-use crate::resource::Resource;
+use crate::resource::{ProjectResource, Resource, ServiceResource};
 
 /// Root structure of a project config file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -220,15 +220,34 @@ impl ServiceInstanceConfig {
     }
 }
 
-impl crate::resource::Resource for ServiceInstanceConfig {
+impl Resource for ServiceInstanceConfig {
     fn kind(&self) -> &'static str { "service" }
+    fn id(&self) -> &str { &self.service.name }
+    fn display_name(&self) -> &str {
+        self.service.alias.as_deref().unwrap_or(&self.service.name)
+    }
+    fn tags(&self) -> &[String] { &self.service.tags }
 
-    fn validate(&self) -> anyhow::Result<()> {
-        if self.service.name.is_empty()         { anyhow::bail!("service.name is required"); }
-        if self.service.service_class.is_empty() { anyhow::bail!("service.service_class is required"); }
-        if self.service.project.is_empty()       { anyhow::bail!("service.project is required"); }
+    fn validate(&self) -> Result<(), FsnError> {
+        if self.service.name.is_empty() {
+            return Err(FsnError::ConstraintViolation { message: "service.name is required".into() });
+        }
+        if self.service.service_class.is_empty() {
+            return Err(FsnError::ConstraintViolation { message: "service.service_class is required".into() });
+        }
+        if self.service.project.is_empty() {
+            return Err(FsnError::ConstraintViolation { message: "service.project is required".into() });
+        }
         Ok(())
     }
+}
+
+impl ServiceResource for ServiceInstanceConfig {
+    fn service_class(&self) -> &str { &self.service.service_class }
+    fn host(&self)          -> Option<&str> { self.service.host.as_deref() }
+    fn subdomain(&self)     -> Option<&str> { self.service.subdomain.as_deref() }
+    fn port(&self)          -> Option<u16>  { self.service.port }
+    fn project(&self)       -> &str { &self.service.project }
 }
 
 impl ProjectConfig {
@@ -245,14 +264,27 @@ impl ProjectConfig {
 
 impl Resource for ProjectConfig {
     fn kind(&self) -> &'static str { "project" }
+    fn id(&self) -> &str { &self.project.name }
+    fn display_name(&self) -> &str { &self.project.name }
+    fn description(&self) -> Option<&str> { self.project.description.as_deref() }
 
-    fn validate(&self) -> anyhow::Result<()> {
+    fn validate(&self) -> Result<(), FsnError> {
         if self.project.name.is_empty() {
-            anyhow::bail!("project.name is required");
+            return Err(FsnError::ConstraintViolation { message: "project.name is required".into() });
         }
         if self.project.domain.is_empty() {
-            anyhow::bail!("project.domain is required");
+            return Err(FsnError::ConstraintViolation { message: "project.domain is required".into() });
         }
         Ok(())
     }
+}
+
+impl ProjectResource for ProjectConfig {
+    fn domain(&self) -> &str { &self.project.domain }
+    fn contact_email(&self) -> Option<&str> {
+        self.project.contact.as_ref()
+            .and_then(|c| c.email.as_deref().or(c.acme_email.as_deref()))
+    }
+    fn languages(&self) -> &[String] { &self.project.languages }
+    fn install_dir(&self) -> Option<&str> { self.project.install_dir.as_deref() }
 }

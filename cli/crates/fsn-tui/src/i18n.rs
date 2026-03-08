@@ -4,6 +4,41 @@
 
 use crate::app::Lang;
 
+// ── Translate trait ───────────────────────────────────────────────────────────
+
+/// Translation context — abstract over the concrete language implementation.
+///
+/// Analogous to React's `t()` from i18next: enables output-agnostic UI components.
+/// Components take `&impl Translate` (or `lang: Lang`) instead of `&AppState`,
+/// making them reusable across TUI, web, and test contexts.
+///
+/// # Example
+/// ```rust
+/// fn render_hint(t: &impl Translate) -> &'static str {
+///     t.t("welcome.hint")
+/// }
+/// // Works with Lang::De, Lang::En, or any custom Translate impl (e.g. for testing).
+/// ```
+pub trait Translate {
+    /// Returns the translated string for `key`.
+    /// Falls back to English, then to the raw key if no translation is found.
+    ///
+    /// Keys are always compile-time string literals (`&'static str`), ensuring
+    /// the returned string is always `'static`.
+    fn t(&self, key: &'static str) -> &'static str;
+}
+
+impl Translate for Lang {
+    fn t(&self, key: &'static str) -> &'static str {
+        match self {
+            Lang::De => de(key).unwrap_or_else(|| en(key).unwrap_or(key)),
+            Lang::En => en(key).unwrap_or(key),
+        }
+    }
+}
+
+// ── Translation function ──────────────────────────────────────────────────────
+
 pub fn t<'a>(lang: Lang, key: &'a str) -> &'a str {
     match lang {
         Lang::De => de(key).unwrap_or_else(|| en(key).unwrap_or(key)),

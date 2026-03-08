@@ -1,13 +1,22 @@
-// Component-based form field architecture.
+// Component-based form field architecture — the HTML element analogy for fsn-tui.
 //
-// Each form field is a self-contained node that:
-//   • holds its own value/state (cursor, options, dirty flag)
-//   • renders itself including label, input box, and hint
-//   • handles keyboard input and returns a `FormAction`
-//   • stores its last rendered Rect for mouse hit-testing
+// Design principle: analogous to the HTML input element hierarchy.
+//   HTMLElement → HTMLInputElement (text, password, email, …)
+//   FormNode    → TextInputNode / SelectInputNode / …
+//
+// Each FormNode is a fully self-contained UI component:
+//   • Owns its own state (value, cursor position, options, dirty flag)
+//   • Renders itself: label + input box + hint (render)
+//   • Renders overlays that must appear on top of siblings (render_overlay)
+//   • Handles keyboard input, returns a typed FormAction
+//   • Stores its last rendered Rect for mouse hit-testing (hit_test)
 //
 // This eliminates all per-field-type checks from events.rs (no more
-// `is_select_field()`, etc.) — the correct behavior is built into each type.
+// `is_select_field()`, `is_typing()`, etc.) — correct behavior is built in.
+//
+// Future extensions (same FormNode interface, different output backend):
+//   fn render_html(&self, lang: Lang) -> String
+//   fn to_json(&self, lang: Lang) -> serde_json::Value
 
 use crossterm::event::KeyEvent;
 use ratatui::{layout::Rect, Frame};
@@ -46,7 +55,15 @@ pub enum FormAction {
 
 // ── FormNode trait ────────────────────────────────────────────────────────────
 
-/// A single form field — combines state, rendering, and input handling.
+/// A UI component analogous to an HTML input element.
+///
+/// Each FormNode is fully self-contained:
+/// - **State**: owns its value, cursor position, dirty flag, and last rendered `Rect`
+/// - **Render**: draws label + input box + hint; overlays (dropdowns) via `render_overlay`
+/// - **Events**: handles keyboard input and returns a [`FormAction`] — no external dispatch
+/// - **Hit-test**: stores its `Rect` during `render` for mouse click detection next cycle
+///
+/// Adding a new field type = implement `FormNode`. No changes needed in `events.rs`.
 ///
 /// Implementing types: [`super::nodes::TextInputNode`], [`super::nodes::SelectInputNode`].
 pub trait FormNode: std::fmt::Debug {

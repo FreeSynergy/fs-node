@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::error::FsnError;
-use crate::resource::Resource;
+use crate::resource::{HostResource, Resource};
 
 /// Root structure of a host config file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,10 +157,22 @@ impl HostConfig {
 
 impl Resource for HostConfig {
     fn kind(&self) -> &'static str { "host" }
+    fn id(&self) -> &str { self.host.addr() }
+    fn display_name(&self) -> &str {
+        self.host.alias.as_deref().unwrap_or(&self.host.name)
+    }
+    fn tags(&self) -> &[String] { &self.host.tags }
 
-    fn validate(&self) -> anyhow::Result<()> {
-        if self.host.name.is_empty()    { anyhow::bail!("host.name is required"); }
-        if self.host.addr().is_empty()  { anyhow::bail!("host.address is required"); }
+    fn validate(&self) -> Result<(), FsnError> {
+        if self.host.name.is_empty()   { return Err(FsnError::ConstraintViolation { message: "host.name is required".into() }); }
+        if self.host.addr().is_empty() { return Err(FsnError::ConstraintViolation { message: "host.address is required".into() }); }
         Ok(())
     }
+}
+
+impl HostResource for HostConfig {
+    fn addr(&self)        -> &str  { self.host.addr() }
+    fn ssh_user(&self)    -> &str  { &self.host.ssh_user }
+    fn ssh_port(&self)    -> u16   { self.host.ssh_port }
+    fn is_external(&self) -> bool  { self.host.external }
 }

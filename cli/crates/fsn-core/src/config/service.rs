@@ -10,6 +10,9 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use toml::Value;
 
+use crate::error::FsnError;
+use crate::resource::Resource;
+
 // ── Service Type ──────────────────────────────────────────────────────────────
 
 /// The functional role of a service.
@@ -298,4 +301,27 @@ pub struct HealthCheck {
     pub timeout: String,
     pub retries: u32,
     pub start_period: String,
+}
+
+// ── Resource impl for ServiceClass ────────────────────────────────────────────
+
+impl Resource for ServiceClass {
+    fn kind(&self) -> &'static str { "service_class" }
+    fn id(&self) -> &str { &self.meta.name }
+    fn display_name(&self) -> &str { &self.meta.name }
+    fn description(&self) -> Option<&str> { self.meta.description.as_deref() }
+    fn tags(&self) -> &[String] { &self.meta.tags }
+
+    fn validate(&self) -> Result<(), FsnError> {
+        if self.meta.name.is_empty() {
+            return Err(FsnError::ConstraintViolation { message: "module.name is required".into() });
+        }
+        if self.meta.version.is_empty() {
+            return Err(FsnError::ConstraintViolation { message: "module.version is required".into() });
+        }
+        if self.container.image.is_empty() {
+            return Err(FsnError::ConstraintViolation { message: "container.image is required".into() });
+        }
+        Ok(())
+    }
 }

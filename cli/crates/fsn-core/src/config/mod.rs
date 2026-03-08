@@ -1,9 +1,11 @@
+pub mod bot;
 pub mod host;
-pub mod service;
 pub mod project;
 pub mod registry;
+pub mod service;
 pub mod vault;
 
+pub use bot::{BotConfig, BotMeta, BotType};
 pub use host::{HostConfig, HostDns, HostAcme, HostMeta};
 pub use service::{
     Constraints, ContainerDef, Locality,
