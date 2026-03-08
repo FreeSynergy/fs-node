@@ -151,7 +151,14 @@ fn de(key: &str) -> Option<&'static str> {
         "form.bot.description"   => "Beschreibung",
         "form.bot.tags"          => "Tags",
         "form.bot.tags.hint"     => "Kommagetrennte Tags, z.B. notifications,alerts",
-        "dash.hint.services"  => "↑↓=Nav  n=Service  b=Bot  d=Deploy  r=Restart  l=Logs  Tab=Sidebar",
+        "dash.hint.services"  => "↑↓=Nav  n=Neu  d=Deploy  r=Restart  l=Logs  Tab=Sidebar",
+        // ── New-resource selector ─────────────────────────────────────────
+        "new.resource.title"  => "Neu erstellen",
+        "new.project"         => "Neues Projekt",
+        "new.host"            => "Neuer Host",
+        "new.service"         => "Neuer Service",
+        "new.bot"             => "Neuer Bot",
+        "new.resource.hint"   => "↑↓=Wählen  Enter=Öffnen  Esc=Abbr.",
         // ── Help sidebar ──────────────────────────────────────────────────
         "help.title"          => "Hilfe (F1)",
         "help.close_hint"     => "F1=Schließen",
@@ -287,7 +294,14 @@ fn en(key: &str) -> Option<&'static str> {
         "form.bot.description"   => "Description",
         "form.bot.tags"          => "Tags",
         "form.bot.tags.hint"     => "Comma-separated tags, e.g. notifications,alerts",
-        "dash.hint.services"  => "↑↓=Nav  n=Service  b=Bot  d=Deploy  r=Restart  l=Logs  Tab=Sidebar",
+        "dash.hint.services"  => "↑↓=Nav  n=New  d=Deploy  r=Restart  l=Logs  Tab=Sidebar",
+        // ── New-resource selector ─────────────────────────────────────────
+        "new.resource.title"  => "Create New",
+        "new.project"         => "New Project",
+        "new.host"            => "New Host",
+        "new.service"         => "New Service",
+        "new.bot"             => "New Bot",
+        "new.resource.hint"   => "↑↓=Select  Enter=Open  Esc=Cancel",
         // ── Help sidebar ──────────────────────────────────────────────────
         "help.title"          => "Help (F1)",
         "help.close_hint"     => "F1=Close",

@@ -479,12 +479,23 @@ pub enum OverlayLayer {
     Confirm { message: String, yes_action: ConfirmAction },
     /// Deploy / Compose-export progress overlay.
     Deploy(DeployState),
+    /// New-resource selector popup (↑↓ to pick, Enter to open form).
+    NewResource { selected: usize },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfirmAction {
     DeleteProject,
 }
+
+/// Options shown in the new-resource selector popup (label key + kind).
+/// Order = visual order; do not reorder without updating render.
+pub const NEW_RESOURCE_ITEMS: &[(&str, ResourceKind)] = &[
+    ("new.project", ResourceKind::Project),
+    ("new.host",    ResourceKind::Host),
+    ("new.service", ResourceKind::Service),
+    ("new.bot",     ResourceKind::Bot),
+];
 
 // ── Full application state ────────────────────────────────────────────────────
 

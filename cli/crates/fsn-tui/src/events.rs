@@ -12,7 +12,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKi
 
 use crate::app::{
     AppState, ConfirmAction, DashFocus, DeployMsg, DeployState, LogsState,
-    OverlayLayer, ResourceKind, RunState, Screen, SidebarAction, SidebarItem,
+    NEW_RESOURCE_ITEMS, OverlayLayer, ResourceKind, RunState, Screen, SidebarAction, SidebarItem,
 };
 use crate::ui::form_node::FormAction;
 
@@ -54,9 +54,10 @@ pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
 fn handle_overlay(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
     // Peek at the topmost overlay type before potentially popping it
     let overlay_kind = state.top_overlay().map(|o| match o {
-        OverlayLayer::Logs(_)     => "logs",
-        OverlayLayer::Confirm{..} => "confirm",
-        OverlayLayer::Deploy(_)   => "deploy",
+        OverlayLayer::Logs(_)          => "logs",
+        OverlayLayer::Confirm{..}      => "confirm",
+        OverlayLayer::Deploy(_)        => "deploy",
+        OverlayLayer::NewResource{..}  => "new_resource",
     });
 
     match overlay_kind {
@@ -100,9 +101,71 @@ fn handle_overlay(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()
                 state.deploy_rx = None;
             }
         }
+        Some("new_resource") => {
+            handle_new_resource_overlay(key, state, root)?;
+        }
         _ => { state.pop_overlay(); }
     }
     Ok(())
+}
+
+/// Handle keyboard input for the new-resource selector popup.
+fn handle_new_resource_overlay(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
+    let count = NEW_RESOURCE_ITEMS.len();
+
+    match key.code {
+        KeyCode::Esc => { state.pop_overlay(); }
+
+        KeyCode::Up => {
+            if let Some(OverlayLayer::NewResource { selected }) = state.top_overlay_mut() {
+                *selected = selected.checked_sub(1).unwrap_or(count - 1);
+            }
+        }
+        KeyCode::Down => {
+            if let Some(OverlayLayer::NewResource { selected }) = state.top_overlay_mut() {
+                *selected = (*selected + 1) % count;
+            }
+        }
+
+        KeyCode::Enter => {
+            let idx = match state.top_overlay() {
+                Some(OverlayLayer::NewResource { selected }) => *selected,
+                _ => return Ok(()),
+            };
+            state.pop_overlay();
+            open_new_resource_form(idx, state, root);
+        }
+
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Open the form for the resource type at `item_idx` in `NEW_RESOURCE_ITEMS`.
+fn open_new_resource_form(item_idx: usize, state: &mut AppState, root: &Path) {
+    let Some(&(_, kind)) = NEW_RESOURCE_ITEMS.get(item_idx) else { return };
+    match kind {
+        ResourceKind::Project => {
+            state.current_form = Some(crate::project_form::new_project_form());
+            state.screen = Screen::NewProject;
+        }
+        ResourceKind::Host => {
+            let project_slugs = state.projects.iter().map(|p| p.slug.clone()).collect();
+            let current = state.projects.get(state.selected_project)
+                .map(|p| p.slug.as_str()).unwrap_or("");
+            state.current_form = Some(crate::host_form::new_host_form(project_slugs, current));
+            state.screen = Screen::NewProject;
+        }
+        ResourceKind::Service => {
+            state.current_form = Some(crate::service_form::new_service_form());
+            state.screen = Screen::NewProject;
+        }
+        ResourceKind::Bot => {
+            state.current_form = Some(crate::bot_form::new_bot_form());
+            state.screen = Screen::NewProject;
+        }
+    }
+    let _ = root; // used by callers for context; form submit uses root separately
 }
 
 // ── Welcome screen ────────────────────────────────────────────────────────────
@@ -233,23 +296,9 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
                 }
             }
 
-            // Context-aware 'n': new project when on project context, new host when on host context.
+            // 'n' — open the new-resource selector (Project / Host / Service / Bot).
             KeyCode::Char('n') => {
-                let item = state.current_sidebar_item().cloned();
-                match item {
-                    Some(SidebarItem::Host { .. })
-                    | Some(SidebarItem::Action { kind: SidebarAction::NewHost, .. }) => {
-                        let project_slugs = state.projects.iter().map(|p| p.slug.clone()).collect();
-                        let current = state.projects.get(state.selected_project)
-                            .map(|p| p.slug.as_str()).unwrap_or("");
-                        state.current_form = Some(crate::host_form::new_host_form(project_slugs, current));
-                        state.screen = Screen::NewProject;
-                    }
-                    _ => {
-                        state.current_form = Some(crate::project_form::new_project_form());
-                        state.screen = Screen::NewProject;
-                    }
-                }
+                state.push_overlay(OverlayLayer::NewResource { selected: 0 });
             }
 
             // Context-aware 'e': edit the item under the cursor (project or host).
@@ -331,14 +380,9 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
                 if state.selected + 1 < state.services.len() { state.selected += 1; }
             }
 
+            // 'n' — open the new-resource selector (same as sidebar).
             KeyCode::Char('n') => {
-                state.current_form = Some(crate::service_form::new_service_form());
-                state.screen = Screen::NewProject;
-            }
-
-            KeyCode::Char('b') => {
-                state.current_form = Some(crate::bot_form::new_bot_form());
-                state.screen = Screen::NewProject;
+                state.push_overlay(OverlayLayer::NewResource { selected: 0 });
             }
 
             KeyCode::Char('l') => {
@@ -758,14 +802,21 @@ pub fn handle_mouse(event: MouseEvent, state: &mut AppState) -> Result<()> {
         }
 
         MouseEventKind::Down(_) => {
-            // Language button — top-right corner
-            if event.column >= tw.saturating_sub(6) && event.row <= 2 {
+            // Effective width: shrink by help sidebar if visible
+            let eff_w = if state.help_visible && tw > crate::ui::help_sidebar::SIDEBAR_WIDTH {
+                tw - crate::ui::help_sidebar::SIDEBAR_WIDTH
+            } else {
+                tw
+            };
+
+            // Language button — top-right of the main content area
+            if event.column >= eff_w.saturating_sub(6) && event.column < eff_w && event.row <= 2 {
                 state.lang = state.lang.toggle();
                 return Ok(());
             }
 
             if state.screen == Screen::NewProject {
-                handle_form_click(event.column, event.row, state, tw);
+                handle_form_click(event.column, event.row, state, eff_w);
             } else if state.screen == Screen::Dashboard && !state.has_overlay() {
                 handle_dashboard_click(event.column, event.row, state);
             }

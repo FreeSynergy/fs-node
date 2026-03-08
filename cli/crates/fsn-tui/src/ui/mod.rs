@@ -59,11 +59,81 @@ pub fn render(f: &mut Frame, state: &mut AppState) {
     // Each variant is rendered by its own function — OOP: variant carries own rendering.
     for layer in &state.overlay_stack {
         match layer {
-            OverlayLayer::Logs(_)        => logs::render(f, state),
-            OverlayLayer::Confirm { .. } => render_confirm(f, state),
-            OverlayLayer::Deploy(_)      => render_deploy(f, state),
+            OverlayLayer::Logs(_)             => logs::render(f, state),
+            OverlayLayer::Confirm { .. }      => render_confirm(f, state),
+            OverlayLayer::Deploy(_)           => render_deploy(f, state),
+            OverlayLayer::NewResource { .. }  => render_new_resource(f, state),
         }
     }
+}
+
+fn render_new_resource(f: &mut Frame, state: &AppState) {
+    use ratatui::{
+        layout::{Alignment, Rect},
+        style::{Color, Modifier, Style},
+        text::{Line, Span},
+        widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    };
+    use crate::app::{NEW_RESOURCE_ITEMS, OverlayLayer};
+
+    let selected = match state.top_overlay() {
+        Some(OverlayLayer::NewResource { selected }) => *selected,
+        _ => return,
+    };
+
+    let area    = f.area();
+    let width   = 36u16;
+    // height: title-border(1) + gap(1) + items + gap(1) + hint(1) + border(1) = items + 5
+    let height  = NEW_RESOURCE_ITEMS.len() as u16 + 5;
+    let popup   = Rect {
+        x:      area.width.saturating_sub(width) / 2,
+        y:      area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    };
+
+    f.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .title(Span::styled(
+            format!(" {} ", state.t("new.resource.title")),
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(popup);
+    f.render_widget(block, popup);
+
+    // Option rows
+    let mut lines: Vec<Line> = vec![Line::from("")];
+    for (i, &(key, _)) in NEW_RESOURCE_ITEMS.iter().enumerate() {
+        let is_sel   = i == selected;
+        let marker   = if is_sel { "▶ " } else { "  " };
+        let label    = state.t(key);
+        let row_style = if is_sel {
+            Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        let text = format!("{}{}", marker, label);
+        // Pad to full width for highlight bar
+        let padded = format!("{:<w$}", text, w = (inner.width as usize).saturating_sub(0));
+        lines.push(Line::from(Span::styled(padded, row_style)));
+    }
+
+    // Hint
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        state.t("new.resource.hint"),
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    f.render_widget(
+        Paragraph::new(lines).alignment(Alignment::Left),
+        inner,
+    );
 }
 
 fn render_confirm(f: &mut Frame, state: &AppState) {
