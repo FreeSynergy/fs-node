@@ -11,8 +11,8 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 
 use crate::app::{
-    AppState, ConfirmAction, DashFocus, LogsState, OverlayLayer, ResourceKind, RunState, Screen,
-    SidebarAction, SidebarItem,
+    AppState, ConfirmAction, DashFocus, DeployMsg, DeployState, LogsState,
+    OverlayLayer, ResourceKind, RunState, Screen, SidebarAction, SidebarItem,
 };
 use crate::ui::form_node::FormAction;
 
@@ -42,8 +42,9 @@ pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
 fn handle_overlay(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
     // Peek at the topmost overlay type before potentially popping it
     let overlay_kind = state.top_overlay().map(|o| match o {
-        OverlayLayer::Logs(_)    => "logs",
+        OverlayLayer::Logs(_)     => "logs",
         OverlayLayer::Confirm{..} => "confirm",
+        OverlayLayer::Deploy(_)   => "deploy",
     });
 
     match overlay_kind {
@@ -75,6 +76,16 @@ fn handle_overlay(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()
                     }
                 }
                 _ => { state.pop_overlay(); } // any other key = cancel
+            }
+        }
+        Some("deploy") => {
+            // Only closeable once done
+            let done = state.top_overlay().map(|o| {
+                if let OverlayLayer::Deploy(ref d) = o { d.done } else { false }
+            }).unwrap_or(false);
+            if done && matches!(key.code, KeyCode::Char('q') | KeyCode::Esc) {
+                state.pop_overlay();
+                state.deploy_rx = None;
             }
         }
         _ => { state.pop_overlay(); }
@@ -292,8 +303,8 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
             }
 
             KeyCode::Char('d') => {
-                if let Some(svc) = state.services.get_mut(state.selected) {
-                    svc.status = RunState::Missing;
+                if let Some(proj) = state.projects.get(state.selected_project).cloned() {
+                    trigger_compose_export(state, root, proj.slug.clone(), proj.config.clone());
                 }
             }
 
@@ -324,6 +335,60 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
         },
     }
     Ok(())
+}
+
+// ── Compose export (background thread) ───────────────────────────────────────
+
+/// Spawn a background thread that generates compose.yml + .env.example
+/// for the given project and reports progress via the deploy overlay.
+fn trigger_compose_export(
+    state:       &mut AppState,
+    root:        &Path,
+    slug:        String,
+    project_cfg: fsn_core::config::ProjectConfig,
+) {
+    let (tx, rx) = std::sync::mpsc::channel::<DeployMsg>();
+    state.deploy_rx = Some(rx);
+    state.push_overlay(OverlayLayer::Deploy(DeployState {
+        target:  project_cfg.project.name.clone(),
+        log:     Vec::new(),
+        done:    false,
+        success: false,
+    }));
+
+    let project_dir = root.join("projects").join(&slug);
+
+    std::thread::spawn(move || {
+        let out_dir = project_dir.join("compose");
+        let _ = tx.send(DeployMsg::Log(format!("Ziel: {}/", out_dir.display())));
+
+        if let Err(e) = std::fs::create_dir_all(&out_dir) {
+            let _ = tx.send(DeployMsg::Done { success: false, error: Some(e.to_string()) });
+            return;
+        }
+
+        // Generate compose.yml
+        let _ = tx.send(DeployMsg::Log("Schreibe compose.yml...".into()));
+        let compose_content = fsn_engine::generate::compose::generate_compose(&project_cfg);
+        let compose_path = out_dir.join("compose.yml");
+        if let Err(e) = std::fs::write(&compose_path, &compose_content) {
+            let _ = tx.send(DeployMsg::Done { success: false, error: Some(format!("compose.yml: {e}")) });
+            return;
+        }
+        let _ = tx.send(DeployMsg::Log("✓ compose.yml".into()));
+
+        // Generate .env.example
+        let _ = tx.send(DeployMsg::Log("Schreibe .env.example...".into()));
+        let env_content = fsn_engine::generate::compose::generate_env_example(&project_cfg);
+        let env_path = out_dir.join(".env.example");
+        if let Err(e) = std::fs::write(&env_path, &env_content) {
+            let _ = tx.send(DeployMsg::Done { success: false, error: Some(format!(".env.example: {e}")) });
+            return;
+        }
+        let _ = tx.send(DeployMsg::Log("✓ .env.example".into()));
+
+        let _ = tx.send(DeployMsg::Done { success: true, error: None });
+    });
 }
 
 fn delete_selected_project(state: &mut AppState, root: &Path) -> Result<()> {

@@ -13,4 +13,5 @@ pub use error::FsnError;
 pub use resource::{
     Resource, ResourcePhase,
     ProjectResource, HostResource, ServiceResource, BotResource,
+    VarProvider,
 };

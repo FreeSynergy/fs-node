@@ -38,6 +38,7 @@ pub fn render_template(ctx: &HookContext<'_>, template_name: &str) -> Result<Str
         service_domain:         &ctx.instance.service_domain,
         parent_instance_name:   &ctx.instance.name,
         vault:                  ctx.vault,
+        cross_vars:             crate::resolve::collect_cross_service_vars(ctx.project),
     };
 
     crate::template::render(&source, &tctx)

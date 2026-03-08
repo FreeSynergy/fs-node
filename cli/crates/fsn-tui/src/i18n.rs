@@ -139,6 +139,9 @@ fn de(key: &str) -> Option<&'static str> {
         "form.host.acme_email"      => "ACME-E-Mail",
         "form.host.acme_email.hint" => "Kontakt-E-Mail für Let's Encrypt (wird aus Adresse abgeleitet)",
         "dash.new_host"   => "+ Neuer Host",
+        "deploy.title"    => "Compose-Export",
+        "deploy.hint"     => "q=Schließen",
+        "deploy.running"  => "↻ Läuft...",
         _ => return None,
     })
 }
@@ -236,6 +239,9 @@ fn en(key: &str) -> Option<&'static str> {
         "form.host.acme_email"      => "ACME Email",
         "form.host.acme_email.hint" => "Contact email for Let's Encrypt (derived from address)",
         "dash.new_host"   => "+ New Host",
+        "deploy.title"    => "Compose Export",
+        "deploy.hint"     => "q=Close",
+        "deploy.running"  => "↻ Running...",
         _ => return None,
     })
 }

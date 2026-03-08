@@ -18,6 +18,9 @@ pub struct TemplateContext<'a> {
     pub service_domain: &'a str,
     pub parent_instance_name: &'a str,
     pub vault: &'a VaultConfig,
+    /// Cross-service and project-level variables from VarProvider exports.
+    /// Injected before vault secrets so secrets can always override.
+    pub cross_vars: HashMap<String, String>,
 }
 
 /// Render a single Jinja2 template string with the given context.
@@ -35,6 +38,12 @@ pub fn render(template: &str, ctx: &TemplateContext) -> Result<String> {
     .into_iter()
     .map(|(k, v)| (k.to_string(), minijinja::Value::from(v)))
     .collect();
+
+    // Inject cross-service vars (e.g. MAIL_HOST, IAM_URL) so services can reference each other.
+    // Keys are lowercased for Jinja2 compatibility: {{ mail_host }}, {{ iam_url }}, etc.
+    for (k, v) in &ctx.cross_vars {
+        vars.insert(k.to_lowercase(), minijinja::Value::from(v.as_str()));
+    }
 
     // Inject vault secrets (vault_* keys) into the template context.
     // Vault values are exposed only at render time, never stored as plain strings.

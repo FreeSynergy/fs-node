@@ -450,11 +450,33 @@ pub struct LogsState {
     pub scroll:       usize,
 }
 
+/// Progress message from the background deploy/export thread.
+#[derive(Debug)]
+pub enum DeployMsg {
+    /// Append a line to the deploy log.
+    Log(String),
+    /// Operation finished (success or failure).
+    Done { success: bool, error: Option<String> },
+}
+
+/// State for the deploy/export progress overlay.
+#[derive(Debug, Clone)]
+pub struct DeployState {
+    /// What is being deployed or exported (project name).
+    pub target:  String,
+    /// Log lines shown in the overlay (progress + result).
+    pub log:     Vec<String>,
+    pub done:    bool,
+    pub success: bool,
+}
+
 #[derive(Debug, Clone)]
 pub enum OverlayLayer {
     Logs(LogsState),
     /// Confirmation prompt. `yes_action` is a tag processed by events.rs.
     Confirm { message: String, yes_action: ConfirmAction },
+    /// Deploy / Compose-export progress overlay.
+    Deploy(DeployState),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -488,6 +510,9 @@ pub struct AppState {
     pub sidebar_cursor:     usize,
     last_refresh:           Instant,
     last_podman_statuses:   HashMap<String, RunState>,
+    /// Receiver for the background deploy/export thread.
+    /// `None` when no deploy is running.
+    pub deploy_rx:          Option<mpsc::Receiver<DeployMsg>>,
 }
 
 impl AppState {
@@ -502,6 +527,7 @@ impl AppState {
             sidebar_items: vec![], sidebar_cursor: 0,
             last_refresh: Instant::now(),
             last_podman_statuses: HashMap::new(),
+            deploy_rx: None,
         };
         s.rebuild_sidebar();
         s
@@ -609,6 +635,32 @@ impl AppState {
     pub fn t<'a>(&self, key: &'a str) -> &'a str {
         crate::i18n::t(self.lang, key)
     }
+
+    /// Mutable access to the deploy overlay (if it's on top).
+    pub fn deploy_overlay_mut(&mut self) -> Option<&mut DeployState> {
+        self.overlay_stack.last_mut().and_then(|o| {
+            if let OverlayLayer::Deploy(ref mut d) = o { Some(d) } else { None }
+        })
+    }
+
+    /// Apply a message from the background deploy thread.
+    pub fn apply_deploy_msg(&mut self, msg: DeployMsg) {
+        if let Some(ds) = self.deploy_overlay_mut() {
+            match msg {
+                DeployMsg::Log(line) => ds.log.push(line),
+                DeployMsg::Done { success, error } => {
+                    if let Some(err) = error {
+                        ds.log.push(format!("✗ {}", err));
+                    } else {
+                        ds.log.push("✓ Fertig!".into());
+                    }
+                    ds.done    = true;
+                    ds.success = success;
+                    self.deploy_rx = None;
+                }
+            }
+        }
+    }
 }
 
 // ── Main loop ─────────────────────────────────────────────────────────────────
@@ -637,6 +689,12 @@ pub fn run_loop(
 
         while let Ok(statuses) = reconcile_rx.try_recv() {
             state.apply_podman_status(statuses);
+        }
+
+        // Poll deploy/export progress messages from background thread
+        if let Some(ref rx) = state.deploy_rx {
+            let msgs: Vec<DeployMsg> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+            for msg in msgs { state.apply_deploy_msg(msg); }
         }
 
         if state.last_refresh.elapsed() >= Duration::from_secs(REFRESH_SECS) {

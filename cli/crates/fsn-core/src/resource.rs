@@ -10,6 +10,7 @@
 // Every top-level managed object implements at least `Resource`:
 //   Project, Host, Service (instance), ServiceClass, Bot
 
+use std::collections::HashMap;
 use std::fmt;
 use crate::error::FsnError;
 
@@ -145,6 +146,26 @@ pub trait ServiceResource: Resource {
 
     /// Project slug this service belongs to.
     fn project(&self) -> &str;
+}
+
+// ── VarProvider ───────────────────────────────────────────────────────────────
+
+/// Provides deploy-time variables to the shared template context.
+///
+/// Each resource knows which variables it exports to other services in the same
+/// deploy context. The engine collects all providers and merges their maps before
+/// Jinja2 rendering, enabling automatic cross-service injection without hardcoded lookups.
+///
+/// # Naming convention (SCREAMING_SNAKE_CASE with type prefix)
+/// - Project:    `PROJECT_NAME`, `PROJECT_DOMAIN`, `PROJECT_EMAIL`
+/// - Host:       `HOST_ADDR`, `HOST_INSTALL_DIR`
+/// - Mail:       `MAIL_HOST`, `MAIL_DOMAIN`, `MAIL_URL`, `MAIL_PORT`
+/// - IAM:        `IAM_HOST`, `IAM_DOMAIN`, `IAM_URL`
+/// - Git:        `GIT_HOST`, `GIT_DOMAIN`, `GIT_URL`
+/// - (pattern continues for Chat, Wiki, Tasks, Collab, Monitoring, …)
+pub trait VarProvider {
+    /// Variables this resource exports to the deploy template context.
+    fn exported_vars(&self) -> HashMap<String, String>;
 }
 
 /// Bot / automation agent interface.
