@@ -201,7 +201,7 @@ fn render_fields(f: &mut Frame, state: &AppState, form: &ResourceForm, area: Rec
                 let btn_area   = Rect { x: inner.x, y: btn_y, width: inner.width / 3, height: 3 };
                 let missing    = form.missing_required();
                 let disabled   = !missing.is_empty();
-                let submit_key = if form.edit_id.is_some() { "form.submit.edit" } else { "form.submit" };
+                let submit_key = if form.edit_id.is_some() { "form.submit.edit" } else { form.kind.submit_key() };
                 let btn = Paragraph::new(widgets::button_line(state.t(submit_key), true, disabled))
                     .block(Block::default().borders(Borders::ALL).border_style(
                         if disabled { Style::default().fg(Color::DarkGray) } else { Style::default().fg(Color::Green) }

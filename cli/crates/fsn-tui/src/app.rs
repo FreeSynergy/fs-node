@@ -151,6 +151,14 @@ impl ResourceKind {
             ResourceKind::Host    => "form.edit_host",
         }
     }
+    /// i18n key for the submit button (create mode).
+    pub fn submit_key(self) -> &'static str {
+        match self {
+            ResourceKind::Project => "form.submit",
+            ResourceKind::Service => "form.submit.service",
+            ResourceKind::Host    => "form.submit.host",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -166,6 +174,8 @@ pub struct FormField {
     pub required:   bool,
     pub field_type: FormFieldType,
     pub value:      String,
+    /// Fallback used by `effective_value()` when `value` is empty.
+    pub default:    String,
     pub cursor:     usize,
     pub dirty:      bool,
     pub options:    Vec<&'static str>,
@@ -176,13 +186,28 @@ pub struct FormField {
 impl FormField {
     pub fn new(key: &'static str, label_key: &'static str, tab: usize, required: bool, field_type: FormFieldType) -> Self {
         Self { key, label_key, hint_key: None, tab, required, field_type,
-               value: String::new(), cursor: 0, dirty: false, options: vec![], display_fn: None }
+               value: String::new(), default: String::new(), cursor: 0, dirty: false,
+               options: vec![], display_fn: None }
     }
     pub fn hint(mut self, k: &'static str) -> Self { self.hint_key = Some(k); self }
-    pub fn default_val(mut self, v: &str) -> Self { self.value = v.to_string(); self.cursor = v.len(); self }
+    pub fn default_val(mut self, v: &str) -> Self {
+        self.value   = v.to_string();
+        self.default = v.to_string();
+        self.cursor  = v.len();
+        self
+    }
     pub fn opts(mut self, o: Vec<&'static str>) -> Self { self.options = o; self }
     pub fn dirty(mut self) -> Self { self.dirty = true; self }
     pub fn display(mut self, f: fn(&str) -> &'static str) -> Self { self.display_fn = Some(f); self }
+
+    /// Value to use on submit: returns `default` if the user left the field empty.
+    pub fn effective_value(&self) -> &str {
+        if self.value.trim().is_empty() && !self.default.is_empty() {
+            &self.default
+        } else {
+            &self.value
+        }
+    }
 
     /// Human-readable display value (for Select fields with a display_fn).
     pub fn display_value(&self) -> &str {
@@ -352,7 +377,9 @@ impl ResourceForm {
     }
 
     pub fn field_value(&self, key: &str) -> String {
-        self.fields.iter().find(|f| f.key == key).map(|f| f.value.clone()).unwrap_or_default()
+        self.fields.iter().find(|f| f.key == key)
+            .map(|f| f.effective_value().to_string())
+            .unwrap_or_default()
     }
 
     pub fn set_select_by_index(&mut self, option_idx: usize) {

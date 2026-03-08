@@ -91,8 +91,12 @@ fn handle_resource_form(key: KeyEvent, state: &mut AppState, root: &Path) -> Res
             }
         }
 
-        // Enter: next tab or submit on last tab
+        // Enter: for Select fields — confirm selection only (no advance/submit)
+        // Enter: for text fields — next tab or submit
         KeyCode::Enter => {
+            if state.current_form.as_ref().map(|f| is_select_field(f)).unwrap_or(false) {
+                return Ok(());
+            }
             let action = state.current_form.as_ref().map(|form| {
                 let missing_t = form.tab_missing_count(form.active_tab);
                 if missing_t > 0 {
@@ -349,7 +353,7 @@ fn submit_project(state: &mut AppState, root: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Stub: write service entry into the active project's TOML.
+/// Write service as `projects/{slug}/services/{name}.service.toml`.
 fn submit_service(state: &mut AppState, root: &Path) -> Result<()> {
     let Some(ref form) = state.current_form else { return Ok(()); };
     let Some(proj) = state.projects.get(state.selected_project) else {
@@ -359,21 +363,63 @@ fn submit_service(state: &mut AppState, root: &Path) -> Result<()> {
         return Ok(());
     };
 
-    let svc_name  = form.field_value("name");
-    let svc_class = form.field_value("class");
+    let svc_name      = form.field_value("name");
+    let svc_class     = form.field_value("class");
+    let svc_subdomain = form.field_value("subdomain");
+    let svc_alias     = form.field_value("alias");
+    let svc_version   = form.field_value("version");
+    let svc_port      = form.field_value("port");
 
-    if svc_name.is_empty() || svc_class.is_empty() { return Ok(()); }
+    if svc_name.is_empty() {
+        if let Some(ref mut f) = state.current_form {
+            f.error = Some("Service-Name ist erforderlich".into());
+        }
+        return Ok(());
+    }
+    if svc_class.is_empty() {
+        if let Some(ref mut f) = state.current_form {
+            f.error = Some("Service-Typ ist erforderlich".into());
+        }
+        return Ok(());
+    }
 
-    // Append [load.services.{name}] to the project TOML
-    let mut content = std::fs::read_to_string(&proj.toml_path)?;
-    let entry = format!(
-        "\n[load.services.{}]\nservice_class = \"{}\"\n",
-        svc_name, svc_class
+    let project_dir  = root.join("projects").join(&proj.slug);
+    let services_dir = project_dir.join("services");
+    std::fs::create_dir_all(&services_dir)?;
+
+    let slug = crate::app::slugify(&svc_name);
+    let path = services_dir.join(format!("{}.service.toml", slug));
+
+    let mut content = format!(
+        "[service]\nname          = \"{svc_name}\"\nservice_class = \"{svc_class}\"\nproject       = \"{}\"\n",
+        proj.slug
     );
-    content.push_str(&entry);
-    std::fs::write(&proj.toml_path, content)?;
+    if !svc_version.is_empty() {
+        content.push_str(&format!("version       = \"{svc_version}\"\n"));
+    }
+    if !svc_subdomain.is_empty() {
+        content.push_str(&format!("subdomain     = \"{svc_subdomain}\"\n"));
+    }
+    if !svc_alias.is_empty() {
+        content.push_str(&format!("alias         = \"{svc_alias}\"\n"));
+    }
+    if !svc_port.is_empty() {
+        if let Ok(p) = svc_port.parse::<u16>() {
+            content.push_str(&format!("port          = {p}\n"));
+        }
+    }
+    std::fs::write(&path, content)?;
 
-    // Reload projects so dashboard picks up the change
+    // Also keep a reference in project.toml [load.services.{name}] for backward compat
+    let mut proj_content = std::fs::read_to_string(&proj.toml_path)?;
+    if !proj_content.contains(&format!("[load.services.{}]", slug)) {
+        proj_content.push_str(&format!(
+            "\n[load.services.{}]\nservice_class = \"{svc_class}\"\n",
+            slug
+        ));
+        std::fs::write(&proj.toml_path, proj_content)?;
+    }
+
     state.projects = crate::load_projects(root);
     state.rebuild_services();
     state.screen = Screen::Dashboard;
@@ -469,6 +515,8 @@ pub fn handle_mouse(event: MouseEvent, state: &mut AppState) -> Result<()> {
                         form.active_field = slot;
                     }
                 }
+            } else if state.screen == Screen::Dashboard && state.logs_overlay.is_none() {
+                handle_dashboard_click(event.column, event.row, state);
             }
         }
         _ => {}
@@ -516,6 +564,56 @@ fn find_clicked_dropdown(col: u16, row: u16, form: Option<&ResourceForm>, tw: u1
         if opt_idx < field.options.len() { return Some(opt_idx); }
     }
     None
+}
+
+// ── Dashboard click handler ───────────────────────────────────────────────────
+
+/// Map a mouse click in the dashboard to the correct focus + selection.
+/// Dashboard layout: header=3 rows, body starts at row 3, sidebar=22 cols wide.
+fn handle_dashboard_click(col: u16, row: u16, state: &mut AppState) {
+    const SIDEBAR_W: u16 = 22;
+    const HEADER_H:  u16 = 3;
+
+    if row < HEADER_H { return; }
+    let body_row = row - HEADER_H;  // row within the body area
+
+    if col < SIDEBAR_W {
+        // Click in sidebar → focus sidebar, select project
+        state.dash_focus = DashFocus::Sidebar;
+        // Sidebar items start at body_row 0:
+        //   project0, [host0, host1, ..., +New Host] if selected, project1, ...
+        // Simple approximation: map row to project index (ignoring host sub-rows)
+        let proj_count = state.projects.len();
+        if proj_count == 0 { return; }
+        // Each selected project has 1 + hosts.len() + 1 extra rows; others have 1 row.
+        // Walk through to find which item was clicked.
+        let mut cur_row: u16 = 0;
+        for (i, _) in state.projects.iter().enumerate() {
+            if body_row == cur_row {
+                state.selected_project = i;
+                return;
+            }
+            cur_row += 1;
+            // Extra rows for the selected project (hosts + "New Host")
+            if i == state.selected_project {
+                let extra = state.hosts.len() as u16 + 1; // hosts + "+ New Host"
+                if body_row > cur_row && body_row < cur_row + extra {
+                    return; // clicked a host entry, keep selection
+                }
+                cur_row += extra;
+            }
+        }
+    } else {
+        // Click in services panel → focus services, select row
+        state.dash_focus = DashFocus::Services;
+        // Services table: 1 header row, then one row per service.
+        const TABLE_HEADER: u16 = 1;
+        if body_row <= TABLE_HEADER { return; }
+        let svc_row = (body_row - TABLE_HEADER - 1) as usize;
+        if svc_row < state.services.len() {
+            state.selected = svc_row;
+        }
+    }
 }
 
 // ── Podman helpers ────────────────────────────────────────────────────────────
