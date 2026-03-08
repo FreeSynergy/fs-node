@@ -16,6 +16,7 @@ use fsn_core::config::{ProjectConfig, ServiceEntry};
 /// Kept here (not in module TOML) so compose generation is registry-free.
 fn image_for_class(class_key: &str) -> Option<&'static str> {
     match class_key {
+        "proxy/zentinel"     => Some("ghcr.io/freesynergy/zentinel"),
         "git/forgejo"        => Some("codeberg.org/forgejo/forgejo"),
         "iam/kanidm"         => Some("docker.io/kanidm/server"),
         "mail/stalwart"      => Some("docker.io/stalwartlabs/mail-server"),

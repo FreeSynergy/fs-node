@@ -24,8 +24,8 @@ pub struct ServiceFormData {
     pub name: String,
 
     #[form(label = "form.service.class", widget = "select", required, tab = 0,
-           options = "git/forgejo,iam/kanidm,mail/stalwart,wiki/outline,chat/matrix,tasks/vikunja,monitoring/netdata",
-           default = "git/forgejo")]
+           options = "proxy/zentinel,git/forgejo,iam/kanidm,mail/stalwart,wiki/outline,chat/matrix,tasks/vikunja,monitoring/netdata",
+           default = "proxy/zentinel")]
     pub class: String,
 
     #[form(label = "form.service.subdomain", tab = 0, hint = "form.service.subdomain.hint")]
@@ -46,6 +46,7 @@ pub struct ServiceFormData {
 
 pub fn service_class_display(code: &str) -> &'static str {
     match code {
+        "proxy/zentinel"     => "Zentinel (Proxy)",
         "git/forgejo"        => "Forgejo (Git)",
         "iam/kanidm"         => "Kanidm (IAM)",
         "mail/stalwart"      => "Stalwart (Mail)",

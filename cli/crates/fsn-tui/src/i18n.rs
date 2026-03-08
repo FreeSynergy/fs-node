@@ -142,6 +142,16 @@ fn de(key: &str) -> Option<&'static str> {
         "deploy.title"    => "Compose-Export",
         "deploy.hint"     => "q=Schließen",
         "deploy.running"  => "↻ Läuft...",
+        "form.tab.bot"           => "Bot",
+        "form.submit.bot"        => "Bot anlegen",
+        "form.bot.name"          => "Bot-Name",
+        "form.bot.name.hint"     => "Eindeutiger Name, z.B. matrix-bot (ohne Leerzeichen)",
+        "form.bot.type"          => "Bot-Typ (↑↓ zum Wählen)",
+        "form.bot.class"         => "Bot-Klasse (↑↓ zum Wählen)",
+        "form.bot.description"   => "Beschreibung",
+        "form.bot.tags"          => "Tags",
+        "form.bot.tags.hint"     => "Kommagetrennte Tags, z.B. notifications,alerts",
+        "dash.hint.services"  => "↑↓=Nav  n=Service  b=Bot  d=Deploy  r=Restart  l=Logs  Tab=Sidebar",
         _ => return None,
     })
 }
@@ -242,6 +252,16 @@ fn en(key: &str) -> Option<&'static str> {
         "deploy.title"    => "Compose Export",
         "deploy.hint"     => "q=Close",
         "deploy.running"  => "↻ Running...",
+        "form.tab.bot"           => "Bot",
+        "form.submit.bot"        => "Create Bot",
+        "form.bot.name"          => "Bot Name",
+        "form.bot.name.hint"     => "Unique name, e.g. matrix-bot (no spaces)",
+        "form.bot.type"          => "Bot Type (↑↓ to select)",
+        "form.bot.class"         => "Bot Class (↑↓ to select)",
+        "form.bot.description"   => "Description",
+        "form.bot.tags"          => "Tags",
+        "form.bot.tags.hint"     => "Comma-separated tags, e.g. notifications,alerts",
+        "dash.hint.services"  => "↑↓=Nav  n=Service  b=Bot  d=Deploy  r=Restart  l=Logs  Tab=Sidebar",
         _ => return None,
     })
 }

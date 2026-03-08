@@ -187,6 +187,7 @@ fn handle_form_submit(state: &mut AppState, root: &Path) -> Result<()> {
         Some(ResourceKind::Project) => submit_project(state, root)?,
         Some(ResourceKind::Service) => submit_service(state, root)?,
         Some(ResourceKind::Host)    => submit_host(state, root)?,
+        Some(ResourceKind::Bot)     => submit_bot(state, root)?,
         None => {}
     }
     Ok(())
@@ -260,6 +261,36 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
                 }
             }
 
+            // Enter activates the current sidebar item.
+            KeyCode::Enter => {
+                let item = state.current_sidebar_item().cloned();
+                match item {
+                    Some(SidebarItem::Action { kind: SidebarAction::NewProject, .. }) => {
+                        state.current_form = Some(crate::project_form::new_project_form());
+                        state.screen = Screen::NewProject;
+                    }
+                    Some(SidebarItem::Action { kind: SidebarAction::NewHost, .. }) => {
+                        let project_slugs = state.projects.iter().map(|p| p.slug.clone()).collect();
+                        let current = state.projects.get(state.selected_project)
+                            .map(|p| p.slug.as_str()).unwrap_or("");
+                        state.current_form = Some(crate::host_form::new_host_form(project_slugs, current));
+                        state.screen = Screen::NewProject;
+                    }
+                    Some(SidebarItem::Project { slug, .. }) => {
+                        if let Some(idx) = state.projects.iter().position(|p| p.slug == slug) {
+                            state.selected_project = idx;
+                            reload_hosts(state, root);
+                            state.rebuild_services();
+                        }
+                        state.dash_focus = DashFocus::Services;
+                    }
+                    Some(SidebarItem::Host { .. }) | Some(SidebarItem::Action { .. }) => {
+                        state.dash_focus = DashFocus::Services;
+                    }
+                    _ => {}
+                }
+            }
+
             // Context-aware 'x': delete project or (future) host.
             KeyCode::Char('x') | KeyCode::Delete => {
                 let item = state.current_sidebar_item();
@@ -290,6 +321,11 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
 
             KeyCode::Char('n') => {
                 state.current_form = Some(crate::service_form::new_service_form());
+                state.screen = Screen::NewProject;
+            }
+
+            KeyCode::Char('b') => {
+                state.current_form = Some(crate::bot_form::new_bot_form());
                 state.screen = Screen::NewProject;
             }
 
@@ -465,63 +501,50 @@ fn submit_project(state: &mut AppState, root: &Path) -> Result<()> {
 }
 
 fn submit_service(state: &mut AppState, root: &Path) -> Result<()> {
-    let Some(ref form) = state.current_form else { return Ok(()); };
-    let Some(proj) = state.projects.get(state.selected_project) else {
+    let Some(proj) = state.projects.get(state.selected_project).cloned() else {
         if let Some(ref mut f) = state.current_form {
             f.error = Some("Kein Projekt ausgewählt".into());
         }
         return Ok(());
     };
 
-    let svc_name      = form.field_value("name");
-    let svc_class     = form.field_value("class");
-    let svc_subdomain = form.field_value("subdomain");
-    let svc_alias     = form.field_value("alias");
-    let svc_version   = form.field_value("version");
-    let svc_port      = form.field_value("port");
-
-    if svc_name.is_empty() {
-        if let Some(ref mut f) = state.current_form {
-            f.error = Some("Service-Name ist erforderlich".into());
-        }
-        return Ok(());
-    }
-
     let project_dir  = root.join("projects").join(&proj.slug);
     let services_dir = project_dir.join("services");
     std::fs::create_dir_all(&services_dir)?;
 
-    let slug = crate::app::slugify(&svc_name);
-    let path = services_dir.join(format!("{}.service.toml", slug));
+    let result = state.current_form.as_ref()
+        .map(|form| crate::service_form::submit_service_form(form, &services_dir));
 
-    let mut content = format!(
-        "[service]\nname          = \"{svc_name}\"\nservice_class = \"{svc_class}\"\nproject       = \"{}\"\n",
-        proj.slug
-    );
-    if !svc_version.is_empty()  { content.push_str(&format!("version       = \"{svc_version}\"\n")); }
-    if !svc_subdomain.is_empty(){ content.push_str(&format!("subdomain     = \"{svc_subdomain}\"\n")); }
-    if !svc_alias.is_empty()    { content.push_str(&format!("alias         = \"{svc_alias}\"\n")); }
-    if !svc_port.is_empty() {
-        if let Ok(p) = svc_port.parse::<u16>() {
-            content.push_str(&format!("port          = {p}\n"));
+    match result {
+        Some(Ok(())) => {
+            // Also register in project.toml [load.services.{slug}]
+            if let Some(ref form) = state.current_form {
+                let svc_name  = form.field_value("name");
+                let svc_class = form.field_value("class");
+                let slug      = crate::app::slugify(&svc_name);
+                let mut proj_content = std::fs::read_to_string(&proj.toml_path)?;
+                if !proj_content.contains(&format!("[load.services.{}]", slug)) {
+                    let version = form.field_value("version");
+                    let ver = if version.is_empty() { "latest".to_string() } else { version };
+                    proj_content.push_str(&format!(
+                        "\n[load.services.{slug}]\nservice_class = \"{svc_class}\"\nversion       = \"{ver}\"\n"
+                    ));
+                    std::fs::write(&proj.toml_path, proj_content)?;
+                }
+            }
+            state.projects = crate::load_projects(root);
+            state.rebuild_services();
+            state.screen      = Screen::Dashboard;
+            state.dash_focus  = DashFocus::Services;
+            state.current_form = None;
         }
+        Some(Err(e)) => {
+            if let Some(ref mut form) = state.current_form {
+                form.error = Some(format!("{e}"));
+            }
+        }
+        None => {}
     }
-    std::fs::write(&path, content)?;
-
-    // Backward-compat reference in project.toml
-    let mut proj_content = std::fs::read_to_string(&proj.toml_path)?;
-    if !proj_content.contains(&format!("[load.services.{}]", slug)) {
-        proj_content.push_str(&format!(
-            "\n[load.services.{}]\nservice_class = \"{svc_class}\"\n", slug
-        ));
-        std::fs::write(&proj.toml_path, proj_content)?;
-    }
-
-    state.projects = crate::load_projects(root);
-    state.rebuild_services();
-    state.screen     = Screen::Dashboard;
-    state.dash_focus = DashFocus::Services;
-    state.current_form = None;
     Ok(())
 }
 
@@ -548,6 +571,34 @@ fn submit_host(state: &mut AppState, root: &Path) -> Result<()> {
         Some(Err(e)) => {
             if let Some(ref mut form) = state.current_form {
                 form.error = Some(format!("{}", e));
+            }
+        }
+        None => {}
+    }
+    Ok(())
+}
+
+fn submit_bot(state: &mut AppState, root: &Path) -> Result<()> {
+    let Some(proj) = state.projects.get(state.selected_project).cloned() else {
+        if let Some(ref mut f) = state.current_form {
+            f.error = Some("Kein Projekt ausgewählt".into());
+        }
+        return Ok(());
+    };
+    let project_dir = root.join("projects").join(&proj.slug);
+
+    let result = state.current_form.as_ref()
+        .map(|form| crate::bot_form::submit_bot_form(form, &project_dir, &proj.slug));
+
+    match result {
+        Some(Ok(())) => {
+            state.screen      = Screen::Dashboard;
+            state.dash_focus  = DashFocus::Services;
+            state.current_form = None;
+        }
+        Some(Err(e)) => {
+            if let Some(ref mut form) = state.current_form {
+                form.error = Some(format!("{e}"));
             }
         }
         None => {}

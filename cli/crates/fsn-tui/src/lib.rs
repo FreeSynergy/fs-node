@@ -9,6 +9,7 @@ pub const BUILD_TIME: &str = env!("FSN_BUILD_TIME");
 pub const GIT_HASH:   &str = env!("FSN_GIT_HASH");
 
 pub mod app;
+pub mod bot_form;
 pub mod events;
 pub mod host_form;
 pub mod i18n;

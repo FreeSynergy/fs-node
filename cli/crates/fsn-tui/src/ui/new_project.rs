@@ -55,6 +55,8 @@ fn render_header(f: &mut Frame, lang: crate::app::Lang, form: &ResourceForm, are
         (ResourceKind::Service, true)  => "form.edit_service",
         (ResourceKind::Host,    false) => "form.new_host",
         (ResourceKind::Host,    true)  => "form.edit_host",
+        (ResourceKind::Bot,     false) => "form.tab.bot",
+        (ResourceKind::Bot,     true)  => "form.tab.bot",
     };
 
     let title = Line::from(vec![

@@ -233,9 +233,10 @@ pub fn run_state_i18n(state: RunState) -> &'static str {
 pub const PROJECT_TABS: &[&str] = &["form.tab.project", "form.tab.options"];
 pub const SERVICE_TABS: &[&str] = &["form.tab.service", "form.tab.options"];
 pub const HOST_TABS:    &[&str] = &["form.tab.host", "form.tab.system", "form.tab.dns"];
+pub const BOT_TABS:     &[&str] = &["form.tab.bot", "form.tab.options"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResourceKind { Project, Service, Host }
+pub enum ResourceKind { Project, Service, Host, Bot }
 
 impl ResourceKind {
     pub fn submit_key(self) -> &'static str {
@@ -243,6 +244,7 @@ impl ResourceKind {
             ResourceKind::Project => "form.submit",
             ResourceKind::Service => "form.submit.service",
             ResourceKind::Host    => "form.submit.host",
+            ResourceKind::Bot     => "form.submit.bot",
         }
     }
 }
