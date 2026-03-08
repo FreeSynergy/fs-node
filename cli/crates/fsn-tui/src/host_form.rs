@@ -1,20 +1,64 @@
-// Host-specific form builder.
+// Host-specific form — uses #[derive(Form)] for schema definition.
 //
-// Fields per tab:
-//   Tab 0 (Host)   : name, alias, address, project
+// Tabs:
+//   Tab 0 (Host)   : name, alias, address, project (dynamic dropdown)
 //   Tab 1 (System) : ssh_user, ssh_port, install_dir
 //   Tab 2 (DNS/TLS): dns_provider, acme_provider, acme_email
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::Result;
+use fsn_form::Form;
 
-use crate::app::{HOST_TABS, ResourceForm, ResourceKind};
+use crate::app::{HostHandle, ResourceForm, ResourceKind, HOST_TABS};
+use crate::schema_form;
 use crate::ui::form_node::FormNode;
-use crate::ui::nodes::{SelectInputNode, TextInputNode};
 
-pub const DNS_PROVIDERS:  &[&str] = &["hetzner", "cloudflare", "manual", "none"];
-pub const ACME_PROVIDERS: &[&str] = &["letsencrypt", "zerossl", "buypass", "none"];
+// ── Form data struct ──────────────────────────────────────────────────────────
+
+/// Form schema for creating and editing a Host.
+#[derive(Form)]
+pub struct HostFormData {
+    // ── Tab 0: Host ───────────────────────────────────────────────────────
+    #[form(label = "form.host.name", required, tab = 0, hint = "form.host.name.hint")]
+    pub name: String,
+
+    #[form(label = "form.host.alias", tab = 0, hint = "form.host.alias.hint")]
+    pub alias: String,
+
+    #[form(label = "form.host.address", required, tab = 0, hint = "form.host.address.hint")]
+    pub address: String,
+
+    /// Project this host belongs to.
+    /// Options are populated dynamically at form-build time (project slugs).
+    #[form(label = "form.host.project", widget = "select", tab = 0)]
+    pub project: String,
+
+    // ── Tab 1: System ─────────────────────────────────────────────────────
+    #[form(label = "form.host.ssh_user", tab = 1, default = "root")]
+    pub ssh_user: String,
+
+    #[form(label = "form.host.ssh_port", tab = 1, default = "22")]
+    pub ssh_port: String,
+
+    #[form(label = "form.host.install_dir", tab = 1, hint = "form.host.install_dir.hint", default = "/opt/fsn")]
+    pub install_dir: String,
+
+    // ── Tab 2: DNS / TLS ──────────────────────────────────────────────────
+    #[form(label = "form.host.dns_provider", widget = "select", tab = 2,
+           options = "hetzner,cloudflare,manual,none", default = "hetzner")]
+    pub dns_provider: String,
+
+    #[form(label = "form.host.acme_provider", widget = "select", tab = 2,
+           options = "letsencrypt,zerossl,buypass,none", default = "letsencrypt")]
+    pub acme_provider: String,
+
+    #[form(label = "form.host.acme_email", tab = 2, widget = "email", hint = "form.host.acme_email.hint")]
+    pub acme_email: String,
+}
+
+// ── Display helpers ───────────────────────────────────────────────────────────
 
 pub fn dns_provider_display(code: &str) -> &'static str {
     match code {
@@ -36,60 +80,74 @@ pub fn acme_provider_display(code: &str) -> &'static str {
     }
 }
 
+const DISPLAY_FNS: &[(&str, fn(&str) -> &'static str)] = &[
+    ("dns_provider",  dns_provider_display),
+    ("acme_provider", acme_provider_display),
+];
+
 // ── Smart-defaults hook ───────────────────────────────────────────────────────
 
 fn host_on_change(nodes: &mut Vec<Box<dyn FormNode>>, key: &'static str) {
     if key == "address" {
         let addr = nodes.iter().find(|n| n.key() == "address")
             .map(|n| n.value().to_string()).unwrap_or_default();
-        // Only auto-derive if address looks like a domain (not a raw IP)
+        // Auto-derive acme_email only from FQDN (not raw IPs)
         if addr.contains('.') && !addr.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
             let acme_dirty = nodes.iter().find(|n| n.key() == "acme_email")
                 .map(|n| n.is_dirty()).unwrap_or(false);
             if !acme_dirty {
-                let email = format!("admin@{}", addr);
                 if let Some(n) = nodes.iter_mut().find(|n| n.key() == "acme_email") {
-                    n.set_value(&email);
+                    n.set_value(&format!("admin@{}", addr));
                 }
             }
         }
     }
 }
 
-// ── Form builder ──────────────────────────────────────────────────────────────
+// ── Form builders ─────────────────────────────────────────────────────────────
 
-pub fn new_host_form(project_slug: &str) -> ResourceForm {
-    let nodes: Vec<Box<dyn FormNode>> = vec![
-        // ── Tab 0: Host ───────────────────────────────────────────────────
-        Box::new(TextInputNode::new("name",    "form.host.name",    0, true)
-            .hint("form.host.name.hint")),
-        Box::new(TextInputNode::new("alias",   "form.host.alias",   0, false)
-            .hint("form.host.alias.hint")),
-        Box::new(TextInputNode::new("address", "form.host.address", 0, true)
-            .hint("form.host.address.hint")),
-        Box::new(TextInputNode::new("project", "form.host.project", 0, false)
-            .default_val(project_slug)),
-        // ── Tab 1: System ─────────────────────────────────────────────────
-        Box::new(TextInputNode::new("ssh_user",    "form.host.ssh_user",    1, false)
-            .default_val("root")),
-        Box::new(TextInputNode::new("ssh_port",    "form.host.ssh_port",    1, false)
-            .default_val("22")),
-        Box::new(TextInputNode::new("install_dir", "form.host.install_dir", 1, false)
-            .hint("form.host.install_dir.hint")
-            .default_val("/opt/fsn")),
-        // ── Tab 2: DNS / TLS ──────────────────────────────────────────────
-        Box::new(SelectInputNode::new("dns_provider", "form.host.dns_provider", 2, false,
-            DNS_PROVIDERS.to_vec())
-            .default_val(DNS_PROVIDERS[0])
-            .display(dns_provider_display)),
-        Box::new(SelectInputNode::new("acme_provider", "form.host.acme_provider", 2, false,
-            ACME_PROVIDERS.to_vec())
-            .default_val(ACME_PROVIDERS[0])
-            .display(acme_provider_display)),
-        Box::new(TextInputNode::new("acme_email", "form.host.acme_email", 2, false)
-            .hint("form.host.acme_email.hint")),
-    ];
+/// Build a "New Host" form.
+///
+/// `project_slugs`   — Available projects for the dropdown.
+/// `current_project` — Pre-selected project slug (usually the active project).
+pub fn new_host_form(project_slugs: Vec<String>, current_project: &str) -> ResourceForm {
+    let mut prefill = HashMap::new();
+    if !current_project.is_empty() {
+        prefill.insert("project", current_project);
+    }
+    let dyn_opts = [("project", project_slugs)];
+    let nodes = schema_form::build_nodes(
+        HostFormData::schema(),
+        &prefill,
+        DISPLAY_FNS,
+        &[],
+        &dyn_opts,
+    );
     ResourceForm::new(ResourceKind::Host, HOST_TABS, nodes, None, host_on_change)
+}
+
+pub fn edit_host_form(handle: &HostHandle, project_slugs: Vec<String>) -> ResourceForm {
+    let h = &handle.config.host;
+    let ssh_port_str = h.ssh_port.to_string();
+    let mut prefill: HashMap<&str, &str> = [
+        ("name",        h.name.as_str()),
+        ("alias",       h.alias.as_deref().unwrap_or("")),
+        ("address",     h.addr()),
+        ("project",     h.project.as_deref().unwrap_or("")),
+        ("ssh_user",    h.ssh_user.as_str()),
+        ("ssh_port",    ssh_port_str.as_str()),
+        ("install_dir", h.install_dir.as_deref().unwrap_or("")),
+    ].into_iter().filter(|(_, v)| !v.is_empty()).collect();
+
+    let dyn_opts = [("project", project_slugs)];
+    let nodes = schema_form::build_nodes(
+        HostFormData::schema(),
+        &prefill,
+        DISPLAY_FNS,
+        &[],
+        &dyn_opts,
+    );
+    ResourceForm::new(ResourceKind::Host, HOST_TABS, nodes, Some(handle.slug.clone()), host_on_change)
 }
 
 // ── Submit ────────────────────────────────────────────────────────────────────
@@ -110,7 +168,7 @@ pub fn submit_host_form(form: &ResourceForm, project_dir: &Path) -> Result<()> {
     let acme_prov   = form.field_value("acme_provider");
     let acme_email  = form.field_value("acme_email");
 
-    let ssh_user_val      = if ssh_user.is_empty()    { "root".to_string()    } else { ssh_user };
+    let ssh_user_val      = if ssh_user.is_empty()    { "root".to_string()     } else { ssh_user };
     let ssh_port_val: u16 = ssh_port.parse().unwrap_or(22);
     let install_dir_val   = if install_dir.is_empty() { "/opt/fsn".to_string() } else { install_dir };
 

@@ -115,6 +115,7 @@ pub fn new_project_form() -> ResourceForm {
         &HashMap::new(),
         DISPLAY_FNS,
         dynamics,
+        &[],
     );
     ResourceForm::new(ResourceKind::Project, PROJECT_TABS, nodes, None, project_on_change)
 }
@@ -136,6 +137,7 @@ pub fn edit_project_form(handle: &ProjectHandle) -> ResourceForm {
         ProjectFormData::schema(),
         &prefill,
         DISPLAY_FNS,
+        &[],
         &[],
     );
     ResourceForm::new(ResourceKind::Project, PROJECT_TABS, nodes, Some(handle.slug.clone()), project_on_change)

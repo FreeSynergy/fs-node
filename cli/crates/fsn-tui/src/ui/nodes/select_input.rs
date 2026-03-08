@@ -1,9 +1,11 @@
 // Select input node — drop-down field.
 //
-// Up/Down cycles through options internally and returns Consumed — the outer
-// handler never needs to check "is this a Select field?".
+// Up/Down cycles through options internally.
 // The dropdown list is rendered via render_overlay(), called after all regular
 // fields so it visually appears on top.
+//
+// Options are `Vec<String>` so both static (&'static str) and dynamic
+// (runtime-computed, e.g. project slugs) choices are supported.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
@@ -25,7 +27,8 @@ pub struct SelectInputNode {
     pub tab:        usize,
     pub required:   bool,
     pub value:      String,
-    pub options:    Vec<&'static str>,
+    /// Available choices. `Vec<String>` supports both static and runtime-computed options.
+    pub options:    Vec<String>,
     /// Maps an option code to a human-readable label.
     pub display_fn: Option<fn(&str) -> &'static str>,
     rect:           Option<Rect>,
@@ -37,9 +40,9 @@ impl SelectInputNode {
         label_key: &'static str,
         tab:       usize,
         required:  bool,
-        options:   Vec<&'static str>,
+        options:   Vec<String>,
     ) -> Self {
-        let value = options.first().copied().unwrap_or("").to_string();
+        let value = options.first().cloned().unwrap_or_default();
         Self {
             key, label_key, hint_key: None, tab, required,
             value, options, display_fn: None, rect: None,
@@ -63,23 +66,23 @@ impl SelectInputNode {
     // ── Internal helpers ───────────────────────────────────────────────────
 
     fn current_idx(&self) -> usize {
-        self.options.iter().position(|&o| o == self.value.as_str()).unwrap_or(0)
+        self.options.iter().position(|o| o == &self.value).unwrap_or(0)
     }
 
     fn next_option(&mut self) {
         if self.options.is_empty() { return; }
         let next = (self.current_idx() + 1) % self.options.len();
-        self.value = self.options[next].to_string();
+        self.value = self.options[next].clone();
     }
 
     fn prev_option(&mut self) {
         if self.options.is_empty() { return; }
         let cur  = self.current_idx();
         let prev = if cur == 0 { self.options.len() - 1 } else { cur - 1 };
-        self.value = self.options[prev].to_string();
+        self.value = self.options[prev].clone();
     }
 
-    pub fn human_label(&self) -> &str {
+    fn human_label(&self) -> &str {
         if let Some(f) = self.display_fn {
             let s = f(&self.value);
             if !s.is_empty() { return s; }
@@ -88,8 +91,8 @@ impl SelectInputNode {
     }
 
     fn set_by_index(&mut self, idx: usize) {
-        if idx < self.options.len() {
-            self.value = self.options[idx].to_string();
+        if let Some(opt) = self.options.get(idx) {
+            self.value = opt.clone();
         }
     }
 }
@@ -101,11 +104,11 @@ impl FormNode for SelectInputNode {
     fn tab(&self)       -> usize                { self.tab }
     fn required(&self)  -> bool                 { self.required }
 
-    fn value(&self)          -> &str { &self.value }
+    fn value(&self)           -> &str { &self.value }
     fn effective_value(&self) -> &str { &self.value }  // Select always has a valid value
 
     fn set_value(&mut self, v: &str) { self.value = v.to_string(); }
-    fn is_dirty(&self)  -> bool      { false }          // Select is never "dirty"
+    fn is_dirty(&self)  -> bool      { false }   // Select is never "dirty"
     fn set_dirty(&mut self, _v: bool) {}
 
     fn set_rect(&mut self, r: Rect)     { self.rect = Some(r); }
@@ -181,8 +184,6 @@ impl FormNode for SelectInputNode {
     /// `available` is the total form area — limits how tall the dropdown can grow.
     fn render_overlay(&mut self, f: &mut Frame, available: Rect, _lang: Lang) {
         let Some(input_rect) = self.last_rect() else { return };
-        // The input box is rows[1] of our area, which starts at input_rect.y + 1
-        // (label row) and has height 3. So the dropdown starts at:
         let input_box_bottom = input_rect.y + 1 + 3; // label(1) + box(3)
         let avail_h = available.bottom().saturating_sub(input_box_bottom);
         let want_h  = (self.options.len() as u16 + 2).min(avail_h);
@@ -196,8 +197,8 @@ impl FormNode for SelectInputNode {
         };
         let cur = self.current_idx();
 
-        let items: Vec<ListItem> = self.options.iter().enumerate().map(|(i, &opt)| {
-            let label  = if let Some(f) = self.display_fn { f(opt) } else { opt };
+        let items: Vec<ListItem> = self.options.iter().enumerate().map(|(i, opt)| {
+            let label  = if let Some(f) = self.display_fn { f(opt.as_str()) } else { opt.as_str() };
             let prefix = if i == cur { "▶ " } else { "  " };
             let style  = if i == cur {
                 Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
@@ -218,7 +219,7 @@ impl FormNode for SelectInputNode {
     fn handle_key(&mut self, key: KeyEvent) -> FormAction {
         use KeyModifiers as KM;
         match key.code {
-            // Selection — handled internally, not forwarded as focus movement
+            // Selection — handled internally
             KeyCode::Up   => { self.prev_option(); FormAction::Consumed }
             KeyCode::Down => { self.next_option(); FormAction::Consumed }
             // Enter confirms the current selection and advances to the next field,
@@ -232,7 +233,7 @@ impl FormNode for SelectInputNode {
             KeyCode::Left  if key.modifiers.contains(KM::CONTROL) => FormAction::TabPrev,
             KeyCode::Right if key.modifiers.contains(KM::CONTROL) => FormAction::TabNext,
 
-            // Language toggle (not typing, so 'l' does not insert)
+            // Language toggle
             KeyCode::Char('l') | KeyCode::Char('L') => FormAction::LangToggle,
 
             _ => FormAction::Unhandled,
@@ -259,7 +260,6 @@ impl SelectInputNode {
         };
         if col < dropdown.x || col >= dropdown.right() { return false; }
         if row <= dropdown.y || row >= dropdown.bottom() { return false; }
-        // Row within the list (border at row 0, items from row 1)
         let item_row = (row - dropdown.y - 1) as usize;
         self.set_by_index(item_row);
         true

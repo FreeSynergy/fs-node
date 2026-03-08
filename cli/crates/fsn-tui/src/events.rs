@@ -217,8 +217,9 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
             }
             KeyCode::Char('h') => {
                 if let Some(proj) = state.projects.get(state.selected_project) {
-                    let slug = proj.slug.clone();
-                    state.current_form = Some(crate::host_form::new_host_form(&slug));
+                    let current_slug = proj.slug.clone();
+                    let project_slugs: Vec<String> = state.projects.iter().map(|p| p.slug.clone()).collect();
+                    state.current_form = Some(crate::host_form::new_host_form(project_slugs, &current_slug));
                     state.screen = Screen::NewProject;
                 }
             }
