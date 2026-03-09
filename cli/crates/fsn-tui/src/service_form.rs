@@ -117,6 +117,25 @@ pub fn new_service_form_with_default_class(class: &str) -> ResourceForm {
     ResourceForm::new(ResourceKind::Service, SERVICE_TABS, nodes, None, service_on_change)
 }
 
+/// Build a service form with a dynamic list of class options.
+/// Used by the wizard when store entries are available — merges local + store options
+/// so the user can choose between installed modules and downloadable ones.
+///
+/// `options` — class IDs (e.g. ["proxy/zentinel", "proxy/traefik"]).
+/// `default` — pre-selected class (should be the first/local entry).
+pub fn new_service_form_with_class_options(options: Vec<String>, default: &str) -> ResourceForm {
+    let class_dyn  = [("class", default.to_string())];
+    let class_opts = [("class", options)];
+    let nodes = schema_form::build_nodes(
+        ServiceFormData::schema(),
+        &HashMap::new(),
+        DISPLAY_FNS,
+        &class_dyn,
+        &class_opts,
+    );
+    ResourceForm::new(ResourceKind::Service, SERVICE_TABS, nodes, None, service_on_change)
+}
+
 // ── Submit ────────────────────────────────────────────────────────────────────
 
 /// Write a standalone `.service.toml` file for the service instance.

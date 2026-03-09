@@ -12,4 +12,5 @@ pub mod hooks;
 pub mod observe;
 pub mod resolve;
 pub mod setup;
+pub mod store;
 pub mod template;

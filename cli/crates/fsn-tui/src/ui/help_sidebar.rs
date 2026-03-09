@@ -78,6 +78,7 @@ pub fn build_help(
                     HelpEntry { key: "D",      desc: t("help.deploy") },
                     HelpEntry { key: "E",      desc: t("help.export") },
                     HelpEntry { key: "Del",    desc: t("help.delete") },
+                    HelpEntry { key: "S",      desc: t("help.settings") },
                     HelpEntry { key: "L",      desc: t("help.lang") },
                     HelpEntry { key: "Ctrl+Q", desc: t("help.quit") },
                 ],
@@ -127,6 +128,19 @@ pub fn build_help(
                     HelpEntry { key: "^Enter",     desc: t("help.form.submit") },
                     HelpEntry { key: "^←/^→",     desc: t("help.form.tab_next") },
                     HelpEntry { key: "Esc",        desc: t("help.form.cancel") },
+                ],
+            },
+        ],
+
+        Screen::Settings => vec![
+            HelpSection {
+                title: t("help.settings"),
+                entries: vec![
+                    HelpEntry { key: "↑↓",    desc: t("help.nav.select") },
+                    HelpEntry { key: "A",      desc: t("settings.store.add.prompt") },
+                    HelpEntry { key: "D",      desc: t("help.delete") },
+                    HelpEntry { key: "Space",  desc: t("settings.store.enabled") },
+                    HelpEntry { key: "Esc",    desc: t("help.form.cancel") },
                 ],
             },
         ],

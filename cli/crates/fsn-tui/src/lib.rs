@@ -84,6 +84,10 @@ pub fn run(root: &Path) -> Result<()> {
     let projects = load_projects(root);
     let mut state = AppState::new(sysinfo, projects);
 
+    // Load the bundled store index (offline — no HTTP required at startup).
+    let store_index = fsn_engine::store::StoreClient::load_bundled(&root.join("modules"));
+    state.store_entries = store_index.modules;
+
     // Load hosts for the first selected project
     if let Some(proj) = state.projects.first() {
         let project_dir = root.join("projects").join(&proj.slug);

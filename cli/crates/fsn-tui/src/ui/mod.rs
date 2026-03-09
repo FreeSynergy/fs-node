@@ -15,6 +15,7 @@ pub mod help_sidebar;
 pub mod logs;
 pub mod new_project;
 pub mod nodes;
+pub mod settings_screen;
 pub mod task_wizard;
 pub mod welcome;
 pub mod widgets;
@@ -60,6 +61,7 @@ pub fn render(f: &mut Frame, state: &mut AppState) {
         Screen::Dashboard  => dashboard::render(f, state, main_area),
         Screen::NewProject => new_project::render(f, state, main_area),
         Screen::TaskWizard => task_wizard::render(f, state, main_area),
+        Screen::Settings   => settings_screen::render(f, state, main_area),
     }
 
     // Help sidebar rendered after main content so it appears on top at the border

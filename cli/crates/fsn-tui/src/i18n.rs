@@ -204,6 +204,16 @@ fn de(key: &str) -> Option<&'static str> {
         "help.form.tab_prev"  => "Tab zurück",
         "help.form.cancel"    => "Abbrechen / Schließen",
         "help.field"          => "Dieses Feld",
+        "help.settings"       => "Einstellungen",
+        // ── Settings screen ───────────────────────────────────────────────
+        "settings.title"         => "Einstellungen – Modul-Stores",
+        "settings.hint"          => "A=Hinzufügen  D=Löschen  Leertaste=Aktiv/Inaktiv  Esc=Zurück",
+        "settings.stores.header" => "Konfigurierte Stores",
+        "settings.store.enabled" => "✓ aktiv",
+        "settings.store.disabled"=> "✗ deaktiviert",
+        "settings.store.add.prompt" => "Store-URL (z.B. https://github.com/du/modules):",
+        "settings.store.name.prompt"=> "Store-Name:",
+        "settings.empty"         => "(Keine Stores konfiguriert)",
         _ => return None,
     })
 }
@@ -366,6 +376,16 @@ fn en(key: &str) -> Option<&'static str> {
         "help.form.tab_prev"  => "Tab backward",
         "help.form.cancel"    => "Cancel / Close",
         "help.field"          => "This field",
+        "help.settings"       => "Settings",
+        // ── Settings screen ───────────────────────────────────────────────
+        "settings.title"         => "Settings – Module Stores",
+        "settings.hint"          => "A=Add  D=Delete  Space=Enable/Disable  Esc=Back",
+        "settings.stores.header" => "Configured Stores",
+        "settings.store.enabled" => "✓ enabled",
+        "settings.store.disabled"=> "✗ disabled",
+        "settings.store.add.prompt" => "Store URL (e.g. https://github.com/you/modules):",
+        "settings.store.name.prompt"=> "Store display name:",
+        "settings.empty"         => "(no stores configured)",
         _ => return None,
     })
 }

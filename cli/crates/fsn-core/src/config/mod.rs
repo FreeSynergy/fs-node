@@ -4,6 +4,7 @@ pub mod plugin;
 pub mod project;
 pub mod registry;
 pub mod service;
+pub mod settings;
 pub mod vault;
 
 pub use bot::{BotConfig, BotMeta, BotType};
@@ -23,4 +24,5 @@ pub use project::{
 };
 pub use plugin::{PluginConfig, PluginMeta};
 pub use registry::ServiceRegistry;
+pub use settings::{AppSettings, StoreConfig};
 pub use vault::VaultConfig;

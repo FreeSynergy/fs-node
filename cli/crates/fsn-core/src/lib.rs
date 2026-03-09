@@ -7,6 +7,7 @@ pub mod config;
 pub mod resource;
 pub mod state;
 pub mod error;
+pub mod store;
 
 pub use config::bot::{BotConfig, BotMeta, BotType};
 pub use error::FsnError;

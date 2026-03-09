@@ -47,6 +47,7 @@ pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
         Screen::Dashboard  => handle_dashboard(key, state, root),
         Screen::NewProject => handle_resource_form(key, state, root),
         Screen::TaskWizard => handle_wizard(key, state, root),
+        Screen::Settings   => handle_settings(key, state),
     }
 }
 
@@ -484,6 +485,12 @@ fn handle_dashboard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<
                     state.sidebar_cursor = next;
                     sync_sidebar_selection(state, root);
                 }
+            }
+
+            // 's' / 'S' — open Settings screen.
+            KeyCode::Char('s') | KeyCode::Char('S') => {
+                state.settings_cursor = 0;
+                state.screen = Screen::Settings;
             }
 
             // 'n' — open the new-resource selector (Project / Host / Service / Bot).
@@ -1177,4 +1184,65 @@ fn fetch_logs(name: &str) -> Vec<String> {
         }
         Err(_) => vec!["[Logs nicht verfügbar]".into()],
     }
+}
+
+// ── Settings screen handler ───────────────────────────────────────────────────
+
+fn handle_settings(key: KeyEvent, state: &mut AppState) -> Result<()> {
+    use crossterm::event::KeyCode;
+    use fsn_core::config::StoreConfig;
+
+    let n_stores = state.settings.stores.len();
+
+    match key.code {
+        // Navigate store list
+        KeyCode::Up => {
+            if state.settings_cursor > 0 { state.settings_cursor -= 1; }
+        }
+        KeyCode::Down => {
+            if n_stores > 0 && state.settings_cursor < n_stores - 1 {
+                state.settings_cursor += 1;
+            }
+        }
+
+        // Toggle enable / disable
+        KeyCode::Char(' ') => {
+            if let Some(store) = state.settings.stores.get_mut(state.settings_cursor) {
+                store.enabled = !store.enabled;
+                let _ = state.settings.save();
+            }
+        }
+
+        // Delete selected store
+        KeyCode::Char('d') | KeyCode::Char('D') | KeyCode::Delete => {
+            if !state.settings.stores.is_empty() {
+                state.settings.stores.remove(state.settings_cursor);
+                if state.settings_cursor >= state.settings.stores.len()
+                    && state.settings_cursor > 0
+                {
+                    state.settings_cursor -= 1;
+                }
+                let _ = state.settings.save();
+            }
+        }
+
+        // Add a new store (pre-fill with placeholder — real input via overlay later)
+        KeyCode::Char('a') | KeyCode::Char('A') => {
+            state.settings.stores.push(StoreConfig {
+                name:    "New Store".into(),
+                url:     "https://".into(),
+                enabled: false,
+            });
+            state.settings_cursor = state.settings.stores.len().saturating_sub(1);
+            let _ = state.settings.save();
+        }
+
+        // Back to Dashboard
+        KeyCode::Esc | KeyCode::Char('q') => {
+            state.screen = Screen::Dashboard;
+        }
+
+        _ => {}
+    }
+    Ok(())
 }

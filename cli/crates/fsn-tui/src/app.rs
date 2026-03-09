@@ -12,8 +12,10 @@ use ratatui::backend::CrosstermBackend;
 
 use fsn_core::config::project::{ProjectConfig, ServiceInstanceConfig};
 use fsn_core::config::host::HostConfig;
+use fsn_core::config::{AppSettings, StoreConfig};
 use fsn_core::error::FsnError;
 use fsn_core::resource::{HostResource, ProjectResource, Resource, ServiceResource};
+use fsn_core::store::StoreEntry;
 pub use fsn_core::state::actual::RunState;
 
 use crate::sysinfo::SysInfo;
@@ -29,6 +31,8 @@ pub enum Screen {
     NewProject,
     /// Progressive setup wizard — task queue with per-task save.
     TaskWizard,
+    /// Application settings — store management, preferences.
+    Settings,
 }
 
 // ── Dashboard focus ───────────────────────────────────────────────────────────
@@ -568,6 +572,13 @@ pub struct AppState {
     pub deploy_rx:          Option<mpsc::Receiver<DeployMsg>>,
     /// Active task wizard queue. `Some` while `Screen::TaskWizard` is open.
     pub task_queue:         Option<crate::task_queue::TaskQueue>,
+    /// User-level application settings (store URLs, preferences).
+    pub settings:           AppSettings,
+    /// Merged store entries — populated from the bundled index at startup.
+    /// Extended by background HTTP fetch when the user opens the Store.
+    pub store_entries:      Vec<StoreEntry>,
+    /// Cursor position in the Settings screen store list.
+    pub settings_cursor:    usize,
 }
 
 impl AppState {
@@ -584,9 +595,33 @@ impl AppState {
             last_podman_statuses: HashMap::new(),
             deploy_rx: None,
             task_queue: None,
+            settings: AppSettings::load().unwrap_or_default(),
+            store_entries: Vec::new(),
+            settings_cursor: 0,
         };
         s.rebuild_sidebar();
         s
+    }
+
+    /// Returns all store entries for a given service type.
+    /// Used by the wizard to populate the service class dropdown.
+    pub fn store_entries_for_type(&self, service_type: &str) -> Vec<&StoreEntry> {
+        self.store_entries.iter()
+            .filter(|e| e.service_type == service_type)
+            .collect()
+    }
+
+    /// Returns merged class options for the wizard's service class dropdown.
+    /// Combines local classes (from service_form defaults) with store entries.
+    /// Format: "iam/kanidm" (local) or "iam/keycloak ↓" (store-only).
+    pub fn class_options_for_type(&self, service_type: &str, local_default: &str) -> Vec<String> {
+        let mut opts: Vec<String> = vec![local_default.to_string()];
+        for entry in self.store_entries_for_type(service_type) {
+            if entry.id != local_default {
+                opts.push(entry.id.clone());
+            }
+        }
+        opts
     }
 
     // ── Overlay helpers ────────────────────────────────────────────────────

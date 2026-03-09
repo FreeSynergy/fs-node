@@ -101,12 +101,18 @@ impl TaskKind {
                 crate::host_form::new_host_form(slugs, current)
             }
 
-            Self::NewProxy { .. } =>
-                crate::service_form::new_service_form_with_default_class("proxy/zentinel"),
-            Self::NewIAM { .. } =>
-                crate::service_form::new_service_form_with_default_class("iam/kanidm"),
-            Self::NewMail { .. } =>
-                crate::service_form::new_service_form_with_default_class("mail/stalwart"),
+            Self::NewProxy { .. } => {
+                let opts = state.class_options_for_type("proxy", "proxy/zentinel");
+                crate::service_form::new_service_form_with_class_options(opts, "proxy/zentinel")
+            }
+            Self::NewIAM { .. } => {
+                let opts = state.class_options_for_type("iam", "iam/kanidm");
+                crate::service_form::new_service_form_with_class_options(opts, "iam/kanidm")
+            }
+            Self::NewMail { .. } => {
+                let opts = state.class_options_for_type("mail", "mail/stalwart");
+                crate::service_form::new_service_form_with_class_options(opts, "mail/stalwart")
+            }
             Self::NewService { class, .. } =>
                 crate::service_form::new_service_form_with_default_class(class),
         }
