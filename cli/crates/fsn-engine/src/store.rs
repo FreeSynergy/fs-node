@@ -1,14 +1,19 @@
-// Store client – fetches and merges store indices from configured URLs.
+// Store client – fetches indices and syncs module trees from configured stores.
 //
-// Each store is a repository with a `store/index.toml` at its root.
-// The client merges all enabled stores into a unified module list,
-// annotating each entry with whether it is already installed locally.
+// Each store is a Git repository with this structure:
+//   Node/             ← module tree (plugin executables, templates, TOML)
+//   Node/index.toml   ← module catalogue
 //
-// HTTP fetching is async (reqwest); index parsing is synchronous (toml).
+// Two modes:
+//   fetch_all()     – HTTP, fetches the TOML index only (for browsing)
+//   sync_modules()  – git clone/pull, downloads the full module tree (for deploy)
+//
+// HTTP fetching is async (reqwest); git operations shell out to `git`.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use tracing::info;
 
 use fsn_core::{
     config::{AppSettings, ServiceRegistry},
@@ -37,10 +42,10 @@ impl StoreClient {
 
     /// Fetch the index from a store URL.
     ///
-    /// Index URL: `{store_url}/store/index.toml`.
+    /// Index URL: `{store_url}/Node/index.toml`.
     /// Returns an empty index on network error (caller shows "unavailable").
     pub async fn fetch_index(&self, store_url: &str) -> Result<StoreIndex> {
-        let url = format!("{}/store/index.toml", store_url.trim_end_matches('/'));
+        let url = format!("{}/Node/index.toml", store_url.trim_end_matches('/'));
         let text = reqwest::get(&url)
             .await
             .with_context(|| format!("fetching store index from {url}"))?
@@ -98,5 +103,131 @@ impl StoreClient {
             .ok()
             .and_then(|s| toml::from_str(&s).ok())
             .unwrap_or_default()
+    }
+
+    /// Sync the module tree of the first enabled store to a local cache directory.
+    ///
+    /// Returns the path to the `Node/` subdirectory inside the synced store.
+    /// This path is suitable for `DeployOpts::store_root`.
+    ///
+    /// Priority per store:
+    ///   1. `local_path` set → use as-is, no git operations (dev mode)
+    ///   2. `git_url` set → git clone/pull into `{cache_dir}/{store_name}/`
+    ///   3. Derive git URL from `url` → same git clone/pull
+    ///
+    /// Cache directory: `~/.local/share/fsn/store/` (caller provides this).
+    pub async fn sync_modules(&self, cache_dir: &Path) -> Result<PathBuf> {
+        for store in &self.settings.stores {
+            if !store.enabled { continue; }
+
+            // ── Dev mode: local_path bypasses all git operations ──────────────
+            if let Some(local) = &store.local_path {
+                let node_dir = PathBuf::from(local).join("Node");
+                if node_dir.exists() {
+                    info!("Store '{}': using local path {}", store.name, node_dir.display());
+                    return Ok(node_dir);
+                }
+                tracing::warn!(
+                    "Store '{}': local_path set to '{}' but Node/ not found — skipping",
+                    store.name, local
+                );
+                continue;
+            }
+
+            // ── Git sync ──────────────────────────────────────────────────────
+            let git_url = store.git_url.as_deref()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| raw_url_to_git(&store.url));
+
+            let local_dir = cache_dir.join(name_to_slug(&store.name));
+
+            sync_git_repo(&git_url, &local_dir).await
+                .with_context(|| format!("syncing store '{}'", store.name))?;
+
+            let node_dir = local_dir.join("Node");
+            if node_dir.exists() {
+                info!(
+                    "Store '{}': synced → {}",
+                    store.name, node_dir.display()
+                );
+                return Ok(node_dir);
+            }
+            tracing::warn!(
+                "Store '{}': synced but no Node/ directory found in {}",
+                store.name, local_dir.display()
+            );
+        }
+        anyhow::bail!("no enabled store with a Node/ module tree could be synced")
+    }
+}
+
+// ── Git helpers ───────────────────────────────────────────────────────────────
+
+/// Clone (first run) or pull (subsequent runs) a git repository.
+async fn sync_git_repo(git_url: &str, local_dir: &Path) -> Result<()> {
+    if local_dir.join(".git").exists() {
+        // Already cloned — fast-forward pull only (refuse merges)
+        info!("git pull {}", local_dir.display());
+        let status = tokio::process::Command::new("git")
+            .args(["-C", &local_dir.to_string_lossy(), "pull", "--ff-only", "--quiet"])
+            .status()
+            .await
+            .with_context(|| format!("git pull in {}", local_dir.display()))?;
+        anyhow::ensure!(status.success(), "git pull failed in {}", local_dir.display());
+    } else {
+        // First run — shallow clone (depth 1 = only latest commit)
+        if let Some(parent) = local_dir.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        info!("git clone {} → {}", git_url, local_dir.display());
+        let status = tokio::process::Command::new("git")
+            .args(["clone", "--depth", "1", "--quiet", git_url, &local_dir.to_string_lossy()])
+            .status()
+            .await
+            .with_context(|| format!("git clone {git_url}"))?;
+        anyhow::ensure!(status.success(), "git clone failed for {git_url}");
+    }
+    Ok(())
+}
+
+/// Derive a git clone URL from a raw.githubusercontent.com URL.
+///
+/// "https://raw.githubusercontent.com/Owner/Repo/branch"
+/// → "https://github.com/Owner/Repo"
+fn raw_url_to_git(raw_url: &str) -> String {
+    let base = raw_url
+        .trim_end_matches('/')
+        .replace("://raw.githubusercontent.com/", "://github.com/");
+    // Remove trailing /branch component
+    match base.rfind('/') {
+        Some(pos) => base[..pos].to_string(),
+        None      => base,
+    }
+}
+
+/// "FSN Official" → "fsn-official"
+fn name_to_slug(name: &str) -> String {
+    name.chars()
+        .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .collect()
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_url_to_git_works() {
+        assert_eq!(
+            raw_url_to_git("https://raw.githubusercontent.com/FreeSynergy/Store/main"),
+            "https://github.com/FreeSynergy/Store"
+        );
+    }
+
+    #[test]
+    fn name_to_slug_works() {
+        assert_eq!(name_to_slug("FSN Official"), "fsn-official");
     }
 }

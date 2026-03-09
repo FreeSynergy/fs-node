@@ -264,7 +264,8 @@ fn handle_settings(key: KeyEvent, state: &mut AppState) -> Result<()> {
         }
         KeyCode::Char('a') | KeyCode::Char('A') => {
             state.settings.stores.push(StoreConfig {
-                name: "New Store".into(), url: "https://".into(), enabled: false,
+                name: "New Store".into(), url: "https://".into(),
+                git_url: None, local_path: None, enabled: false,
             });
             state.settings_cursor = state.settings.stores.len().saturating_sub(1);
             let _ = state.settings.save();

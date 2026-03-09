@@ -27,9 +27,11 @@ impl Default for AppSettings {
 
 fn default_stores() -> Vec<StoreConfig> {
     vec![StoreConfig {
-        name:    "FSN Official".into(),
-        url:     "https://raw.githubusercontent.com/Lord-KalEl/FreeSynergy.Node/main".into(),
-        enabled: true,
+        name:       "FSN Official".into(),
+        url:        "https://raw.githubusercontent.com/FreeSynergy/Store/main".into(),
+        git_url:    Some("https://github.com/FreeSynergy/Store.git".into()),
+        local_path: None,
+        enabled:    true,
     }]
 }
 
@@ -41,9 +43,22 @@ pub struct StoreConfig {
     /// Display name shown in the TUI Settings screen.
     pub name: String,
 
-    /// Base URL of the store.
-    /// The index is fetched from `{url}/store/index.toml`.
+    /// Base URL of the store (used for index.toml and raw file downloads).
+    /// The index is fetched from `{url}/Node/index.toml`.
     pub url: String,
+
+    /// Git clone URL for syncing the full module tree locally.
+    /// When absent, derived from `url` by stripping the raw.githubusercontent.com prefix.
+    /// Example: "https://github.com/FreeSynergy/Store.git"
+    #[serde(default)]
+    pub git_url: Option<String>,
+
+    /// Absolute local path to an already-checked-out Store directory.
+    /// When set, `sync_modules` uses this path directly and skips git operations.
+    /// Intended for development setups where the Store repo is already present.
+    /// Example: "/home/kal/Server/Store"
+    #[serde(default)]
+    pub local_path: Option<String>,
 
     /// Whether this store is actively queried.
     /// Disabled stores are shown in Settings but not used.
