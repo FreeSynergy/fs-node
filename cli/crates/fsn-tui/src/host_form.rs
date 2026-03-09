@@ -35,6 +35,11 @@ pub struct HostFormData {
     #[form(label = "form.host.project", widget = "select", tab = 0)]
     pub project: String,
 
+    /// Name of the proxy (Zentinel) instance on this host.
+    /// Written as [proxy.{name}] with service_class = "proxy/zentinel".
+    #[form(label = "form.host.proxy", tab = 0, hint = "form.host.proxy.hint", default = "zentinel")]
+    pub proxy_name: String,
+
     // ── Tab 1: System ─────────────────────────────────────────────────────
     #[form(label = "form.host.ssh_user", tab = 1, default = "root")]
     pub ssh_user: String,
@@ -153,10 +158,11 @@ pub fn edit_host_form(handle: &HostHandle, project_slugs: Vec<String>) -> Resour
 // ── Submit ────────────────────────────────────────────────────────────────────
 
 pub fn submit_host_form(form: &ResourceForm, project_dir: &Path) -> Result<()> {
-    let name    = form.field_value("name");
-    let alias   = form.field_value("alias");
-    let address = form.field_value("address");
-    let project = form.field_value("project");
+    let name        = form.field_value("name");
+    let alias       = form.field_value("alias");
+    let address     = form.field_value("address");
+    let project     = form.field_value("project");
+    let proxy_name  = form.field_value("proxy_name");
 
     if name.is_empty()    { anyhow::bail!("Hostname ist erforderlich"); }
     if address.is_empty() { anyhow::bail!("IP-Adresse / FQDN ist erforderlich"); }
@@ -171,6 +177,7 @@ pub fn submit_host_form(form: &ResourceForm, project_dir: &Path) -> Result<()> {
     let ssh_user_val      = if ssh_user.is_empty()    { "root".to_string()     } else { ssh_user };
     let ssh_port_val: u16 = ssh_port.parse().unwrap_or(22);
     let install_dir_val   = if install_dir.is_empty() { "/opt/fsn".to_string() } else { install_dir };
+    let proxy_slug        = if proxy_name.is_empty()  { "zentinel".to_string() } else { proxy_name };
 
     let slug = crate::app::slugify(&name);
     let path = project_dir.join(format!("{}.host.toml", slug));
@@ -182,6 +189,11 @@ pub fn submit_host_form(form: &ResourceForm, project_dir: &Path) -> Result<()> {
     if !project.is_empty() { content.push_str(&format!("project     = \"{project}\"\n")); }
     content.push_str(&format!(
         "ssh_user    = \"{ssh_user_val}\"\nssh_port    = {ssh_port_val}\ninstall_dir = \"{install_dir_val}\"\n"
+    ));
+
+    // Proxy (Zentinel) — required on every host
+    content.push_str(&format!(
+        "\n[proxy.{proxy_slug}]\nservice_class = \"proxy/zentinel\"\n"
     ));
 
     if dns_prov != "none" && !dns_prov.is_empty() {

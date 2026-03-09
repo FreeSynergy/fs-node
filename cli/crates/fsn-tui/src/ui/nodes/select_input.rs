@@ -219,13 +219,16 @@ impl FormNode for SelectInputNode {
 
         if !self.is_open {
             match key.code {
+                // Ctrl+Enter submits the form (before the Enter→open-dropdown arm).
+                KeyCode::Enter if key.modifiers.contains(KM::CONTROL) => FormAction::Submit,
                 // Open dropdown
                 KeyCode::Down | KeyCode::Up | KeyCode::Enter => {
                     self.open();
                     FormAction::Consumed
                 }
-                KeyCode::Tab     => FormAction::FocusNext,
-                KeyCode::BackTab => FormAction::FocusPrev,
+                // Tab switches between form tabs (mirrors TextInputNode behaviour).
+                KeyCode::Tab     => FormAction::TabNext,
+                KeyCode::BackTab => FormAction::TabPrev,
                 KeyCode::Esc     => FormAction::Cancel,
                 KeyCode::Left  if key.modifiers.contains(KM::CONTROL) => FormAction::TabPrev,
                 KeyCode::Right if key.modifiers.contains(KM::CONTROL) => FormAction::TabNext,

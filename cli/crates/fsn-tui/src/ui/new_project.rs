@@ -128,6 +128,8 @@ pub(crate) fn render_fields(f: &mut Frame, form: &mut ResourceForm, inner: Rect,
         let btn_y = y + 1;
         if btn_y + 3 <= inner.bottom() {
             let btn_area = Rect { x: inner.x, y: btn_y, width: inner.width / 3, height: 3 };
+            // Store the rect so mouse.rs can hit-test clicks on the button.
+            form.submit_btn_rect = Some(btn_area);
             let missing  = form.missing_required();
             let disabled = !missing.is_empty();
             let submit_key = if form.edit_id.is_some() { "form.submit.edit" } else { form.kind.submit_key() };
@@ -139,6 +141,8 @@ pub(crate) fn render_fields(f: &mut Frame, form: &mut ResourceForm, inner: Rect,
                 .alignment(Alignment::Center);
             f.render_widget(btn, btn_area);
         }
+    } else {
+        form.submit_btn_rect = None;
     }
 
     // Dropdown overlay rendered LAST so it appears on top of other fields

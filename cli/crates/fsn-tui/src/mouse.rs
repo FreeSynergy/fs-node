@@ -12,6 +12,7 @@ use crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
 use crate::app::{AppState, DashFocus, Screen};
 use crate::actions::reload_hosts;
 use crate::events_dashboard::activate_sidebar_item;
+use crate::submit::handle_form_submit;
 
 pub fn handle_mouse(event: MouseEvent, state: &mut AppState, root: &Path) -> Result<()> {
     let (tw, _) = crossterm::terminal::size().unwrap_or((80, 24));
@@ -67,7 +68,9 @@ pub fn handle_mouse(event: MouseEvent, state: &mut AppState, root: &Path) -> Res
             }
 
             if state.screen == Screen::NewProject {
-                handle_form_click(event.column, event.row, state, eff_w);
+                if handle_form_click(event.column, event.row, state, eff_w) {
+                    handle_form_submit(state, root)?;
+                }
             } else if state.screen == Screen::Dashboard && !state.has_overlay() {
                 handle_dashboard_click(event.column, event.row, state, root);
             }
@@ -78,8 +81,9 @@ pub fn handle_mouse(event: MouseEvent, state: &mut AppState, root: &Path) -> Res
     Ok(())
 }
 
-fn handle_form_click(col: u16, row: u16, state: &mut AppState, term_w: u16) {
-    let Some(ref mut form) = state.current_form else { return };
+/// Returns `true` when the submit button was clicked (caller triggers form submit).
+fn handle_form_click(col: u16, row: u16, state: &mut AppState, term_w: u16) -> bool {
+    let Some(ref mut form) = state.current_form else { return false };
 
     // Form inner area: 5% margin on each side (90% width), header(3)+tabs(3) = y:6.
     // height:200 is a sentinel — larger than any realistic terminal.
@@ -87,14 +91,24 @@ fn handle_form_click(col: u16, row: u16, state: &mut AppState, term_w: u16) {
     let inner_w = term_w * 90 / 100;
     let inner   = ratatui::layout::Rect { x: inner_x, y: 6, width: inner_w, height: 200 };
 
+    // Check if the submit button was clicked (last tab only, all required filled).
+    if let Some(btn) = form.submit_btn_rect {
+        if col >= btn.x && col < btn.right() && row >= btn.y && row < btn.bottom() {
+            if form.missing_required().is_empty() {
+                return true; // Caller will trigger submit
+            }
+        }
+    }
+
     // Let the focused field handle the click first (e.g. close a dropdown).
     if let Some(global_idx) = form.focused_node_global_idx() {
         if form.nodes[global_idx].click_overlay(col, row, inner) {
-            return;
+            return false;
         }
     }
 
     form.click_focus(col, row);
+    false
 }
 
 fn handle_dashboard_click(col: u16, row: u16, state: &mut AppState, root: &Path) {

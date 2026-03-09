@@ -46,6 +46,27 @@ pub struct ProjectFormData {
 
     #[form(label = "form.options.version", tab = 1, default = "0.1.0")]
     pub version: String,
+
+    #[form(label = "form.project.tags", tab = 1, hint = "form.project.tags.hint")]
+    pub tags: String,
+
+    // ── Tab 2: Service slots ──────────────────────────────────────────────
+    // Each field references the instance name (slug) that fills the role.
+
+    #[form(label = "form.project.iam", tab = 2, hint = "form.project.iam.hint")]
+    pub iam: String,
+
+    #[form(label = "form.project.wiki", tab = 2, hint = "form.project.wiki.hint")]
+    pub wiki: String,
+
+    #[form(label = "form.project.mail", tab = 2, hint = "form.project.mail.hint")]
+    pub mail: String,
+
+    #[form(label = "form.project.monitoring", tab = 2, hint = "form.project.monitoring.hint")]
+    pub monitoring: String,
+
+    #[form(label = "form.project.git", tab = 2, hint = "form.project.git.hint")]
+    pub git: String,
 }
 
 // ── Display helpers ───────────────────────────────────────────────────────────
@@ -123,6 +144,7 @@ pub fn new_project_form() -> ResourceForm {
 pub fn edit_project_form(handle: &ProjectHandle) -> ResourceForm {
     let p    = &handle.config.project;
     let desc = p.description.as_deref().unwrap_or("").to_string();
+    let slots = &handle.config.services;
     let prefill: HashMap<&str, &str> = [
         ("name",          p.name.as_str()),
         ("domain",        p.domain.as_str()),
@@ -131,6 +153,11 @@ pub fn edit_project_form(handle: &ProjectHandle) -> ResourceForm {
         ("language",      p.language.as_str()),
         ("install_dir",   handle.install_dir()),
         ("version",       p.version.as_str()),
+        ("iam",           slots.iam.as_deref().unwrap_or("")),
+        ("wiki",          slots.wiki.as_deref().unwrap_or("")),
+        ("mail",          slots.mail.as_deref().unwrap_or("")),
+        ("monitoring",    slots.monitoring.as_deref().unwrap_or("")),
+        ("git",           slots.git.as_deref().unwrap_or("")),
     ].into_iter().filter(|(_, v)| !v.is_empty()).collect();
 
     let nodes = schema_form::build_nodes(
@@ -156,17 +183,44 @@ pub fn submit_project_form(form: &ResourceForm, root: &Path) -> Result<()> {
     let toml_path = project_dir.join(format!("{}.project.toml", slug));
     if !is_edit && toml_path.exists() { return Ok(()); }
 
-    let name    = form.field_value("name");
-    let domain  = form.field_value("domain");
-    let desc    = form.field_value("description");
-    let email   = form.field_value("contact_email");
-    let lang    = form.field_value("language");
-    let path    = form.field_value("install_dir");
-    let version = form.field_value("version");
+    let name       = form.field_value("name");
+    let domain     = form.field_value("domain");
+    let desc       = form.field_value("description");
+    let email      = form.field_value("contact_email");
+    let lang       = form.field_value("language");
+    let path       = form.field_value("install_dir");
+    let version    = form.field_value("version");
+    let tags       = form.field_value("tags");
+    let svc_iam    = form.field_value("iam");
+    let svc_wiki   = form.field_value("wiki");
+    let svc_mail   = form.field_value("mail");
+    let svc_mon    = form.field_value("monitoring");
+    let svc_git    = form.field_value("git");
 
-    let content = format!(
+    let mut file_content = format!(
         "[project]\nname        = \"{name}\"\ndomain      = \"{domain}\"\ndescription = \"{desc}\"\nemail       = \"{email}\"\nlanguage    = \"{lang}\"\ninstall_dir = \"{path}\"\nversion     = \"{version}\"\n"
     );
-    std::fs::write(&toml_path, content)?;
+
+    // Tags
+    if !tags.is_empty() {
+        let tag_list: String = tags.split(',')
+            .map(|t| format!("\"{}\"", t.trim()))
+            .collect::<Vec<_>>().join(", ");
+        file_content.push_str(&format!("tags        = [{tag_list}]\n"));
+    }
+
+    // Service slots — only write non-empty assignments
+    let has_slots = [svc_iam.as_str(), svc_wiki.as_str(), svc_mail.as_str(), svc_mon.as_str(), svc_git.as_str()]
+        .iter().any(|v| !v.is_empty());
+    if has_slots {
+        file_content.push_str("\n[services]\n");
+        if !svc_iam.is_empty()  { file_content.push_str(&format!("iam        = \"{svc_iam}\"\n")); }
+        if !svc_wiki.is_empty() { file_content.push_str(&format!("wiki       = \"{svc_wiki}\"\n")); }
+        if !svc_mail.is_empty() { file_content.push_str(&format!("mail       = \"{svc_mail}\"\n")); }
+        if !svc_mon.is_empty()  { file_content.push_str(&format!("monitoring = \"{svc_mon}\"\n")); }
+        if !svc_git.is_empty()  { file_content.push_str(&format!("git        = \"{svc_git}\"\n")); }
+    }
+
+    std::fs::write(&toml_path, file_content)?;
     Ok(())
 }

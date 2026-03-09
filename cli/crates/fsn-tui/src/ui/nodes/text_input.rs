@@ -214,13 +214,14 @@ impl FormNode for TextInputNode {
         use KeyModifiers as KM;
         match key.code {
             // Navigation
-            KeyCode::Tab     => FormAction::FocusNext,
-            KeyCode::BackTab => FormAction::FocusPrev,
+            // Tab switches between form tabs; Enter moves to the next field.
+            KeyCode::Tab     => FormAction::TabNext,
+            KeyCode::BackTab => FormAction::TabPrev,
             KeyCode::Esc     => FormAction::Cancel,
             KeyCode::Left  if key.modifiers.contains(KM::CONTROL) => FormAction::TabPrev,
             KeyCode::Right if key.modifiers.contains(KM::CONTROL) => FormAction::TabNext,
-            // Enter moves to the next field (like Tab), NOT submit.
-            // To submit the form, use Ctrl+S or the explicit submit button.
+            // Ctrl+Enter submits the form; plain Enter moves to the next field.
+            KeyCode::Enter if key.modifiers.contains(KM::CONTROL) => FormAction::Submit,
             KeyCode::Enter => FormAction::FocusNext,
 
             // Cursor movement (no value change)

@@ -91,7 +91,6 @@ fn de(key: &str) -> Option<&'static str> {
         "logs.hint"            => "q=Schließen  ↑↓=Scrollen",
         "form.tab.project"     => "Projekt",
         "form.tab.options"     => "Optionen",
-        "form.hint"            => "Tab=Nächstes Feld  ↑↓=Auswahl  Enter=Weiter  ^Enter=Senden  Esc=Schließen  ^=Strg",
         "form.textarea.hint"   => "Tab=Nächstes Feld  Enter=Neue Zeile  Alt+Enter=Senden  Esc=Zurück",
         "form.confirm.leave"   => "Änderungen verwerfen und schließen?  J=Ja  andere Taste=Nein",
         "confirm.quit"              => "Wirklich beenden?  J=Ja  andere Taste=Nein",
@@ -224,6 +223,25 @@ fn de(key: &str) -> Option<&'static str> {
         "dash.hint.filter"       => "Esc=Schließen  ↑↓=Nav  Enter=Auswählen  Zeichen=Suche",
         // ── Multi-select ──────────────────────────────────────────────────
         "dash.hint.multiselect"  => "Leertaste=Wählen  s=Alle starten  x=Alle stoppen  u=Abwählen",
+        // ── Form navigation (updated hints) ──────────────────────────────
+        "form.hint"              => "Enter=Nächstes Feld  Tab=Tab-Wechsel  ↑↓=Auswahl  ^Enter=Absenden  Esc=Schließen",
+        // ── Project form – new fields ─────────────────────────────────────
+        "form.tab.services"          => "Services",
+        "form.project.tags"          => "Tags (kommagetrennt)",
+        "form.project.tags.hint"     => "Optionale Tags, z.B. produktion,intern",
+        "form.project.iam"           => "IAM-Service (Instanzname)",
+        "form.project.iam.hint"      => "Name der IAM-Instanz, z.B. kanidm",
+        "form.project.wiki"          => "Wiki-Service (Instanzname)",
+        "form.project.wiki.hint"     => "Name der Wiki-Instanz, z.B. outline",
+        "form.project.mail"          => "Mail-Service (Instanzname)",
+        "form.project.mail.hint"     => "Name der Mail-Instanz, z.B. stalwart",
+        "form.project.monitoring"    => "Monitoring (Instanzname)",
+        "form.project.monitoring.hint" => "Name der Monitoring-Instanz, z.B. netdata",
+        "form.project.git"           => "Git-Service (Instanzname)",
+        "form.project.git.hint"      => "Name der Git-Instanz, z.B. forgejo",
+        // ── Host form – proxy field ───────────────────────────────────────
+        "form.host.proxy"            => "Proxy-Instanz",
+        "form.host.proxy.hint"       => "Name der Zentinel-Instanz auf diesem Host (Standard: zentinel)",
         _ => return None,
     })
 }
@@ -273,7 +291,6 @@ fn en(key: &str) -> Option<&'static str> {
         "logs.hint"            => "q=Close  ↑↓=Scroll",
         "form.tab.project"     => "Project",
         "form.tab.options"     => "Options",
-        "form.hint"            => "Tab=Next Field  ↑↓=Select  Enter=Continue  ^Enter=Submit  Esc=Close  ^=Ctrl",
         "form.textarea.hint"   => "Tab=Next field  Enter=New line  Alt+Enter=Submit  Esc=Back",
         "form.confirm.leave"   => "Discard changes and close?  Y=Yes  other key=No",
         "confirm.quit"              => "Really quit?  Y=Yes  other key=No",
@@ -406,7 +423,26 @@ fn en(key: &str) -> Option<&'static str> {
         "dash.hint.filter"       => "Esc=Close  ↑↓=Nav  Enter=Select  Type=Search",
         // ── Multi-select ──────────────────────────────────────────────────
         "dash.hint.multiselect"  => "Space=Select  s=Start all  x=Stop all  u=Deselect",
-        _ => return None,
+        // ── Form navigation (updated hints) ──────────────────────────────
+        "form.hint"              => "Enter=Next field  Tab=Switch tab  ↑↓=Select  ^Enter=Submit  Esc=Close",
+        // ── Project form – new fields ─────────────────────────────────────
+        "form.tab.services"            => "Services",
+        "form.project.tags"            => "Tags (comma-separated)",
+        "form.project.tags.hint"       => "Optional tags, e.g. production,internal",
+        "form.project.iam"             => "IAM service (instance name)",
+        "form.project.iam.hint"        => "Instance name, e.g. kanidm",
+        "form.project.wiki"            => "Wiki service (instance name)",
+        "form.project.wiki.hint"       => "Instance name, e.g. outline",
+        "form.project.mail"            => "Mail service (instance name)",
+        "form.project.mail.hint"       => "Instance name, e.g. stalwart",
+        "form.project.monitoring"      => "Monitoring (instance name)",
+        "form.project.monitoring.hint" => "Instance name, e.g. netdata",
+        "form.project.git"             => "Git service (instance name)",
+        "form.project.git.hint"        => "Instance name, e.g. forgejo",
+        // ── Host form – proxy field ───────────────────────────────────────
+        "form.host.proxy"              => "Proxy instance",
+        "form.host.proxy.hint"         => "Zentinel instance name on this host (default: zentinel)",
+                _ => return None,
     })
 }
 
