@@ -1,4 +1,8 @@
 // Reusable widget helpers.
+//
+// Design Pattern: Utility Library — stateless pure functions shared across all
+// rendering modules. Keeps rendering code DRY: color, char, and text helpers
+// live here so no module duplicates a RunState color match or a truncation loop.
 
 use ratatui::{
     layout::Rect,
@@ -67,6 +71,37 @@ pub fn clear_block(f: &mut Frame, area: Rect, title: &str) {
         .title(format!("─ {} ", title))
         .border_style(Style::default().fg(Color::Cyan));
     f.render_widget(block, area);
+}
+
+/// TUI color for a RunState — single source of truth, avoids duplicated match blocks.
+pub fn run_state_color(state: RunState) -> Color {
+    match state {
+        RunState::Running => Color::Green,
+        RunState::Stopped => Color::DarkGray,
+        RunState::Failed  => Color::Red,
+        RunState::Missing => Color::DarkGray,
+    }
+}
+
+/// Status character for a RunState — single source of truth.
+pub fn run_state_char(state: RunState) -> &'static str {
+    match state {
+        RunState::Running => "●",
+        RunState::Stopped => "○",
+        RunState::Failed  => "✕",
+        RunState::Missing => "·",
+    }
+}
+
+/// Truncate a "prefix + name" string to fit within `max_w` characters.
+/// Appends "…" when the text must be cut. Used by sidebar and detail renderers.
+pub fn truncate(prefix: &str, name: &str, max_w: usize) -> String {
+    let total = prefix.len() + name.len();
+    if total > max_w && max_w > prefix.len() + 1 {
+        format!("{}{}…", prefix, &name[..max_w - prefix.len() - 1])
+    } else {
+        format!("{}{}", prefix, name)
+    }
 }
 
 /// Button widget — filled if focused, bordered if not.

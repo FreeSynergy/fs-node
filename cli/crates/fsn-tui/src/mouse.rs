@@ -11,7 +11,7 @@ use crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
 
 use crate::app::{AppState, DashFocus, Screen};
 use crate::actions::reload_hosts;
-use crate::events::activate_sidebar_item;
+use crate::events_dashboard::activate_sidebar_item;
 
 pub fn handle_mouse(event: MouseEvent, state: &mut AppState, root: &Path) -> Result<()> {
     let (tw, _) = crossterm::terminal::size().unwrap_or((80, 24));

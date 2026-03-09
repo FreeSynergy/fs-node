@@ -10,6 +10,7 @@
 // When help_visible=false the sidebar column is omitted.
 
 pub mod dashboard;
+pub mod detail;
 pub mod form_node;
 pub mod help_sidebar;
 pub mod logs;

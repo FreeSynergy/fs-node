@@ -13,6 +13,7 @@ pub mod app;
 pub mod bot_form;
 pub mod deploy_thread;
 pub mod events;
+pub mod events_dashboard;
 pub mod handles;
 pub mod host_form;
 pub mod i18n;
