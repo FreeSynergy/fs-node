@@ -1,0 +1,11 @@
+# FreeSynergy.Node – No-op DNS plugin (manual DNS management)
+# File:    modules/proxy/plugins/dns/none.toml
+# Purpose: Disables automatic DNS management; operator manages DNS records manually
+
+[plugin]
+name        = "none"
+type        = "dns"
+description = "Manual DNS – no automatic DNS management; operator creates records"
+
+[vars]
+dns_provider = "none"

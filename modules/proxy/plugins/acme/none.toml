@@ -1,0 +1,11 @@
+# FreeSynergy.Node – No-op ACME plugin (manual TLS)
+# File:    modules/proxy/plugins/acme/none.toml
+# Purpose: Disables automatic certificate issuance; operator provides certificates
+
+[plugin]
+name        = "none"
+type        = "acme"
+description = "Manual TLS – no automatic certificate issuance; operator provides certs"
+
+[vars]
+acme_provider = "none"

@@ -169,6 +169,14 @@ fn resolve_instance(
     // (no module_vars self-reference). This gives us e.g. config_dir = "/projects/fsn-net/data/zentinel".
     let module_vars = precompute_module_vars(&class.vars, project_root, name, &project.project.name, &project.project.domain);
 
+    // Collect plugin vars for proxy modules (dns_provider, acme_email, acme_ca_url, …).
+    // For all other module types this is an empty map.
+    let plugin_vars = if class_key.starts_with("proxy/") {
+        collect_plugin_vars(host, registry)
+    } else {
+        HashMap::new()
+    };
+
     // Build template context for Jinja2 expansion (includes cross-service vars)
     let ctx = TemplateContext {
         project_name: &project.project.name,
@@ -180,6 +188,7 @@ fn resolve_instance(
         vault,
         cross_vars: cross_vars.clone(),
         module_vars,
+        plugin_vars,
     };
 
     // Expand environment variables (module defaults + instance overrides)
@@ -249,6 +258,40 @@ fn resolve_volumes(raw_volumes: &[String], ctx: &TemplateContext) -> Result<Vec<
                 .with_context(|| format!("Expanding volume '{}'", tpl))
         })
         .collect()
+}
+
+/// Collect expanded plugin vars for a proxy module instance.
+///
+/// Reads the first proxy entry in host.proxy, loads the referenced DNS and ACME
+/// plugins from the registry, and merges their vars into a flat map.
+/// The ACME email is injected from ProxyPlugins.acme_email → host.acme.email → "".
+fn collect_plugin_vars(host: &HostConfig, registry: &ServiceRegistry) -> HashMap<String, String> {
+    let mut vars: HashMap<String, String> = HashMap::new();
+
+    // Use the first proxy entry (per RULES.md: per_host = 1, so there is exactly one)
+    let Some((_, proxy)) = host.proxy.iter().next() else { return vars };
+    let plugins = &proxy.load.plugins;
+
+    // Determine service_type from proxy.service_class (e.g. "proxy/zentinel" → "proxy")
+    let service_type = proxy.service_class.split('/').next().unwrap_or("proxy");
+
+    // Load DNS plugin vars
+    if let Some(dns_plugin) = registry.get_plugin(service_type, "dns", &plugins.dns) {
+        vars.extend(dns_plugin.vars.clone());
+    }
+
+    // Load ACME plugin vars
+    if let Some(acme_plugin) = registry.get_plugin(service_type, "acme", &plugins.acme) {
+        vars.extend(acme_plugin.vars.clone());
+    }
+
+    // ACME email: proxy override → host-level default → empty string
+    let acme_email = plugins.acme_email.as_deref()
+        .or_else(|| host.acme.as_ref().map(|a| a.email.as_str()))
+        .unwrap_or_default();
+    vars.insert("acme_email".into(), acme_email.to_string());
+
+    vars
 }
 
 /// Pre-compute the [vars] block from a module class.

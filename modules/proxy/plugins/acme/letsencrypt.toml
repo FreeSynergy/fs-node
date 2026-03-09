@@ -1,0 +1,12 @@
+# FreeSynergy.Node – Let's Encrypt ACME provider plugin
+# File:    modules/proxy/plugins/acme/letsencrypt.toml
+# Purpose: Automatic TLS certificates via Let's Encrypt (production)
+
+[plugin]
+name        = "letsencrypt"
+type        = "acme"
+description = "Let's Encrypt – free, automated TLS certificates (production CA)"
+
+[vars]
+acme_provider = "letsencrypt"
+acme_ca_url   = "https://acme-v02.api.letsencrypt.org/directory"

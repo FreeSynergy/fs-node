@@ -1,0 +1,14 @@
+# FreeSynergy.Node – Hetzner DNS provider plugin
+# File:    modules/proxy/plugins/dns/hetzner.toml
+# Purpose: DNS-01 challenge via Hetzner DNS API
+
+[plugin]
+name        = "hetzner"
+type        = "dns"
+description = "Hetzner DNS API – automatic DNS-01 challenge for ACME certificates"
+
+[vars]
+dns_provider  = "hetzner"
+dns_api_url   = "https://dns.hetzner.com/api/v1"
+dns_api_token = "{{ vault_hetzner_dns_api_token }}"
+dns_ttl       = "300"

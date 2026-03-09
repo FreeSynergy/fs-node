@@ -1,0 +1,12 @@
+# FreeSynergy.Node – ZeroSSL ACME provider plugin
+# File:    modules/proxy/plugins/acme/zerossl.toml
+# Purpose: Automatic TLS certificates via ZeroSSL
+
+[plugin]
+name        = "zerossl"
+type        = "acme"
+description = "ZeroSSL – free TLS certificates, alternative to Let's Encrypt"
+
+[vars]
+acme_provider = "zerossl"
+acme_ca_url   = "https://acme.zerossl.com/v2/DV90"

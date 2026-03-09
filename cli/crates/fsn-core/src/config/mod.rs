@@ -1,5 +1,6 @@
 pub mod bot;
 pub mod host;
+pub mod plugin;
 pub mod project;
 pub mod registry;
 pub mod service;
@@ -19,5 +20,6 @@ pub use project::{
     ServiceEntry, ServiceSlots,
     ServiceInstanceConfig, ServiceInstanceMeta,
 };
+pub use plugin::{PluginConfig, PluginMeta};
 pub use registry::ServiceRegistry;
 pub use vault::VaultConfig;

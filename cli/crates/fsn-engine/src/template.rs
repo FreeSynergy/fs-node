@@ -27,6 +27,10 @@ pub struct TemplateContext<'a> {
     /// Pre-computed [vars] block from the module TOML.
     /// Exposed as `{{ module_vars.config_dir }}` etc. in templates.
     pub module_vars: HashMap<String, String>,
+    /// Expanded plugin vars (dns_provider, acme_email, acme_ca_url, …).
+    /// Injected as flat top-level vars so templates can use `{{ dns_provider }}` etc.
+    /// Empty for non-proxy modules.
+    pub plugin_vars: HashMap<String, String>,
 }
 
 /// Render a single Jinja2 template string with the given context.
@@ -56,6 +60,12 @@ pub fn render(template: &str, ctx: &TemplateContext) -> Result<String> {
     // Keys are lowercased for Jinja2 compatibility: {{ mail_host }}, {{ iam_url }}, etc.
     for (k, v) in &ctx.cross_vars {
         vars.insert(k.to_lowercase(), minijinja::Value::from(v.as_str()));
+    }
+
+    // Inject plugin vars (dns_provider, acme_email, acme_ca_url, …) as flat top-level vars.
+    // Applied after cross_vars so plugin-specific values don't clash with project vars.
+    for (k, v) in &ctx.plugin_vars {
+        vars.insert(k.clone(), minijinja::Value::from(v.as_str()));
     }
 
     // Inject vault secrets (vault_* keys) into the template context.

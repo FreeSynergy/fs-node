@@ -7,7 +7,7 @@
     admin off
     auto_https on
 
-{% if zentinel_acme_email is defined and zentinel_acme_email %}
-    email {{ zentinel_acme_email }}
+{% if acme_email %}
+    email {{ acme_email }}
 {% endif %}
 }
