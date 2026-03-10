@@ -1,26 +1,34 @@
 // TextAreaNode — multi-line text input.
 //
-// Analogous to HTML <textarea rows="N">.
-// Use Tab to advance focus; Enter inserts a newline; Ctrl+Enter submits.
+// Uses rat-widget's TextArea / TextAreaState (from rat-text) for all rendering
+// and text-buffer management:
+//   • Multi-line cursor, selection, scrolling handled by the widget
+//   • Undo / redo via Ctrl+Z / Ctrl+Y built into TextAreaState
+//   • Mouse click-to-position, drag-selection via rat-widget event handling
+//
+// FormNode wrapper:
+//   • Tab=FocusNext (not TabNext) so the user stays on the same form-tab
+//     and reaches fields below the textarea.
+//   • Enter inserts a newline (normal textarea UX).
+//   • `cache: String` mirrors TextAreaState::value() (which returns owned String)
+//     to satisfy FormNode::value() -> &str without repeated allocations.
 //
 // preferred_height = visible_lines + 3  (2 borders + 1 hint row)
-//
-// Internal design: `lines: Vec<String>` is the canonical content.
-// `cache: String` = lines.join("\n") — kept in sync after every edit so
-// the `FormNode::value()` / `effective_value()` contract (&str) is satisfied.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
 };
-
-use crate::ui::render_ctx::RenderCtx;
+use rat_widget::textarea::{TextArea, TextAreaState, handle_events};
+use rat_widget::event::TextOutcome;
+use rat_widget::text::HasScreenCursor;
 
 use crate::app::Lang;
 use crate::ui::form_node::{handle_form_nav, FormAction, FormNode};
+use crate::ui::render_ctx::RenderCtx;
 
 const DEFAULT_ROWS: u16 = 4;
 
@@ -31,16 +39,13 @@ pub struct TextAreaNode {
     pub hint_key:      Option<&'static str>,
     pub tab:           usize,
     pub required:      bool,
-    /// Lines of content (always ≥ 1 element).
-    lines:             Vec<String>,
-    /// Cache: always equal to `lines.join("\n")`.
-    cache:             String,
-    cursor_line:       usize,
-    cursor_col:        usize,
+    pub dirty:         bool,
     /// How many text rows are visible in the rendered box.
     pub visible_lines: u16,
-    scroll_offset:     usize,
-    pub dirty:         bool,
+    /// rat-widget state: owns buffer, cursor, undo history.
+    state:             TextAreaState,
+    /// Mirrors state value — satisfies FormNode::value() -> &str without re-allocating.
+    cache:             String,
 }
 
 impl TextAreaNode {
@@ -52,110 +57,29 @@ impl TextAreaNode {
     ) -> Self {
         Self {
             key, label_key, hint_key: None, tab, required,
-            lines: vec![String::new()],
-            cache: String::new(),
-            cursor_line: 0, cursor_col: 0,
-            visible_lines: DEFAULT_ROWS,
-            scroll_offset: 0,
             dirty: false,
+            visible_lines: DEFAULT_ROWS,
+            state: TextAreaState::new(),
+            cache: String::new(),
         }
     }
 
     // ── Builder helpers ────────────────────────────────────────────────────
 
-    pub fn hint(mut self, k: &'static str)  -> Self { self.hint_key = Some(k); self }
-    pub fn rows(mut self, n: u16)           -> Self { self.visible_lines = n.max(1); self }
+    pub fn hint(mut self, k: &'static str) -> Self { self.hint_key = Some(k); self }
+    pub fn rows(mut self, n: u16)          -> Self { self.visible_lines = n.max(1); self }
 
     pub fn default_val(mut self, v: &str) -> Self {
-        self.load_value(v);
+        self.state.set_value(v);
+        self.cache = v.to_string();
         self
     }
 
     pub fn pre_filled(mut self, v: &str) -> Self {
-        self.load_value(v);
+        self.state.set_value(v);
+        self.cache = v.to_string();
         self.dirty = true;
         self
-    }
-
-    // ── Internal helpers ───────────────────────────────────────────────────
-
-    fn load_value(&mut self, v: &str) {
-        self.lines = v.split('\n').map(|s| s.to_string()).collect();
-        if self.lines.is_empty() { self.lines.push(String::new()); }
-        self.cursor_line = self.lines.len().saturating_sub(1);
-        self.cursor_col  = self.lines.last().map(|l| l.len()).unwrap_or(0);
-        self.sync_cache();
-    }
-
-    fn sync_cache(&mut self) {
-        self.cache = self.lines.join("\n");
-    }
-
-    fn clamp_cursor(&mut self) {
-        self.cursor_line = self.cursor_line.min(self.lines.len().saturating_sub(1));
-        let line_len = self.lines[self.cursor_line].len();
-        self.cursor_col  = self.cursor_col.min(line_len);
-    }
-
-    fn ensure_scroll_visible(&mut self) {
-        if self.cursor_line < self.scroll_offset {
-            self.scroll_offset = self.cursor_line;
-        } else if self.cursor_line >= self.scroll_offset + self.visible_lines as usize {
-            self.scroll_offset = self.cursor_line + 1 - self.visible_lines as usize;
-        }
-    }
-
-    fn insert_char(&mut self, c: char) {
-        self.lines[self.cursor_line].insert(self.cursor_col, c);
-        self.cursor_col += c.len_utf8();
-        self.dirty = true;
-        self.sync_cache();
-    }
-
-    fn insert_newline(&mut self) {
-        let rest = self.lines[self.cursor_line][self.cursor_col..].to_string();
-        self.lines[self.cursor_line].truncate(self.cursor_col);
-        self.cursor_line += 1;
-        self.lines.insert(self.cursor_line, rest);
-        self.cursor_col = 0;
-        self.dirty = true;
-        self.sync_cache();
-        self.ensure_scroll_visible();
-    }
-
-    fn backspace(&mut self) {
-        if self.cursor_col > 0 {
-            let prev = self.lines[self.cursor_line][..self.cursor_col]
-                .char_indices().next_back().map(|(i, _)| i).unwrap_or(0);
-            self.lines[self.cursor_line].remove(prev);
-            self.cursor_col = prev;
-        } else if self.cursor_line > 0 {
-            let current = self.lines.remove(self.cursor_line);
-            self.cursor_line -= 1;
-            self.cursor_col   = self.lines[self.cursor_line].len();
-            self.lines[self.cursor_line].push_str(&current);
-            self.ensure_scroll_visible();
-        } else {
-            return; // nothing to delete
-        }
-        self.dirty = true;
-        self.sync_cache();
-    }
-
-    fn delete_forward(&mut self) {
-        let line_len = self.lines[self.cursor_line].len();
-        if self.cursor_col < line_len {
-            let next = self.lines[self.cursor_line][self.cursor_col..].chars().next()
-                .map(|c| self.cursor_col + c.len_utf8()).unwrap_or(self.cursor_col);
-            self.lines[self.cursor_line].drain(self.cursor_col..next);
-        } else if self.cursor_line + 1 < self.lines.len() {
-            let next_line = self.lines.remove(self.cursor_line + 1);
-            self.lines[self.cursor_line].push_str(&next_line);
-        } else {
-            return;
-        }
-        self.dirty = true;
-        self.sync_cache();
     }
 }
 
@@ -169,32 +93,24 @@ impl FormNode for TextAreaNode {
     fn value(&self)           -> &str { &self.cache }
     fn effective_value(&self) -> &str { &self.cache }
 
-    fn set_value(&mut self, v: &str) { self.load_value(v); }
-    fn is_dirty(&self)        -> bool { self.dirty }
-    fn set_dirty(&mut self, v: bool)  { self.dirty = v; }
-
-    fn is_filled(&self) -> bool {
-        self.lines.iter().any(|l| !l.trim().is_empty())
+    fn set_value(&mut self, v: &str) {
+        self.state.set_value(v);
+        self.cache = v.to_string();
     }
+
+    fn is_dirty(&self)       -> bool { self.dirty }
+    fn set_dirty(&mut self, v: bool) { self.dirty = v; }
+
+    fn is_filled(&self) -> bool { !self.cache.trim().is_empty() }
 
     fn preferred_height(&self) -> u16 {
         self.visible_lines + 3 // box(visible_lines + 2 borders) + hint(1)
     }
 
     fn render(&mut self, f: &mut RenderCtx<'_>, area: Rect, focused: bool, lang: Lang) {
-        self.clamp_cursor();
-        self.ensure_scroll_visible();
-
         let box_h = self.visible_lines + 2;
-        let rows = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(box_h), // textarea
-                Constraint::Length(1),     // hint
-            ])
-            .split(area);
+        let rows  = Layout::vertical([Constraint::Length(box_h), Constraint::Length(1)]).split(area);
 
-        // Label as block title
         let label_text  = crate::i18n::t(lang, self.label_key);
         let req_suffix  = if self.required { " *" } else { "" };
         let label_style = if focused {
@@ -202,39 +118,37 @@ impl FormNode for TextAreaNode {
         } else {
             Style::default().fg(Color::White)
         };
-        let title = Line::from(Span::styled(format!(" {}{} ", label_text, req_suffix), label_style));
-
         let border_style = if focused {
             Style::default().fg(Color::Cyan)
         } else {
             Style::default().fg(Color::DarkGray)
         };
 
-        // Build visible content lines
-        let content: Vec<Line> = (0..self.visible_lines as usize).map(|rel| {
-            let abs      = self.scroll_offset + rel;
-            let line_str = self.lines.get(abs).map(|s| s.as_str()).unwrap_or("");
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(border_style)
+            .title(Line::from(Span::styled(
+                format!(" {}{} ", label_text, req_suffix),
+                label_style,
+            )));
 
-            if focused && abs == self.cursor_line {
-                let col    = self.cursor_col.min(line_str.len());
-                let before = &line_str[..col];
-                let after  = &line_str[col..];
-                Line::from(vec![
-                    Span::styled(before.to_string(), Style::default().fg(Color::White)),
-                    Span::styled("█",               Style::default().fg(Color::Cyan)),
-                    Span::styled(after.to_string(),  Style::default().fg(Color::White)),
-                ])
-            } else {
-                Line::from(Span::styled(line_str.to_string(), Style::default().fg(Color::White)))
+        self.state.focus.set(focused);
+
+        let widget = TextArea::new()
+            .block(block)
+            .style(Style::default().fg(Color::White))
+            .focus_style(Style::default().fg(Color::White));
+
+        f.render_stateful_widget(widget, rows[0], &mut self.state);
+
+        // Forward cursor position to the frame.
+        if focused {
+            if let Some(pos) = self.state.screen_cursor() {
+                f.set_cursor_position(pos);
             }
-        }).collect();
+        }
 
-        f.render_widget(
-            Paragraph::new(content)
-                .block(Block::default().borders(Borders::ALL).border_style(border_style).title(title)),
-            rows[0],
-        );
-
+        // Hint line
         let hint_text = if let Some(hk) = self.hint_key {
             crate::i18n::t(lang, hk)
         } else {
@@ -250,75 +164,28 @@ impl FormNode for TextAreaNode {
     }
 
     fn handle_key(&mut self, key: KeyEvent) -> FormAction {
-        // Ctrl+S=Submit, Ctrl+←/→=TabPrev/Next — consistent across all nodes.
+        // Ctrl+S=Submit, Ctrl+←=TabPrev, Ctrl+→=TabNext — handled before TextAreaState
+        // to prevent them being interpreted as word-navigation shortcuts.
         if let Some(nav) = handle_form_nav(key) { return nav; }
 
-        use KeyModifiers as KM;
+        // Meta keys — TextAreaNode uses FocusNext (not TabNext) so the user stays
+        // on the same form tab and reaches fields below the textarea.
         match key.code {
-            // Tab / BackTab advance focus to the prev/next field on the same tab.
-            // (TextArea uses FocusNext, not TabNext, so the user stays on the same
-            // tab and reaches fields after the textarea — Tab=TabNext would skip them.)
-            KeyCode::Tab     => FormAction::FocusNext,
-            KeyCode::BackTab => FormAction::FocusPrev,
-            // Esc cancels the form (same as TextInputNode).
-            KeyCode::Esc     => FormAction::Cancel,
+            KeyCode::Tab     => return FormAction::FocusNext,
+            KeyCode::BackTab => return FormAction::FocusPrev,
+            KeyCode::Esc     => return FormAction::Cancel,
+            _ => {}
+        }
 
-            KeyCode::Up => {
-                if self.cursor_line > 0 {
-                    self.cursor_line -= 1;
-                    self.clamp_cursor();
-                    self.ensure_scroll_visible();
-                }
-                FormAction::Consumed
-            }
-            KeyCode::Down => {
-                if self.cursor_line + 1 < self.lines.len() {
-                    self.cursor_line += 1;
-                    self.clamp_cursor();
-                    self.ensure_scroll_visible();
-                }
-                FormAction::Consumed
-            }
-            KeyCode::Left => {
-                if self.cursor_col > 0 {
-                    let line = &self.lines[self.cursor_line];
-                    self.cursor_col = line[..self.cursor_col]
-                        .char_indices().next_back().map(|(i, _)| i).unwrap_or(0);
-                } else if self.cursor_line > 0 {
-                    self.cursor_line -= 1;
-                    self.cursor_col   = self.lines[self.cursor_line].len();
-                    self.ensure_scroll_visible();
-                }
-                FormAction::Consumed
-            }
-            KeyCode::Right => {
-                let line_len = self.lines[self.cursor_line].len();
-                if self.cursor_col < line_len {
-                    let c = self.lines[self.cursor_line][self.cursor_col..].chars().next();
-                    self.cursor_col += c.map(|ch| ch.len_utf8()).unwrap_or(0);
-                } else if self.cursor_line + 1 < self.lines.len() {
-                    self.cursor_line += 1;
-                    self.cursor_col   = 0;
-                    self.ensure_scroll_visible();
-                }
-                FormAction::Consumed
-            }
-            KeyCode::Home => { self.cursor_col = 0; FormAction::Consumed }
-            KeyCode::End  => {
-                self.cursor_col = self.lines[self.cursor_line].len();
-                FormAction::Consumed
-            }
-
-            KeyCode::Enter     => { self.insert_newline();   FormAction::ValueChanged }
-            KeyCode::Backspace => { self.backspace();        FormAction::ValueChanged }
-            KeyCode::Delete    => { self.delete_forward();   FormAction::ValueChanged }
-
-            KeyCode::Char(c) if !key.modifiers.contains(KM::CONTROL) => {
-                self.insert_char(c);
+        // Delegate to rat-widget TextAreaState.
+        match handle_events(&mut self.state, true, &Event::Key(key)) {
+            TextOutcome::TextChanged => {
+                self.cache = self.state.value();
+                self.dirty = true;
                 FormAction::ValueChanged
             }
-
-            _ => FormAction::Unhandled,
+            TextOutcome::Unchanged | TextOutcome::Changed => FormAction::Consumed,
+            TextOutcome::Continue                         => FormAction::Unhandled,
         }
     }
 }
