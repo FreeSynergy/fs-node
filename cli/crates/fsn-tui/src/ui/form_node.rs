@@ -161,6 +161,18 @@ pub trait FormNode: std::fmt::Debug {
         FormAction::Unhandled
     }
 
+    /// Whether this node currently has an open overlay popup.
+    ///
+    /// When `true`, mouse events are routed to `handle_popup_mouse()` first,
+    /// bypassing normal field hit-testing — the popup is its own interaction layer.
+    fn has_open_popup(&self) -> bool { false }
+
+    /// Handle a mouse event directed at an open popup (called when `has_open_popup()`
+    /// returns `true`).  Returns the action to propagate, or `None` if not handled.
+    fn handle_popup_mouse(&mut self, _event: crossterm::event::MouseEvent) -> Option<FormAction> {
+        None
+    }
+
     // ── Validation ─────────────────────────────────────────────────────────
 
     fn is_filled(&self) -> bool {

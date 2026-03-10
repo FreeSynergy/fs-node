@@ -16,7 +16,7 @@
 
 use std::collections::HashSet;
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -80,15 +80,18 @@ pub struct SelectionPopup {
     pub pending_idx: usize,
     /// Checked items for MultiMode (indices into options).
     pub multi_checked: HashSet<usize>,
+    /// Rect of the popup after the last render — used for mouse hit-testing.
+    /// Set by render(), read by handle_mouse().
+    rendered_rect: Option<Rect>,
 }
 
 impl SelectionPopup {
     pub fn single() -> Self {
-        Self { is_open: false, mode: SelectionMode::Single, pending_idx: 0, multi_checked: HashSet::new() }
+        Self { is_open: false, mode: SelectionMode::Single, pending_idx: 0, multi_checked: HashSet::new(), rendered_rect: None }
     }
 
     pub fn multi() -> Self {
-        Self { is_open: false, mode: SelectionMode::Multi, pending_idx: 0, multi_checked: HashSet::new() }
+        Self { is_open: false, mode: SelectionMode::Multi, pending_idx: 0, multi_checked: HashSet::new(), rendered_rect: None }
     }
 
     /// Open the popup. `current_idx` positions the cursor at the current value.
@@ -164,6 +167,7 @@ impl SelectionPopup {
 
         let screen = f.area();
         let popup  = popup_rect(options.len(), self.mode, screen);
+        self.rendered_rect = Some(popup); // store for mouse hit-testing
 
         let hint_line = hint_line(self.mode, lang);
         let title_text = crate::i18n::t(lang, title_key);
@@ -196,6 +200,81 @@ impl SelectionPopup {
             hint_area,
             &mut ParagraphState::new(),
         );
+    }
+
+    /// Handle a mouse event while the popup is open.
+    ///
+    /// Uses `rendered_rect` (set during the last `render()` call) for hit-testing.
+    ///
+    /// Behaviour:
+    ///   Single mode — click on item: accept & close.  Click outside: reject (cancel).
+    ///   Multi mode  — click on item: toggle it.       Click outside: accept checked state & close.
+    ///   Both modes  — scroll up/down: move cursor.
+    pub fn handle_mouse(&mut self, event: MouseEvent, options: &[String]) -> Option<SelectionResult> {
+        if !self.is_open { return None; }
+        let popup = self.rendered_rect?;
+        let col = event.column;
+        let row = event.row;
+
+        match event.kind {
+            // Scroll moves cursor inside the popup
+            MouseEventKind::ScrollUp => {
+                if self.pending_idx > 0 { self.pending_idx -= 1; }
+                return Some(SelectionResult::Consumed);
+            }
+            MouseEventKind::ScrollDown => {
+                if self.pending_idx + 1 < options.len() { self.pending_idx += 1; }
+                return Some(SelectionResult::Consumed);
+            }
+            MouseEventKind::Down(MouseButton::Left) => {}
+            _ => return None,
+        }
+
+        // Left click — outside popup?
+        let outside = col < popup.x || col >= popup.right() || row < popup.y || row >= popup.bottom();
+        if outside {
+            self.is_open = false;
+            return Some(match self.mode {
+                // Single: cancel (value unchanged)
+                SelectionMode::Single => SelectionResult::Rejected,
+                // Multi: accept whatever is checked
+                SelectionMode::Multi => {
+                    let mut selected: Vec<String> = self.multi_checked.iter()
+                        .filter_map(|&i| options.get(i).cloned())
+                        .collect();
+                    selected.sort();
+                    SelectionResult::AcceptedMulti(selected)
+                }
+            });
+        }
+
+        // Click inside popup — compute which item row was hit.
+        // inner = popup with 1-cell border removed on each side.
+        // items start at inner.y, hint occupies the last row, empty row before that.
+        let inner_y = popup.y + 1;
+        let items_h = (popup.height as i32 - 4).max(0) as u16; // items + 2 border + 1 gap + 1 hint
+        if row >= inner_y && row < inner_y + items_h {
+            let item_idx = (row - inner_y) as usize;
+            if item_idx < options.len() {
+                self.pending_idx = item_idx;
+                match self.mode {
+                    SelectionMode::Single => {
+                        self.is_open = false;
+                        return Some(SelectionResult::Accepted(options[item_idx].clone()));
+                    }
+                    SelectionMode::Multi => {
+                        if self.multi_checked.contains(&item_idx) {
+                            self.multi_checked.remove(&item_idx);
+                        } else {
+                            self.multi_checked.insert(item_idx);
+                        }
+                        return Some(SelectionResult::Consumed);
+                    }
+                }
+            }
+        }
+
+        Some(SelectionResult::Consumed) // click on border / hint area — swallow
     }
 }
 

@@ -167,6 +167,18 @@ impl FormNode for SelectInputNode {
         self.popup.render(f, &self.options, self.display_fn, self.label_key, lang);
     }
 
+    fn has_open_popup(&self) -> bool { self.popup.is_open }
+
+    fn handle_popup_mouse(&mut self, event: crossterm::event::MouseEvent) -> Option<FormAction> {
+        use crate::ui::nodes::selection_popup::SelectionResult;
+        match self.popup.handle_mouse(event, &self.options)? {
+            SelectionResult::Accepted(v) => { self.value = v; Some(FormAction::AcceptAndNext) }
+            SelectionResult::Rejected    => Some(FormAction::Consumed),
+            SelectionResult::Consumed    => Some(FormAction::Consumed),
+            _                            => Some(FormAction::Consumed),
+        }
+    }
+
     fn handle_mouse(&mut self, event: crossterm::event::MouseEvent, _area: Rect) -> FormAction {
         use crossterm::event::{MouseButton, MouseEventKind};
         if event.kind == MouseEventKind::Down(MouseButton::Left) {

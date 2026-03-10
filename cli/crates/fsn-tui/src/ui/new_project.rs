@@ -34,6 +34,10 @@ pub fn render(f: &mut RenderCtx<'_>, state: &mut AppState, area: Rect) {
         .split(area);
 
     render_header(f, state.lang, form, outer[0]);
+    // Store lang-button rect for mouse hit-testing (same formula as render_header).
+    state.lang_button_area = Some(Rect {
+        x: outer[0].right().saturating_sub(6), y: outer[0].y + 1, width: 4, height: 1,
+    });
     if tab_bar_h > 0 {
         render_tabs(f, state.lang, form, outer[1]);
     }
@@ -237,12 +241,13 @@ pub(crate) fn render_fields(f: &mut RenderCtx<'_>, form: &mut ResourceForm, inne
         }
     }
 
-    // Dropdown overlay rendered LAST so it appears on top of other fields
-    if let Some(slot) = overlay_slot {
-        if let Some(&node_idx) = tab_indices.get(slot) {
-            form.nodes[node_idx].render_overlay(f, inner, lang);
-        }
+    // Overlays rendered LAST so they appear on top of all fields.
+    // Called for every node — each checks its own is_open state.
+    // This keeps popups visible even when focus moves elsewhere.
+    for &node_idx in &tab_indices {
+        form.nodes[node_idx].render_overlay(f, inner, lang);
     }
+    let _ = overlay_slot; // suppresses unused-variable warning
 }
 
 // ── Error line ────────────────────────────────────────────────────────────────

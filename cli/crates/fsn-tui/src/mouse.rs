@@ -99,9 +99,35 @@ fn handle_mouse_form(event: MouseEvent, state: &mut AppState) -> Result<()> {
     let col = event.column;
     let row = event.row;
 
+    // ── Language button hit-test (top-right of header) ────────────────────
+    if let Some(lang_rect) = state.lang_button_area {
+        if event.kind == MouseEventKind::Down(MouseButton::Left)
+            && col >= lang_rect.x && col < lang_rect.right()
+            && row >= lang_rect.y && row < lang_rect.bottom()
+        {
+            state.lang = state.lang.toggle();
+            return Ok(());
+        }
+    }
+
     let form = match state.current_form.as_mut() { Some(f) => f, None => return Ok(()) };
 
-    // Hit-test: find (slot_in_tab, global_node_idx, rect) for the clicked position.
+    // ── Open-popup layer — intercept all events while any popup is visible ─
+    //
+    // Popup is its own layer: scroll and clicks go to the popup first.
+    // `handle_popup_mouse` returns Some if the popup consumed the event.
+    // Single-select: click-outside = cancel.  Multi-select: click-outside = accept.
+    let popup_idx = form.nodes.iter().position(|n| n.has_open_popup());
+    if let Some(idx) = popup_idx {
+        let action = form.nodes[idx].handle_popup_mouse(event);
+        if matches!(action, Some(FormAction::ValueChanged) | Some(FormAction::AcceptAndNext)) {
+            let key = form.nodes[idx].key();
+            (form.on_change)(&mut form.nodes, key);
+        }
+        return Ok(());
+    }
+
+    // ── Normal field hit-test ─────────────────────────────────────────────
     let hit = form.field_rects.iter()
         .find(|&&(_, _, rect)| col >= rect.x && col < rect.right() && row >= rect.y && row < rect.bottom())
         .copied();
