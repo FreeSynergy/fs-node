@@ -14,6 +14,7 @@ pub mod dashboard;
 pub mod detail;
 pub mod form_node;
 pub mod help_sidebar;
+pub mod layout;
 pub mod logs;
 pub mod new_project;
 pub mod nodes;

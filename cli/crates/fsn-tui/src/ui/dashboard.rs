@@ -33,6 +33,7 @@ use rat_widget::table::{Table, TableState};
 use rat_widget::table::textdata::{Cell, Row};
 
 use crate::ui::render_ctx::RenderCtx;
+use crate::ui::layout::{AppLayout, LayoutConfig};
 
 use fsn_core::health::HealthLevel;
 use crate::app::{AppState, DashFocus, Lang, RunState, SidebarAction, SidebarItem};
@@ -56,16 +57,19 @@ const TAB_KEYS: &[&str] = &[
 pub(crate) const SIDEBAR_COL_WIDTH: u16 = 28;
 
 pub fn render(f: &mut RenderCtx<'_>, state: &mut AppState, area: Rect) {
-    let zones = Layout::vertical([
-        Constraint::Length(5), // header: 4 logo rows + 1 tab bar
-        Constraint::Min(1),    // body
-        Constraint::Length(1), // footer
-    ])
-    .split(area);
+    let help_w = (state.help_visible && area.width > help_sidebar::SIDEBAR_WIDTH + 40 + SIDEBAR_COL_WIDTH)
+        .then_some(help_sidebar::SIDEBAR_WIDTH);
 
-    render_header(f, state, zones[0]);
-    render_body(f, state, zones[1]);
-    render_footer(f, state, zones[2]);
+    let layout = AppLayout::compute(area, &LayoutConfig {
+        topbar_height: 5,        // 4 logo rows + 1 tab bar
+        left_width:    Some(SIDEBAR_COL_WIDTH),
+        right_width:   help_w,
+        ..LayoutConfig::default()
+    });
+
+    render_header(f, state, layout.topbar);
+    render_body(f, state, &layout.body);
+    render_footer(f, state, layout.footer_primary);
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -215,32 +219,16 @@ fn active_tab_index(state: &AppState) -> usize {
 
 // ── Body ──────────────────────────────────────────────────────────────────────
 
-fn render_body(f: &mut RenderCtx<'_>, state: &mut AppState, area: Rect) {
-    // F1 help panel slides in from the right — header and footer stay untouched.
-    let (main_area, help_opt) =
-        if state.help_visible && area.width > help_sidebar::SIDEBAR_WIDTH + 40 {
-            let cols = Layout::horizontal([
-                Constraint::Min(40),
-                Constraint::Length(help_sidebar::SIDEBAR_WIDTH),
-            ])
-            .split(area);
-            (cols[0], Some(cols[1]))
-        } else {
-            (area, None)
-        };
-
-    // Sidebar (1/3 fixed) + detail panel (2/3+)
-    let cols = Layout::horizontal([
-        Constraint::Length(28),
-        Constraint::Min(1),
-    ])
-    .split(main_area);
-
-    render_sidebar(f, state, cols[0]);
-    render_detail_panel(f, state, cols[1]);
+fn render_body(f: &mut RenderCtx<'_>, state: &mut AppState, body: &crate::ui::layout::BodyLayout) {
+    // Layout already computed by render() via AppLayout::compute().
+    // body.left  = sidebar, body.main = detail panel, body.right = F1 help (optional).
+    if let Some(sidebar_area) = body.left {
+        render_sidebar(f, state, sidebar_area);
+    }
+    render_detail_panel(f, state, body.main);
 
     // F1 help panel (right side, body only)
-    if let Some(help_area) = help_opt {
+    if let Some(help_area) = body.right {
         let kind = state.current_form.as_ref().map(|f| f.kind);
         let foc_key = state
             .current_form
