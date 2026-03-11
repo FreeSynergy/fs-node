@@ -23,29 +23,65 @@ pub enum DashFocus {
     Services,
 }
 
-// ── Settings tabs ─────────────────────────────────────────────────────────────
+// ── Settings ──────────────────────────────────────────────────────────────────
 
-/// Active tab within the Settings screen.
-/// Add new variants here as settings grow — the screen renders the correct
-/// section and the event handler routes keys accordingly.
+/// Which side of the Settings screen has keyboard focus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SettingsTab {
+pub enum SettingsFocus {
+    /// Left sidebar — navigating the section list.
+    #[default]
+    Sidebar,
+    /// Right content panel — navigating items within a section.
+    Content,
+}
+
+/// Active section within the Settings screen.
+///
+/// Displayed as a sidebar on the left. Each section renders its own
+/// content panel on the right.
+///
+/// Adding a new section:
+///   1. Add a variant here.
+///   2. Add a `label_key()` arm.
+///   3. Add a render function in `ui/settings_screen.rs`.
+///   4. Add a key handler in `events.rs`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SettingsSection {
     #[default]
     Stores,
     Languages,
+    General,
+    About,
 }
 
-impl SettingsTab {
-    /// Cycle to the next tab (wraps around).
-    pub fn next(self) -> Self {
-        match self { Self::Stores => Self::Languages, Self::Languages => Self::Stores }
+impl SettingsSection {
+    pub const ALL: &'static [SettingsSection] = &[
+        Self::Stores,
+        Self::Languages,
+        Self::General,
+        Self::About,
+    ];
+
+    pub fn from_idx(idx: usize) -> Self {
+        Self::ALL.get(idx).copied().unwrap_or_default()
     }
 
-    /// i18n key for the tab label shown in the tab bar.
+    pub fn idx(self) -> usize {
+        Self::ALL.iter().position(|&s| s == self).unwrap_or(0)
+    }
+
+    /// i18n key for the sidebar label.
     pub fn label_key(self) -> &'static str {
         match self {
-            Self::Stores    => "settings.tab.stores",
-            Self::Languages => "settings.tab.languages",
+            Self::Stores    => "settings.section.stores",
+            Self::Languages => "settings.section.languages",
+            Self::General   => "settings.section.general",
+            Self::About     => "settings.section.about",
         }
     }
 }
+
+// ── Legacy alias (keeps old code compiling during migration) ──────────────────
+
+/// Kept for backward compatibility — maps to SettingsSection.
+pub type SettingsTab = SettingsSection;

@@ -50,6 +50,10 @@ pub enum ClickTarget {
     /// `index` maps to: 0=Projects, 1=Hosts, 2=Services, 3=Store, 4=Settings.
     NavTab { index: usize },
 
+    /// A section row in the Settings sidebar.
+    /// `idx` = index into `SettingsSection::ALL`.
+    SettingsSidebar { idx: usize },
+
     /// A store row in the Settings → Stores tab.
     /// `idx` = index into `state.settings.stores`.
     SettingsCursor { idx: usize },

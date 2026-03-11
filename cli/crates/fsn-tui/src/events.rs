@@ -197,23 +197,52 @@ fn handle_resource_form(key: KeyEvent, state: &mut AppState, root: &Path) -> Res
 // ── Settings screen ───────────────────────────────────────────────────────────
 
 fn handle_settings(key: KeyEvent, state: &mut AppState) -> Result<()> {
-    use crate::app::SettingsTab;
+    use crate::app::SettingsFocus;
+    match state.settings_focus {
+        SettingsFocus::Sidebar => handle_settings_sidebar(key, state),
+        SettingsFocus::Content => handle_settings_content(key, state),
+    }
+}
 
-    // Tab key always switches between sections.
-    if key.code == KeyCode::Tab {
-        state.settings_tab = state.settings_tab.next();
-        state.settings_cursor = 0;
-        state.lang_cursor = 0;
+fn handle_settings_sidebar(key: KeyEvent, state: &mut AppState) -> Result<()> {
+    use crate::app::{SettingsFocus, SettingsSection};
+    let n = SettingsSection::ALL.len();
+    match key.code {
+        KeyCode::Up   => crate::ui::cursor::up(&mut state.settings_sidebar_cursor),
+        KeyCode::Down => crate::ui::cursor::down(&mut state.settings_sidebar_cursor, n),
+        KeyCode::Enter | KeyCode::Right => {
+            state.settings_section = SettingsSection::from_idx(state.settings_sidebar_cursor);
+            state.settings_focus   = SettingsFocus::Content;
+            state.settings_cursor  = 0;
+            state.lang_cursor      = 0;
+        }
+        KeyCode::Esc | KeyCode::Char('q') | KeyCode::Left => {
+            state.screen = Screen::Dashboard;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn handle_settings_content(key: KeyEvent, state: &mut AppState) -> Result<()> {
+    use crate::app::{SettingsFocus, SettingsSection};
+
+    // ← always goes back to the sidebar.
+    if key.code == KeyCode::Left {
+        state.settings_focus = SettingsFocus::Sidebar;
         return Ok(());
     }
 
-    match state.settings_tab {
-        SettingsTab::Stores    => handle_settings_stores(key, state),
-        SettingsTab::Languages => handle_settings_languages(key, state),
+    match state.settings_section {
+        SettingsSection::Stores    => handle_settings_stores(key, state),
+        SettingsSection::Languages => handle_settings_languages(key, state),
+        SettingsSection::General   => handle_settings_generic(key, state),
+        SettingsSection::About     => handle_settings_generic(key, state),
     }
 }
 
 fn handle_settings_stores(key: KeyEvent, state: &mut AppState) -> Result<()> {
+    use crate::app::SettingsFocus;
     use fsn_core::config::StoreConfig;
 
     let n = state.settings.stores.len();
@@ -221,7 +250,6 @@ fn handle_settings_stores(key: KeyEvent, state: &mut AppState) -> Result<()> {
         KeyCode::Up   => crate::ui::cursor::up(&mut state.settings_cursor),
         KeyCode::Down => crate::ui::cursor::down(&mut state.settings_cursor, n),
         KeyCode::Enter => {
-            // Open a ResourceForm to edit the selected store.
             if let Some(store) = state.settings.stores.get(state.settings_cursor) {
                 let form = crate::settings_form::edit_store_form(state.settings_cursor, store);
                 state.open_form(form);
@@ -253,7 +281,7 @@ fn handle_settings_stores(key: KeyEvent, state: &mut AppState) -> Result<()> {
             let _ = state.settings.save();
         }
         KeyCode::Esc | KeyCode::Char('q') => {
-            state.screen = Screen::Dashboard;
+            state.settings_focus = SettingsFocus::Sidebar;
         }
         _ => {}
     }
@@ -261,13 +289,15 @@ fn handle_settings_stores(key: KeyEvent, state: &mut AppState) -> Result<()> {
 }
 
 fn handle_settings_languages(key: KeyEvent, state: &mut AppState) -> Result<()> {
+    use crate::app::SettingsFocus;
+
     // Cursor layout:
     //   0               → English (built-in)
     //   1..=installed   → available_langs (downloaded)
     //   installed+1..   → downloadable store langs not yet installed
-    let installed   = state.available_langs.len();
-    let downloadable = crate::KNOWN_STORE_LANGS.iter()
-        .filter(|(code, _)| !state.available_langs.iter().any(|d| d.code == *code))
+    let installed    = state.available_langs.len();
+    let downloadable = state.store_langs.iter()
+        .filter(|e| !state.available_langs.iter().any(|d| d.code == e.code))
         .count();
     let n_total = 1 + installed + downloadable;
 
@@ -278,24 +308,20 @@ fn handle_settings_languages(key: KeyEvent, state: &mut AppState) -> Result<()> 
         KeyCode::Enter => {
             let idx = state.lang_cursor;
             if idx == 0 {
-                // Activate English.
                 state.lang = crate::app::Lang::En;
                 state.settings.preferred_lang = None;
                 let _ = state.settings.save();
             } else if idx <= installed {
-                // Activate an already-installed language.
                 if let Some(dl) = state.available_langs.get(idx - 1) {
                     state.lang = crate::app::Lang::Dynamic(dl);
                     state.settings.preferred_lang = Some(dl.code.to_string());
                     let _ = state.settings.save();
                 }
             } else {
-                // Download a store language — same as 'f'.
                 trigger_lang_download(state, idx - 1 - installed);
             }
         }
 
-        // 'f' / 'F' = fetch (download) the selected store language.
         KeyCode::Char('f') | KeyCode::Char('F') => {
             let idx = state.lang_cursor;
             if idx > installed {
@@ -304,7 +330,6 @@ fn handle_settings_languages(key: KeyEvent, state: &mut AppState) -> Result<()> 
         }
 
         KeyCode::Delete | KeyCode::Char('d') | KeyCode::Char('D') => {
-            // Remove a downloaded language file (built-in English cannot be removed).
             if state.lang_cursor > 0 && state.lang_cursor <= installed {
                 if let Some(dl) = state.available_langs.get(state.lang_cursor - 1) {
                     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
@@ -324,9 +349,18 @@ fn handle_settings_languages(key: KeyEvent, state: &mut AppState) -> Result<()> 
         }
 
         KeyCode::Esc | KeyCode::Char('q') => {
-            state.screen = Screen::Dashboard;
+            state.settings_focus = SettingsFocus::Sidebar;
         }
         _ => {}
+    }
+    Ok(())
+}
+
+/// Generic content handler — used for sections with no keyboard interaction yet (General, About).
+fn handle_settings_generic(key: KeyEvent, state: &mut AppState) -> Result<()> {
+    use crate::app::SettingsFocus;
+    if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) {
+        state.settings_focus = SettingsFocus::Sidebar;
     }
     Ok(())
 }
@@ -337,17 +371,18 @@ pub(crate) fn trigger_lang_download_pub(state: &mut AppState, download_idx: usiz
 }
 
 /// Spawn a background download for the Nth downloadable store language.
+/// Uses `state.store_langs` (fetched dynamically from the Store index).
 fn trigger_lang_download(state: &mut AppState, download_idx: usize) {
     if state.lang_download_rx.is_some() {
         state.push_notif(crate::app::NotifKind::Info, "Download already in progress…");
         return;
     }
-    let uninstalled: Vec<&str> = crate::KNOWN_STORE_LANGS.iter()
-        .filter(|(code, _)| !state.available_langs.iter().any(|d| d.code == *code))
-        .map(|(code, _)| *code)
+    let uninstalled: Vec<String> = state.store_langs.iter()
+        .filter(|e| !state.available_langs.iter().any(|d| d.code == e.code))
+        .map(|e| e.code.clone())
         .collect();
-    if let Some(&code) = uninstalled.get(download_idx) {
+    if let Some(code) = uninstalled.get(download_idx).cloned() {
         state.push_notif(crate::app::NotifKind::Info, format!("Downloading {}…", code.to_uppercase()));
-        state.lang_download_rx = Some(crate::spawn_lang_downloader(code, state.settings.clone()));
+        state.lang_download_rx = Some(crate::spawn_lang_downloader(&code, state.settings.clone()));
     }
 }

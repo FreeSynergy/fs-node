@@ -65,13 +65,66 @@ pub fn spawn_store_fetcher(
     rx
 }
 
-// ── Background language downloader ───────────────────────────────────────────
+// ── Store language index ──────────────────────────────────────────────────────
 
-/// Known languages available in the FSN Store (under `Node/i18n/`).
-/// Each entry is (BCP-47 code, display name).
-pub const KNOWN_STORE_LANGS: &[(&str, &str)] = &[
-    ("de", "Deutsch"),
-];
+/// A language entry from the Store's `Node/i18n/index.toml`.
+/// Fetched at startup by `spawn_lang_index_fetcher` and stored in `AppState::store_langs`.
+#[derive(Debug, Clone)]
+pub struct StoreLangEntry {
+    pub code:         String,
+    pub name:         String,
+    pub api_version:  u32,
+    pub completeness: u8,
+}
+
+/// Fetch the language index from the first enabled store in a background thread.
+///
+/// Tries local_path first (offline), then HTTP. Sends the entry list via channel.
+/// The main loop picks it up and stores it in `state.store_langs`.
+pub fn spawn_lang_index_fetcher(
+    settings: fsn_core::config::AppSettings,
+) -> mpsc::Receiver<Vec<StoreLangEntry>> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let entries = fetch_lang_index(&settings).unwrap_or_default();
+        let _ = tx.send(entries);
+    });
+    rx
+}
+
+fn fetch_lang_index(settings: &fsn_core::config::AppSettings) -> anyhow::Result<Vec<StoreLangEntry>> {
+    #[derive(serde::Deserialize)]
+    struct Entry { code: String, name: String, api_version: u32, completeness: u8 }
+    #[derive(serde::Deserialize)]
+    struct Index { languages: Vec<Entry> }
+
+    let content = if let Some(store) = settings.stores.iter().find(|s| s.enabled && s.local_path.is_some()) {
+        let path = std::path::PathBuf::from(store.local_path.as_deref().unwrap())
+            .join("Node").join("i18n").join("index.toml");
+        std::fs::read_to_string(&path)
+            .map_err(|e| anyhow::anyhow!("local read: {e}"))?
+    } else if let Some(store) = settings.stores.iter().find(|s| s.enabled) {
+        let url = format!("{}/Node/i18n/index.toml", store.url.trim_end_matches('/'));
+        let rt  = tokio::runtime::Runtime::new()?;
+        rt.block_on(async move {
+            let resp = reqwest::get(&url).await?.error_for_status()?;
+            resp.text().await.map_err(anyhow::Error::from)
+        })?
+    } else {
+        anyhow::bail!("no enabled store configured");
+    };
+
+    let index: Index = toml::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("parse error: {e}"))?;
+    Ok(index.languages.into_iter().map(|e| StoreLangEntry {
+        code:         e.code,
+        name:         e.name,
+        api_version:  e.api_version,
+        completeness: e.completeness,
+    }).collect())
+}
+
+// ── Background language downloader ───────────────────────────────────────────
 
 /// Download a language TOML file from the first enabled store and save it to
 /// `~/.local/share/fsn/i18n/{code}.toml`.
@@ -196,6 +249,13 @@ pub fn run(root: &Path) -> Result<()> {
         None
     };
     state.store_rx = store_fetcher_rx;
+
+    // Fetch language index from Store in the background.
+    state.store_langs_rx = if state.settings.stores.iter().any(|s| s.enabled) {
+        Some(spawn_lang_index_fetcher(state.settings.clone()))
+    } else {
+        None
+    };
 
     // Start background reconciler (polls Podman every 5 seconds).
     // The receiver lives in AppState so the rat-salsa Tick handler can drain it.

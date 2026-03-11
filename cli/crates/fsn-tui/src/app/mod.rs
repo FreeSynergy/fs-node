@@ -28,7 +28,7 @@ pub use overlay::{
     ActionSource, ConfirmAction, ContextAction, DeployMsg, DeployState,
     LogsState, OverlayKind, OverlayLayer,
 };
-pub use screen::{DashFocus, Screen, SettingsTab};
+pub use screen::{DashFocus, Screen, SettingsFocus, SettingsSection, SettingsTab};
 pub use sidebar::{NEW_RESOURCE_ITEMS, SidebarAction, SidebarItem};
 
 // Re-export handle and form types so existing `use crate::app::*` imports keep working.
@@ -87,12 +87,22 @@ pub struct AppState {
     pub store_rx:             Option<mpsc::Receiver<Vec<fsn_core::store::StoreEntry>>>,
     /// Background language downloader — receives Ok(code) on success, Err(msg) on failure.
     pub lang_download_rx:     Option<mpsc::Receiver<Result<String, String>>>,
-    pub settings:             AppSettings,
-    pub store_entries:        Vec<StoreEntry>,
-    pub settings_cursor:      usize,
-    pub settings_tab:         SettingsTab,
-    /// Cursor within the Languages tab.
-    pub lang_cursor:          usize,
+    pub settings:                AppSettings,
+    pub store_entries:           Vec<StoreEntry>,
+    /// Cursor within the Settings content panel (stores list position).
+    pub settings_cursor:         usize,
+    /// Active settings section — drives both sidebar highlight and content panel.
+    pub settings_section:        SettingsSection,
+    /// Which side of the Settings screen has keyboard focus.
+    pub settings_focus:          SettingsFocus,
+    /// Cursor within the Settings sidebar (0=Stores, 1=Languages, 2=General, 3=About).
+    pub settings_sidebar_cursor: usize,
+    /// Cursor within the Languages section content list.
+    pub lang_cursor:             usize,
+    /// Language entries fetched from the Store (Node/i18n/index.toml).
+    pub store_langs:             Vec<crate::StoreLangEntry>,
+    /// Background fetcher for store language index (one-shot).
+    pub store_langs_rx:          Option<mpsc::Receiver<Vec<crate::StoreLangEntry>>>,
     /// Non-blocking feedback banners (auto-expire after a few seconds).
     pub notifications:        Vec<Notification>,
     /// Active sidebar filter query — `None` = closed, `Some("")` = open but empty.
@@ -153,8 +163,12 @@ impl AppState {
             settings,
             store_entries: Vec::new(),
             settings_cursor: 0,
-            settings_tab: SettingsTab::default(),
+            settings_section: SettingsSection::default(),
+            settings_focus: SettingsFocus::default(),
+            settings_sidebar_cursor: 0,
             lang_cursor: 0,
+            store_langs: Vec::new(),
+            store_langs_rx: None,
             notifications: Vec::new(),
             sidebar_filter: None,
             selected_services: HashSet::new(),

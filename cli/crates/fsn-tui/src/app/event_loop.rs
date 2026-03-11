@@ -162,6 +162,15 @@ fn fsn_event(
                 }
             }
 
+            // Drain language index fetcher (one-shot).
+            let lang_index: Option<Vec<crate::StoreLangEntry>> = state.store_langs_rx
+                .as_ref()
+                .and_then(|rx| rx.try_recv().ok());
+            if let Some(entries) = lang_index {
+                state.store_langs = entries;
+                state.store_langs_rx = None;
+            }
+
             // Refresh sysinfo every 5 s.
             if state.last_refresh.elapsed() >= Duration::from_secs(5) {
                 state.sysinfo = crate::sysinfo::SysInfo::collect();

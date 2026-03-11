@@ -230,8 +230,22 @@ fn handle_left_click(col: u16, row: u16, state: &mut AppState, root: &Path) -> R
             // ClickMap dispatch for non-dashboard screens (e.g. Settings).
             let target = state.click_map.hit(col, row).cloned();
             match target {
+                Some(ClickTarget::SettingsSidebar { idx }) => {
+                    use crate::app::{SettingsFocus, SettingsSection};
+                    state.settings_sidebar_cursor = idx;
+                    state.settings_section = SettingsSection::from_idx(idx);
+                    if dbl {
+                        state.settings_focus = SettingsFocus::Content;
+                        state.settings_cursor = 0;
+                        state.lang_cursor = 0;
+                    } else {
+                        state.settings_focus = SettingsFocus::Sidebar;
+                    }
+                }
                 Some(ClickTarget::SettingsCursor { idx }) => {
+                    use crate::app::SettingsFocus;
                     state.settings_cursor = idx;
+                    state.settings_focus = SettingsFocus::Content;
                     if dbl {
                         // Double-click on store row — open edit form.
                         if let Some(store) = state.settings.stores.get(idx) {
@@ -241,7 +255,9 @@ fn handle_left_click(col: u16, row: u16, state: &mut AppState, root: &Path) -> R
                     }
                 }
                 Some(ClickTarget::LangCursor { idx }) => {
+                    use crate::app::SettingsFocus;
                     state.lang_cursor = idx;
+                    state.settings_focus = SettingsFocus::Content;
                     // Double-click activates / downloads — same as Enter in events.rs.
                     if dbl {
                         let installed = state.available_langs.len();

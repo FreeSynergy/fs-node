@@ -385,6 +385,17 @@ fn en(key: &str) -> Option<&'static str> {
         "settings.lang.none"     => "(no languages installed — download from Store)",
         "settings.lang.hint"     => "↑↓=Navigate  Enter=Activate  Del=Remove  Tab=Switch tab  Esc=Back",
         "settings.stores.hint"   => "A=Add  D=Delete  Space=Enable/Disable  Tab=Switch tab  Esc=Back",
+        // ── Settings sections (sidebar labels) ────────────────────────────────
+        "settings.section.stores"    => "Stores",
+        "settings.section.languages" => "Languages",
+        "settings.section.general"   => "General",
+        "settings.section.about"     => "About",
+        // ── Settings hints (context-sensitive) ────────────────────────────────
+        "settings.hint.sidebar"    => "↑↓=Navigate  Enter/→=Open  Esc=Back",
+        "settings.hint.stores"     => "↑↓=Nav  Enter=Edit  Space=Toggle  A=Add  D=Delete  ←=Sidebar",
+        "settings.hint.languages"  => "↑↓=Nav  Enter=Activate  F=Download  Del=Remove  ←=Sidebar",
+        "settings.hint.general"    => "←=Sidebar",
+        "settings.hint.about"      => "←=Sidebar",
         _ => return None,
     })
 }
