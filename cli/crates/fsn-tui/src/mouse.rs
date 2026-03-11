@@ -53,7 +53,7 @@ pub fn handle_mouse(event: MouseEvent, state: &mut AppState, root: &Path) -> Res
     }
 
     // Form screen — delegate entirely to the form handler.
-    if state.current_form.is_some() {
+    if state.form_queue.is_some() {
         return handle_mouse_form(event, state, root);
     }
 
@@ -112,7 +112,7 @@ fn handle_mouse_form(event: MouseEvent, state: &mut AppState, root: &Path) -> Re
     // Popup is its own layer: scroll and clicks go to the popup first.
     // Single-select: click-outside = cancel.  Multi-select: click-outside = accept.
     {
-        let form = match state.current_form.as_mut() { Some(f) => f, None => return Ok(()) };
+        let form = match state.active_form_mut() { Some(f) => f, None => return Ok(()) };
         let popup_idx = form.nodes.iter().position(|n| n.has_open_popup());
         if let Some(idx) = popup_idx {
             let action = form.nodes[idx].handle_popup_mouse(event);
@@ -127,12 +127,12 @@ fn handle_mouse_form(event: MouseEvent, state: &mut AppState, root: &Path) -> Re
     // ── ClickMap dispatch ─────────────────────────────────────────────────
     //
     // Clone the target so we drop the immutable borrow on state.click_map
-    // before mutably borrowing state.current_form below.
+    // before mutably borrowing state.form_queue below.
     let target = state.click_map.hit(event.column, event.row).cloned();
 
     match target {
         Some(ClickTarget::FormField { slot, node_idx, rect }) => {
-            if let Some(form) = state.current_form.as_mut() {
+            if let Some(form) = state.active_form_mut() {
                 form.active_field = slot;
                 form.touched = true;
                 let action = form.nodes[node_idx].handle_mouse(event, rect);
@@ -145,6 +145,13 @@ fn handle_mouse_form(event: MouseEvent, state: &mut AppState, root: &Path) -> Re
         Some(ClickTarget::FormSubmit) => {
             if event.kind == MouseEventKind::Down(MouseButton::Left) {
                 crate::submit::handle_form_submit(state, root)?;
+            }
+        }
+        Some(ClickTarget::QueueTab { idx }) => {
+            if event.kind == MouseEventKind::Down(MouseButton::Left) {
+                if let Some(q) = state.form_queue.as_mut() {
+                    q.switch_to(idx);
+                }
             }
         }
         _ => {}
@@ -398,15 +405,13 @@ pub fn execute_context_action(
             }
         }
         ContextAction::AddService => {
-            state.current_form = Some(crate::service_form::new_service_form());
-            state.screen = crate::app::Screen::NewProject;
+            state.open_form(crate::service_form::new_service_form());
         }
         ContextAction::AddHost => {
             let slugs   = state.projects.iter().map(|p| p.slug.clone()).collect::<Vec<_>>();
             let current = state.projects.get(state.selected_project)
                 .map(|p| p.slug.as_str()).unwrap_or("").to_string();
-            state.current_form = Some(crate::host_form::new_host_form(slugs, &current));
-            state.screen = crate::app::Screen::NewProject;
+            state.open_form(crate::host_form::new_host_form(slugs, &current));
         }
     }
     Ok(())

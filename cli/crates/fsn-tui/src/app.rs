@@ -40,9 +40,9 @@ pub struct Notification {
 pub enum Screen {
     Welcome,
     Dashboard,
+    /// Form screen — shows the active form from `form_queue`.
+    /// Queue tab bar is visible when `form_queue.has_multiple()`.
     NewProject,
-    /// Progressive setup wizard — task queue with per-task save.
-    TaskWizard,
     /// Application settings — store management, preferences.
     Settings,
 }
@@ -220,8 +220,8 @@ pub enum ConfirmAction {
     DeleteService,
     DeleteHost,
     StopService,
+    /// Close the form queue (abandon all pending tabs — user confirmed).
     LeaveForm,
-    LeaveWizard,
     Quit,
 }
 
@@ -287,7 +287,9 @@ pub struct AppState {
     pub should_quit:          bool,
     pub help_visible:         bool,
     pub welcome_focus:        usize,
-    pub current_form:         Option<ResourceForm>,
+    /// Unified form queue — replaces `current_form` and the old `task_queue`.
+    /// `None` when no form is open. `Some` when one or more forms are queued.
+    pub form_queue:           Option<crate::form_queue::FormQueue>,
     pub ctrl_hint:            bool,
     pub projects:             Vec<ProjectHandle>,
     pub selected_project:     usize,
@@ -304,7 +306,6 @@ pub struct AppState {
     pub reconcile_rx:         Option<mpsc::Receiver<HashMap<String, RunState>>>,
     /// Background store fetcher — receives fresh entries after HTTP fetch completes.
     pub store_rx:             Option<mpsc::Receiver<Vec<fsn_core::store::StoreEntry>>>,
-    pub task_queue:           Option<crate::task_queue::TaskQueue>,
     pub settings:             AppSettings,
     pub store_entries:        Vec<StoreEntry>,
     pub settings_cursor:      usize,
@@ -338,7 +339,7 @@ impl AppState {
         let mut s = Self {
             screen: Screen::Welcome, lang: Lang::De, sysinfo, services: vec![],
             selected: 0, overlay_stack: vec![],
-            should_quit: false, help_visible: false, welcome_focus: 0, current_form: None,
+            should_quit: false, help_visible: false, welcome_focus: 0, form_queue: None,
             ctrl_hint: false, projects, selected_project: 0,
             hosts: vec![], selected_host: 0, svc_handles: vec![],
             dash_focus: DashFocus::Sidebar,
@@ -348,7 +349,6 @@ impl AppState {
             deploy_rx: None,
             reconcile_rx: None,
             store_rx: None,
-            task_queue: None,
             settings: AppSettings::load().unwrap_or_default(),
             store_entries: Vec::new(),
             settings_cursor: 0,
@@ -379,6 +379,30 @@ impl AppState {
             }
         }
         opts
+    }
+
+    // ── Form queue helpers ─────────────────────────────────────────────────
+
+    /// Active form (read-only), regardless of how it was opened.
+    pub fn active_form(&self) -> Option<&crate::resource_form::ResourceForm> {
+        self.form_queue.as_ref().map(|q| q.active_form())
+    }
+
+    /// Active form (mutable), regardless of how it was opened.
+    pub fn active_form_mut(&mut self) -> Option<&mut crate::resource_form::ResourceForm> {
+        self.form_queue.as_mut().map(|q| q.active_form_mut())
+    }
+
+    /// Open a single form (the common case — menu action, edit from sidebar).
+    pub fn open_form(&mut self, form: crate::resource_form::ResourceForm) {
+        self.form_queue = Some(crate::form_queue::FormQueue::single(form));
+        self.screen = Screen::NewProject;
+    }
+
+    /// Close the entire form queue and return to Dashboard (or Welcome if no projects).
+    pub fn close_form_queue(&mut self) {
+        self.form_queue = None;
+        self.screen = if self.projects.is_empty() { Screen::Welcome } else { Screen::Dashboard };
     }
 
     // ── Overlay helpers ────────────────────────────────────────────────────

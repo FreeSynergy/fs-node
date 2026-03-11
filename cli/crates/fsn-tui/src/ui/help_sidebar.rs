@@ -122,18 +122,6 @@ pub fn build_help(
             sections
         }
 
-        Screen::TaskWizard => vec![
-            HelpSection {
-                title: t("help.nav"),
-                entries: vec![
-                    HelpEntry { key: "Tab",       desc: t("help.form.next") },
-                    HelpEntry { key: "^Enter",     desc: t("help.form.submit") },
-                    HelpEntry { key: "^←/^→",     desc: t("help.form.tab_next") },
-                    HelpEntry { key: "Esc",        desc: t("help.form.cancel") },
-                ],
-            },
-        ],
-
         Screen::Settings => vec![
             HelpSection {
                 title: t("help.settings"),

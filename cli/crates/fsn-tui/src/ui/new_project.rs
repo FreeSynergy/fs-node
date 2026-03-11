@@ -1,16 +1,27 @@
 // Generic resource editor screen.
 //
-// Renders any `ResourceForm`. Each field node renders itself via `node.render()`.
+// Renders any `ResourceForm` from the active `FormQueue` tab.
+// Each field node renders itself via `node.render()`.
 // After all nodes are rendered every node gets `render_overlay()` — dropdowns
 // appear on top of other fields without any special-casing here.
 //
-// Mouse registration (ClickMap):
-//   render_header  → ClickTarget::LangToggle
-//   render_fields  → ClickTarget::FormField (one per visible field)
-//                    ClickTarget::FormSubmit (when on last tab)
+// Layout (top to bottom):
+//   1. Header bar (3 rows) — title + lang button
+//   2. Queue tab bar (2 rows, only when FormQueue has > 1 tab)
+//   3. Form tab bar (3 rows, only when form has > 1 section tab)
+//   4. Form fields (remaining space)
+//   5. Error/validation line (1 row)
+//   6. Hint bar (1 row)
 //
-// The click_map is taken from state (std::mem::take) to avoid borrow conflicts
-// while `form` (which borrows state.current_form) is live.
+// Mouse registration (ClickMap):
+//   render_header     → ClickTarget::LangToggle
+//   render_queue_bar  → ClickTarget::QueueTab { idx }
+//   render_fields     → ClickTarget::FormField (one per visible field)
+//                       ClickTarget::FormSubmit (when on last tab)
+//
+// Design Pattern: Composite — each visible section (header, queue bar, form
+// tabs, fields, error, hint) is a pure fn with its own responsibilities.
+// No section function knows about the others.
 
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -24,48 +35,73 @@ use crate::click_map::{ClickMap, ClickTarget};
 use crate::ui::render_ctx::RenderCtx;
 
 use crate::app::{AppState, ResourceForm};
+use crate::form_queue::FormQueue;
 use crate::resource_form::FormErrorKind;
 use crate::ui::widgets;
 
 pub fn render(f: &mut RenderCtx<'_>, state: &mut AppState, area: Rect) {
-    let Some(ref mut form) = state.current_form else { return };
+    if state.form_queue.is_none() { return; }
 
-    let tab_bar_h = if form.tab_keys.len() > 1 { 3 } else { 0 };
+    let has_queue_bar = state.form_queue.as_ref().unwrap().has_multiple();
+    let tab_bar_h     = if state.form_queue.as_ref().unwrap().active_form().tab_keys.len() > 1 { 3 } else { 0 };
+    let queue_bar_h: u16 = if has_queue_bar { 2 } else { 0 };
+
     let outer = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),          // header
-            Constraint::Length(tab_bar_h),  // tab bar (hidden when single tab)
-            Constraint::Min(1),             // form fields
-            Constraint::Length(1),          // error line
-            Constraint::Length(1),          // hint bar
+            Constraint::Length(3),              // header
+            Constraint::Length(queue_bar_h),    // queue tab bar (hidden when single form)
+            Constraint::Length(tab_bar_h),      // form tab bar (hidden when single section)
+            Constraint::Min(1),                 // form fields
+            Constraint::Length(1),              // error line
+            Constraint::Length(1),              // hint bar
         ])
         .split(area);
 
-    // Take click_map from state — avoids borrow conflict while `form` is live.
-    // Disjoint field borrows: form→state.current_form, cmap→state.click_map.
+    // Take click_map from state — avoids borrow conflict while form is live.
+    // Disjoint field borrows: form→state.form_queue, cmap→state.click_map.
     let mut cmap = std::mem::take(&mut state.click_map);
     cmap.clear();
 
-    render_header(f, state.lang, form, outer[0], &mut cmap);
-    if tab_bar_h > 0 {
-        render_tabs(f, state.lang, form, outer[1]);
+    // ── Header ───────────────────────────────────────────────────────────────
+    {
+        let form = state.form_queue.as_ref().unwrap().active_form();
+        render_header(f, state.lang, form, outer[0], &mut cmap);
     }
 
-    // Build inner area with horizontal padding (5% each side)
+    // ── Queue tab bar ─────────────────────────────────────────────────────────
+    if has_queue_bar {
+        render_queue_bar(f, state.form_queue.as_ref().unwrap(), state.lang, outer[1], &mut cmap);
+    }
+
+    // ── Form section tab bar ──────────────────────────────────────────────────
+    if tab_bar_h > 0 {
+        let form = state.form_queue.as_ref().unwrap().active_form();
+        render_tabs(f, state.lang, form, outer[2]);
+    }
+
+    // ── Form fields ───────────────────────────────────────────────────────────
+    // Build inner area with horizontal padding (5% each side).
     let padding = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(5), Constraint::Percentage(90), Constraint::Percentage(5)])
-        .split(outer[2]);
+        .split(outer[3]);
     let inner = padding[1];
 
-    render_fields(f, form, inner, state.lang, &mut cmap);
+    {
+        let form = state.form_queue.as_mut().unwrap().active_form_mut();
+        render_fields(f, form, inner, state.lang, &mut cmap);
+    }
 
     // Return click_map to state — render_error and render_hint don't need it.
     state.click_map = cmap;
 
-    render_error(f, state.lang, form, outer[3]);
-    render_hint(f, state, outer[4]);
+    // ── Error line + hint bar ─────────────────────────────────────────────────
+    {
+        let form = state.form_queue.as_ref().unwrap().active_form();
+        render_error(f, state.lang, form, outer[4]);
+    }
+    render_hint(f, state, outer[5]);
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -104,7 +140,73 @@ fn render_header(
     cmap.push(lang_area, ClickTarget::LangToggle);
 }
 
-// ── Tab bar ───────────────────────────────────────────────────────────────────
+// ── Queue tab bar — switches between queued forms ─────────────────────────────
+//
+// Design Pattern: Registry — each rendered tab is registered in the click_map
+// as `QueueTab { idx }` so mouse.rs can switch the active form on click.
+//
+// Visual convention:
+//   ✓ label   = done (green, greyed out)
+//   ▶ label   = active (cyan, bold)
+//     label   = pending (white)
+
+fn render_queue_bar(
+    f:    &mut RenderCtx<'_>,
+    queue: &FormQueue,
+    lang:  crate::app::Lang,
+    area:  Rect,
+    cmap:  &mut ClickMap,
+) {
+    let block = Block::default()
+        .borders(Borders::BOTTOM)
+        .border_style(Style::default().fg(Color::DarkGray));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let mut x = inner.x;
+    for (i, tab) in queue.tabs.iter().enumerate() {
+        let is_active = i == queue.active;
+        let label_key = tab.kind.as_ref()
+            .map(|k| k.label_key())
+            .unwrap_or_else(|| tab.form.title_key());
+        let label = crate::i18n::t(lang, label_key);
+
+        let (prefix, style) = if is_active {
+            ("▶ ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        } else if tab.done {
+            ("✓ ", Style::default().fg(Color::Green))
+        } else {
+            ("  ", Style::default().fg(Color::White))
+        };
+
+        let text   = format!("{}{}", prefix, label);
+        let width  = (text.chars().count() as u16 + 2).min(inner.right().saturating_sub(x));
+        if width == 0 { break; }
+
+        let tab_area = Rect { x, y: inner.y, width, height: 1 };
+        f.render_stateful_widget(
+            Paragraph::new(Line::from(Span::styled(text, style))),
+            tab_area,
+            &mut ParagraphState::new(),
+        );
+        cmap.push(tab_area, ClickTarget::QueueTab { idx: i });
+
+        x += width + 2; // 2-space gap between tabs
+        if x >= inner.right() { break; }
+
+        // Separator
+        if i + 1 < queue.tabs.len() {
+            let sep = Rect { x: x.saturating_sub(1), y: inner.y, width: 1, height: 1 };
+            f.render_stateful_widget(
+                Paragraph::new(Line::from(Span::styled("│", Style::default().fg(Color::DarkGray)))),
+                sep,
+                &mut ParagraphState::new(),
+            );
+        }
+    }
+}
+
+// ── Form section tab bar ──────────────────────────────────────────────────────
 
 pub(crate) fn render_tabs(f: &mut RenderCtx<'_>, lang: crate::app::Lang, form: &ResourceForm, area: Rect) {
     // Replaced ratatui Tabs with manual span-based rendering.
@@ -338,7 +440,6 @@ pub(crate) fn render_error(f: &mut RenderCtx<'_>, lang: crate::app::Lang, form: 
 fn render_hint(f: &mut RenderCtx<'_>, state: &AppState, area: Rect) {
     let key = if state.ctrl_hint { "form.hint.ctrl" } else { "form.hint" };
     let hint_text = state.t(key);
-    let _f1_label = state.t("help.title");
 
     let line = Line::from(vec![
         Span::styled(hint_text, Style::default().fg(Color::DarkGray)),

@@ -22,7 +22,7 @@ use crate::app::{AppState, ConfirmAction, OverlayKind, OverlayLayer, Screen};
 use crate::resource_form::FormErrorKind;
 use crate::ui::form_node::FormAction;
 use crate::events_dashboard::{self, execute_confirm_action, handle_new_resource_overlay};
-use crate::submit::{handle_form_submit, handle_wizard_submit};
+use crate::submit::handle_form_submit;
 
 pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
     state.ctrl_hint = key.modifiers.contains(KeyModifiers::CONTROL);
@@ -46,10 +46,10 @@ pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
     //
     // Only uppercase L (Shift+L) is global: lowercase 'l' conflicts with
     // per-screen shortcuts (e.g. 'l' = logs in the services panel).
-    // Forms and TaskWizard handle L per-node via FormAction::LangToggle.
+    // Forms handle L per-node via FormAction::LangToggle.
     // Sidebar filter must receive all characters — skip while filter is active.
     if key.code == KeyCode::Char('L')
-        && state.current_form.is_none()
+        && state.form_queue.is_none()
         && state.sidebar_filter.is_none()
     {
         state.lang = state.lang.toggle();
@@ -65,7 +65,6 @@ pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
         Screen::Welcome    => handle_welcome(key, state),
         Screen::Dashboard  => events_dashboard::handle_dashboard(key, state, root),
         Screen::NewProject => handle_resource_form(key, state, root),
-        Screen::TaskWizard => handle_wizard(key, state, root),
         Screen::Settings   => handle_settings(key, state),
     }
 }
@@ -73,8 +72,6 @@ pub fn handle(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
 // ── Overlay layer handler ─────────────────────────────────────────────────────
 
 fn handle_overlay(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
-    // Read the discriminant first — this ends the immutable borrow so we can
-    // mutate state freely inside each arm without borrow-checker conflicts.
     let overlay_kind = state.top_overlay().map(|o| o.kind());
 
     match overlay_kind {
@@ -96,24 +93,20 @@ fn handle_overlay(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()
             }
         }
         Some(OverlayKind::Confirm) => {
-            // Extract data BEFORE popping — the overlay is gone afterwards.
             let (data, yes_action) = {
                 let (_, d, a) = state.confirm_overlay().unwrap();
                 (d.map(|s| s.to_string()), a)
             };
             match key.code {
-                // Accept: j/J (German "Ja") or y/Y (English "Yes").
                 KeyCode::Char('j') | KeyCode::Char('J')
                 | KeyCode::Char('y') | KeyCode::Char('Y') => {
                     state.pop_overlay();
                     execute_confirm_action(state, root, data, yes_action)?;
                 }
-                // Any other key = cancel (close overlay, take no action).
                 _ => { state.pop_overlay(); }
             }
         }
         Some(OverlayKind::Deploy) => {
-            // Only closeable once the background thread has finished.
             let done = state.top_overlay()
                 .map(|o| if let OverlayLayer::Deploy(ref d) = o { d.done } else { false })
                 .unwrap_or(false);
@@ -138,14 +131,12 @@ fn handle_overlay(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()
 fn handle_welcome(key: KeyEvent, state: &mut AppState) -> Result<()> {
     match key.code {
         KeyCode::Char('q') => state.should_quit = true,
-        // 'l' (lowercase) — uppercase 'L' is handled globally in handle().
         KeyCode::Char('l') => state.lang = state.lang.toggle(),
-        // Toggle between the two buttons (New Project / Open Project).
         KeyCode::Left | KeyCode::Right => state.welcome_focus = 1 - state.welcome_focus,
         KeyCode::Enter => {
             if state.welcome_focus == 0 {
-                state.current_form = Some(crate::project_form::new_project_form(&state.svc_handles, &state.store_entries));
-                state.screen = Screen::NewProject;
+                let form = crate::project_form::new_project_form(&state.svc_handles, &state.store_entries);
+                state.open_form(form);
             }
         }
         _ => {}
@@ -156,15 +147,15 @@ fn handle_welcome(key: KeyEvent, state: &mut AppState) -> Result<()> {
 // ── Generic resource form handler ─────────────────────────────────────────────
 
 fn handle_resource_form(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
-    let action = if let Some(ref mut form) = state.current_form {
-        form.handle_key(key)
+    let action = if let Some(f) = state.active_form_mut() {
+        f.handle_key(key)
     } else {
         FormAction::Unhandled
     };
 
     match action {
         FormAction::Cancel => {
-            let dirty = state.current_form.as_ref().map(|f| f.is_dirty()).unwrap_or(false);
+            let dirty = state.active_form().map(|f| f.is_dirty()).unwrap_or(false);
             if dirty {
                 state.push_overlay(OverlayLayer::Confirm {
                     message:    "form.confirm.leave".into(),
@@ -172,8 +163,7 @@ fn handle_resource_form(key: KeyEvent, state: &mut AppState, root: &Path) -> Res
                     yes_action: ConfirmAction::LeaveForm,
                 });
             } else {
-                state.current_form = None;
-                state.screen = if state.projects.is_empty() { Screen::Welcome } else { Screen::Dashboard };
+                state.close_form_queue();
             }
         }
         FormAction::LangToggle => state.lang = state.lang.toggle(),
@@ -184,71 +174,20 @@ fn handle_resource_form(key: KeyEvent, state: &mut AppState, root: &Path) -> Res
                 state.lang = state.lang.toggle();
             }
         }
-        // Navigation and value changes — mark form as touched and run live validation.
         FormAction::AcceptAndNext
         | FormAction::FocusNext | FormAction::FocusPrev
         | FormAction::TabNext  | FormAction::TabPrev
         | FormAction::ValueChanged => {
-            if let Some(ref mut form) = state.current_form {
-                form.touched = true;
-                // Clear a previous submit-level validation error so it doesn't
-                // persist after the user starts actively editing.
-                if form.error_kind == FormErrorKind::Validation {
-                    form.error = None;
+            if let Some(f) = state.active_form_mut() {
+                f.touched = true;
+                if f.error_kind == FormErrorKind::Validation {
+                    f.error = None;
                 }
             }
         }
         FormAction::Quit => state.should_quit = true,
     }
     Ok(())
-}
-
-// ── Task wizard ───────────────────────────────────────────────────────────────
-
-fn handle_wizard(key: KeyEvent, state: &mut AppState, root: &Path) -> Result<()> {
-    let action = if let Some(ref mut queue) = state.task_queue {
-        if let Some(task) = queue.tasks.get_mut(queue.active) {
-            if let Some(ref mut form) = task.form { form.handle_key(key) }
-            else { FormAction::Unhandled }
-        } else { FormAction::Unhandled }
-    } else { FormAction::Unhandled };
-
-    match action {
-        FormAction::Cancel     => confirm_leave_wizard(state),
-        FormAction::LangToggle => state.lang = state.lang.toggle(),
-        FormAction::Submit     => handle_wizard_submit(state, root)?,
-        FormAction::Consumed   => {}
-        FormAction::Unhandled  => {
-            match key.code {
-                KeyCode::Esc => confirm_leave_wizard(state),
-                // 'l' (lowercase) for non-text nodes — 'L' is handled globally.
-                KeyCode::Char('l') => state.lang = state.lang.toggle(),
-                _ => {}
-            }
-        }
-        FormAction::AcceptAndNext
-        | FormAction::FocusNext | FormAction::FocusPrev
-        | FormAction::TabNext  | FormAction::TabPrev
-        | FormAction::ValueChanged => {}
-        FormAction::Quit => state.should_quit = true,
-    }
-    Ok(())
-}
-
-fn confirm_leave_wizard(state: &mut AppState) {
-    let dirty = state.task_queue.as_ref()
-        .and_then(|q| q.tasks.get(q.active)?.form.as_ref().map(|f| f.is_dirty()))
-        .unwrap_or(false);
-    if dirty {
-        state.push_overlay(OverlayLayer::Confirm {
-            message:    "form.confirm.leave".into(),
-            data:       None,
-            yes_action: ConfirmAction::LeaveWizard,
-        });
-    } else {
-        state.task_queue = None;
-        state.screen = Screen::Dashboard;
-    }
 }
 
 // ── Settings screen ───────────────────────────────────────────────────────────
@@ -298,4 +237,3 @@ fn handle_settings(key: KeyEvent, state: &mut AppState) -> Result<()> {
     }
     Ok(())
 }
-

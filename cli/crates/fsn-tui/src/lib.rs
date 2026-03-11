@@ -10,11 +10,12 @@ pub const GIT_HASH:   &str = env!("FSN_GIT_HASH");
 
 pub mod actions;
 pub mod app;
-pub mod click_map;
 pub mod bot_form;
+pub mod click_map;
 pub mod deploy_thread;
 pub mod events;
 pub mod events_dashboard;
+pub mod form_queue;
 pub mod handles;
 pub mod host_form;
 pub mod i18n;

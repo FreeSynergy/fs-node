@@ -56,8 +56,8 @@ fn render_body(f: &mut RenderCtx<'_>, state: &mut AppState, layout: &AppLayout) 
 
     // F1 help panel (right side of body only — header and footer stay untouched)
     if let Some(help_area) = layout.body.right {
-        let kind    = state.current_form.as_ref().map(|f| f.kind);
-        let foc_key = state.current_form.as_ref()
+        let kind    = state.active_form().map(|f| f.kind);
+        let foc_key = state.active_form()
             .and_then(|f| f.focused_node())
             .map(|n| n.key());
         let sections = help_sidebar::build_help(state.screen, kind, foc_key, state.lang);

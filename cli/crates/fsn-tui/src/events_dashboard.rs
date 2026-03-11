@@ -318,23 +318,23 @@ impl SidebarItem {
                 if let Some(proj) = state.projects.iter().find(|p| p.slug == *slug).cloned() {
                     let svcs    = state.svc_handles.clone();
                     let entries = state.store_entries.clone();
-                    state.current_form = Some(crate::project_form::edit_project_form(&proj, &svcs, &entries));
-                    state.screen = Screen::NewProject;
+                    let form    = crate::project_form::edit_project_form(&proj, &svcs, &entries);
+                    state.open_form(form);
                 }
             }
             SidebarItem::Host { slug, .. } => {
                 if let Some(host) = state.hosts.iter().find(|h| h.slug == *slug).cloned() {
                     let slugs = project_slugs(state);
-                    state.current_form = Some(crate::host_form::edit_host_form(&host, slugs));
-                    state.screen = Screen::NewProject;
+                    let form  = crate::host_form::edit_host_form(&host, slugs);
+                    state.open_form(form);
                 }
             }
             SidebarItem::Service { name, .. } => {
                 if let Some(proj) = state.projects.get(state.selected_project).cloned() {
                     if let Some(entry) = proj.config.load.services.get(name).cloned() {
                         let slug = crate::resource_form::slugify(name);
-                        state.current_form = Some(crate::service_form::edit_service_form(name, &entry, slug));
-                        state.screen = Screen::NewProject;
+                        let form = crate::service_form::edit_service_form(name, &entry, slug);
+                        state.open_form(form);
                     }
                 }
             }
@@ -351,34 +351,31 @@ impl SidebarItem {
 pub(crate) fn activate_sidebar_item(item: SidebarItem, state: &mut AppState, root: &Path) {
     match item {
         SidebarItem::Action { kind: SidebarAction::NewProject, .. } => {
-            let queue = crate::task_queue::TaskQueue::new(
-                crate::task_queue::TaskKind::NewProject, state,
-            );
-            state.task_queue = Some(queue);
-            state.screen = Screen::TaskWizard;
+            let form = crate::project_form::new_project_form(&state.svc_handles.clone(), &state.store_entries.clone());
+            state.open_form(form);
         }
         SidebarItem::Action { kind: SidebarAction::NewHost, .. } => {
             let slugs   = project_slugs(state);
             let current = current_project_slug(state).to_string();
-            state.current_form = Some(crate::host_form::new_host_form(slugs, &current));
-            state.screen = Screen::NewProject;
+            let form    = crate::host_form::new_host_form(slugs, &current);
+            state.open_form(form);
         }
         SidebarItem::Action { kind: SidebarAction::NewService, .. } => {
-            state.current_form = Some(crate::service_form::new_service_form());
-            state.screen = Screen::NewProject;
+            state.open_form(crate::service_form::new_service_form());
         }
-        // Project items: check for missing required resources and queue setup forms.
+        // Project items: check for missing required resources and auto-queue setup forms.
         SidebarItem::Project { .. } => {
-            if state.task_queue.is_none() {
+            if state.form_queue.is_none() {
                 let tasks = collect_missing_tasks(state);
                 if !tasks.is_empty() {
-                    use crate::task_queue::{TaskQueue, WorkTask};
-                    let mut task_list: Vec<WorkTask> = tasks.into_iter()
-                        .map(|k| WorkTask::new(k))
-                        .collect();
-                    task_list[0].activate(state);
-                    state.task_queue = Some(TaskQueue { tasks: task_list, active: 0 });
-                    state.screen = crate::app::Screen::TaskWizard;
+                    let first = tasks[0].build_form(state);
+                    let mut queue = crate::form_queue::FormQueue::single(first);
+                    for kind in tasks.into_iter().skip(1) {
+                        let form = kind.build_form(state);
+                        queue.push(form, Some(kind));
+                    }
+                    state.form_queue = Some(queue);
+                    state.screen = Screen::NewProject;
                     return;
                 }
             }
@@ -480,25 +477,19 @@ fn open_new_resource_form(item_idx: usize, state: &mut AppState, root: &Path) {
     let Some(&(_, kind)) = NEW_RESOURCE_ITEMS.get(item_idx) else { return };
     match kind {
         ResourceKind::Project => {
-            let queue = crate::task_queue::TaskQueue::new(
-                crate::task_queue::TaskKind::NewProject, state,
-            );
-            state.task_queue = Some(queue);
-            state.screen = Screen::TaskWizard;
+            let form = crate::project_form::new_project_form(&state.svc_handles.clone(), &state.store_entries.clone());
+            state.open_form(form);
         }
         ResourceKind::Host => {
             let slugs   = project_slugs(state);
             let current = current_project_slug(state).to_string();
-            state.current_form = Some(crate::host_form::new_host_form(slugs, &current));
-            state.screen = Screen::NewProject;
+            state.open_form(crate::host_form::new_host_form(slugs, &current));
         }
         ResourceKind::Service => {
-            state.current_form = Some(crate::service_form::new_service_form());
-            state.screen = Screen::NewProject;
+            state.open_form(crate::service_form::new_service_form());
         }
         ResourceKind::Bot => {
-            state.current_form = Some(crate::bot_form::new_bot_form());
-            state.screen = Screen::NewProject;
+            state.open_form(crate::bot_form::new_bot_form());
         }
     }
     let _ = root;
@@ -522,16 +513,7 @@ pub(crate) fn execute_confirm_action(
             state.push_notif(NotifKind::Success, "Host gelöscht");
         }
         ConfirmAction::LeaveForm => {
-            state.current_form = None;
-            state.screen = if state.projects.is_empty() {
-                Screen::Welcome
-            } else {
-                Screen::Dashboard
-            };
-        }
-        ConfirmAction::LeaveWizard => {
-            state.task_queue = None;
-            state.screen = Screen::Dashboard;
+            state.close_form_queue();
         }
         ConfirmAction::Quit => { state.should_quit = true; }
         ConfirmAction::DeleteService => {

@@ -42,6 +42,9 @@ pub enum ClickTarget {
     /// `node_idx` — global index into `ResourceForm::nodes`.
     /// `rect`     — rendered Rect, forwarded to `FormNode::handle_mouse`.
     FormField { slot: usize, node_idx: usize, rect: Rect },
+
+    /// A tab in the queue tab bar — switches the active form to `idx`.
+    QueueTab { idx: usize },
 }
 
 // ── ClickMap ──────────────────────────────────────────────────────────────────

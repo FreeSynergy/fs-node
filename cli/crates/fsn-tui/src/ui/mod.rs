@@ -21,7 +21,6 @@ pub mod new_project;
 pub mod nodes;
 pub mod render_ctx;
 pub mod settings_screen;
-pub mod task_wizard;
 pub mod welcome;
 pub mod widgets;
 
@@ -55,7 +54,6 @@ pub fn render(f: &mut RenderCtx<'_>, state: &mut AppState) {
         Screen::Dashboard  => dashboard::render(f, state, full),
         Screen::Welcome    => render_with_help(f, state, full, |f, s, a| welcome::render(f, s, a)),
         Screen::NewProject => render_with_help(f, state, full, |f, s, a| new_project::render(f, s, a)),
-        Screen::TaskWizard => render_with_help(f, state, full, |f, s, a| task_wizard::render(f, s, a)),
         Screen::Settings   => render_with_help(f, state, full, |f, s, a| settings_screen::render(f, s, a)),
     }
 
@@ -93,8 +91,8 @@ where
     render_fn(f, state, main_area);
 
     if let Some(help_area) = help_area {
-        let kind    = state.current_form.as_ref().map(|f| f.kind);
-        let foc_key = state.current_form.as_ref()
+        let kind    = state.active_form().map(|f| f.kind);
+        let foc_key = state.active_form()
             .and_then(|f| f.focused_node())
             .map(|n| n.key());
         let sections = help_sidebar::build_help(state.screen, kind, foc_key, state.lang);
