@@ -91,7 +91,9 @@ pub fn submit_project(state: &mut AppState, root: &Path) -> Result<()> {
             let name = state.active_form().map(|f| f.field_value("name")).unwrap_or_default();
 
             // Extract "new:" / "store:" slot values BEFORE advancing the queue.
+            // Uses parse_slot_value() — single source of truth for slot string parsing.
             let queued_tasks: Vec<crate::task_queue::TaskKind> = {
+                use crate::project_form::{parse_slot_value, SlotValue};
                 let form = state.active_form().unwrap();
                 let slug = form.edit_id.clone()
                     .unwrap_or_else(|| crate::resource_form::slugify(&form.field_value("name")));
@@ -99,19 +101,15 @@ pub fn submit_project(state: &mut AppState, root: &Path) -> Result<()> {
                 slot_keys.iter()
                     .filter_map(|&k| {
                         let val = form.field_value(k);
-                        if let Some(class) = val.strip_prefix("new:") {
-                            return Some(crate::task_queue::TaskKind::NewService {
-                                class:       class.to_string(),
-                                for_project: slug.clone(),
-                            });
+                        match parse_slot_value(&val) {
+                            SlotValue::New { class } | SlotValue::Store { class } => {
+                                Some(crate::task_queue::TaskKind::NewService {
+                                    class:       class.to_string(),
+                                    for_project: slug.clone(),
+                                })
+                            }
+                            _ => None,
                         }
-                        if let Some(class) = val.strip_prefix("store:") {
-                            return Some(crate::task_queue::TaskKind::NewService {
-                                class:       class.to_string(),
-                                for_project: slug.clone(),
-                            });
-                        }
-                        None
                     })
                     .collect()
             };

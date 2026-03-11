@@ -1,4 +1,39 @@
-// Application state and main event loop.
+// Application state — root module for the app/ package.
+//
+// Design Pattern: Facade — mod.rs re-exports all sub-modules so that existing
+// `use crate::app::XYZ` imports continue to work without modification.
+//
+// Sub-modules:
+//   lang.rs    — Lang enum + toggle logic
+//   notif.rs   — Notification, NotifKind (toast system)
+//   overlay.rs — OverlayLayer, OverlayKind, ConfirmAction, ContextAction, ActionSource
+//   screen.rs  — Screen enum, DashFocus enum
+//   sidebar.rs — SidebarItem enum + impl blocks, SidebarAction
+
+pub mod lang;
+pub mod notif;
+pub mod overlay;
+pub mod screen;
+pub mod sidebar;
+
+// ── Flat re-exports (preserve existing `use crate::app::XYZ` imports) ─────────
+
+pub use lang::Lang;
+pub use notif::{Notification, NotifKind};
+pub use overlay::{
+    ActionSource, ConfirmAction, ContextAction, DeployMsg, DeployState,
+    LogsState, OverlayKind, OverlayLayer,
+};
+pub use screen::{DashFocus, Screen};
+pub use sidebar::{NEW_RESOURCE_ITEMS, SidebarAction, SidebarItem};
+
+// Re-export handle and form types so existing `use crate::app::*` imports keep working.
+pub use crate::handles::{HostHandle, ProjectHandle, RunState, ServiceHandle, ServiceRow, run_state_i18n};
+pub use crate::resource_form::{
+    BOT_TABS, HOST_TABS, PROJECT_TABS, ResourceForm, ResourceKind, SERVICE_TABS, slugify,
+};
+
+// ── Full application state ────────────────────────────────────────────────────
 
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
@@ -7,275 +42,12 @@ use std::time::{Duration, Instant};
 use ratatui::layout::Rect;
 
 use fsn_core::config::AppSettings;
-use fsn_core::health::{self, HealthLevel};
-use fsn_core::resource::Resource;
+use fsn_core::health;
+use fsn_core::Resource;
 use fsn_core::store::StoreEntry;
 
 use crate::click_map::ClickMap;
 use crate::sysinfo::SysInfo;
-
-// Re-export all handle and form types so existing `use crate::app::*` imports keep working.
-pub use crate::handles::{HostHandle, ProjectHandle, RunState, ServiceHandle, ServiceRow, run_state_i18n};
-pub use crate::resource_form::{
-    BOT_TABS, HOST_TABS, PROJECT_TABS, ResourceForm, ResourceKind, SERVICE_TABS, slugify,
-};
-
-// ── Notifications (toast system) ──────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NotifKind { Success, Warning, Error, Info }
-
-#[derive(Debug, Clone)]
-pub struct Notification {
-    pub message:   String,
-    pub kind:      NotifKind,
-    pub born:      Instant,
-    /// Tick at creation — used by Anim::notif_width() for slide-in effect.
-    pub born_tick: u32,
-}
-
-// ── Screens ───────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Screen {
-    Welcome,
-    Dashboard,
-    /// Form screen — shows the active form from `form_queue`.
-    /// Queue tab bar is visible when `form_queue.has_multiple()`.
-    NewProject,
-    /// Application settings — store management, preferences.
-    Settings,
-}
-
-// ── Dashboard focus ───────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DashFocus {
-    Sidebar,
-    Services,
-}
-
-// ── Sidebar item ──────────────────────────────────────────────────────────────
-
-/// The action triggered when a sidebar item is activated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SidebarAction { NewProject, NewHost, NewService }
-
-/// One navigable row in the sidebar.
-///
-/// Analogous to a DOM element — each variant knows its own visual appearance
-/// and the action it triggers when selected.
-#[derive(Debug, Clone)]
-pub enum SidebarItem {
-    Section(&'static str),
-    /// A project entry — includes a pre-computed health level for the sidebar indicator.
-    Project { slug: String, name: String, health: HealthLevel },
-    /// A host entry — includes a pre-computed health level for the sidebar indicator.
-    Host    { slug: String, name: String, health: HealthLevel },
-    Service { name: String, class: String, status: RunState },
-    Action  { label_key: &'static str, kind: SidebarAction },
-}
-
-impl SidebarItem {
-    pub fn is_selectable(&self) -> bool {
-        !matches!(self, SidebarItem::Section(_))
-    }
-    pub fn action_kind(&self) -> Option<SidebarAction> {
-        if let SidebarItem::Action { kind, .. } = self { Some(*kind) } else { None }
-    }
-    pub fn hint_key(&self) -> &'static str {
-        match self {
-            SidebarItem::Host    { .. } => "dash.hint.host",
-            SidebarItem::Service { .. } => "dash.hint.service",
-            _                           => "dash.hint",
-        }
-    }
-
-    /// Context menu actions available for this item type.
-    ///
-    /// Single source of truth — to add/remove actions per type: edit only here.
-    /// Called by mouse.rs right-click handler; no duplicate lists anywhere else.
-    pub fn context_actions(&self) -> Vec<ContextAction> {
-        match self {
-            SidebarItem::Project { .. } => vec![
-                ContextAction::Edit,
-                ContextAction::AddService,
-                ContextAction::AddHost,
-                ContextAction::Deploy,
-                ContextAction::Delete,
-            ],
-            SidebarItem::Host { .. } => vec![
-                ContextAction::Edit,
-                ContextAction::Deploy,
-                ContextAction::Delete,
-            ],
-            SidebarItem::Service { status, .. } => {
-                let start_stop = if *status == RunState::Running { ContextAction::Stop } else { ContextAction::Start };
-                vec![start_stop, ContextAction::Logs, ContextAction::Edit, ContextAction::Delete]
-            }
-            _ => vec![],
-        }
-    }
-
-    /// Confirm-overlay parameters for deleting this item, if applicable.
-    ///
-    /// Returns `(message_key, optional_data, yes_action)`.
-    /// Used by `execute_context_action` — add new resource types here only.
-    pub fn delete_confirm(&self) -> Option<(String, Option<String>, ConfirmAction)> {
-        match self {
-            SidebarItem::Project { .. } =>
-                Some(("confirm.delete.project".into(), None, ConfirmAction::DeleteProject)),
-            SidebarItem::Host { slug, .. } =>
-                Some(("confirm.delete.host".into(), Some(slug.clone()), ConfirmAction::DeleteHost)),
-            SidebarItem::Service { name, .. } =>
-                Some(("confirm.delete.service".into(), Some(name.clone()), ConfirmAction::DeleteService)),
-            _ => None,
-        }
-    }
-}
-
-// ── Language ──────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Lang {
-    De,
-    En,
-}
-
-impl Lang {
-    pub fn toggle(self) -> Self {
-        match self { Lang::De => Lang::En, Lang::En => Lang::De }
-    }
-    pub fn label(self) -> &'static str {
-        match self { Lang::De => "DE", Lang::En => "EN" }
-    }
-}
-
-// ── Overlay layer — modal screens above the main UI ───────────────────────────
-//
-// Implements the "Ebene" (layer) concept: the topmost overlay captures all input.
-
-#[derive(Debug, Clone)]
-pub struct LogsState {
-    pub service_name: String,
-    pub lines:        Vec<String>,
-    pub scroll:       usize,
-}
-
-/// Progress message from the background deploy/export thread.
-#[derive(Debug)]
-pub enum DeployMsg {
-    Log(String),
-    Done { success: bool, error: Option<String> },
-}
-
-/// State for the deploy/export progress overlay.
-#[derive(Debug, Clone)]
-pub struct DeployState {
-    pub target:  String,
-    pub log:     Vec<String>,
-    pub done:    bool,
-    pub success: bool,
-}
-
-/// Discriminant for the overlay variant — used for type-safe dispatch in event handlers.
-/// Avoids string-matching while still allowing borrow-safe inspection (reading kind,
-/// then taking a mutable borrow separately for the actual handling).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OverlayKind {
-    Logs,
-    Confirm,
-    Deploy,
-    NewResource,
-    ContextMenu,
-}
-
-#[derive(Debug, Clone)]
-pub enum OverlayLayer {
-    Logs(LogsState),
-    Confirm { message: String, data: Option<String>, yes_action: ConfirmAction },
-    Deploy(DeployState),
-    NewResource { selected: usize },
-    /// Right-click context menu — rendered at (x, y), navigated with ↑↓/Enter/Esc.
-    /// `source` carries the item that was right-clicked; `None` for generic menus (e.g. 'n').
-    ContextMenu { x: u16, y: u16, items: Vec<ContextAction>, selected: usize, source: Option<ActionSource> },
-}
-
-impl OverlayLayer {
-    /// Returns the discriminant without borrowing the inner data.
-    pub fn kind(&self) -> OverlayKind {
-        match self {
-            OverlayLayer::Logs(_)            => OverlayKind::Logs,
-            OverlayLayer::Confirm { .. }     => OverlayKind::Confirm,
-            OverlayLayer::Deploy(_)          => OverlayKind::Deploy,
-            OverlayLayer::NewResource { .. } => OverlayKind::NewResource,
-            OverlayLayer::ContextMenu { .. } => OverlayKind::ContextMenu,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConfirmAction {
-    DeleteProject,
-    DeleteService,
-    DeleteHost,
-    StopService,
-    /// Close the form queue (abandon all pending tabs — user confirmed).
-    LeaveForm,
-    Quit,
-}
-
-/// Who triggered a context menu — carried inside `OverlayLayer::ContextMenu`.
-///
-/// Design Pattern: Single Source of Truth for context dispatch.
-/// Storing the source at click-time means `execute_context_action` never has
-/// to infer the item from the current sidebar/focus state.
-/// Rule: add variants here if a new clickable area gets its own context menu.
-#[derive(Debug, Clone)]
-pub enum ActionSource {
-    /// A sidebar item was right-clicked.
-    Sidebar(SidebarItem),
-}
-
-// ── Context menu actions — right-click menu ───────────────────────────────────
-//
-// Design: ContextAction is the single source for which actions exist and what
-// they're called. mouse.rs decides which actions apply per item type.
-// events.rs executes the selected action. i18n keys follow "ctx.*" prefix.
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ContextAction { Edit, Delete, Deploy, Start, Stop, Logs, AddService, AddHost }
-
-impl ContextAction {
-    /// i18n key for this action's label.
-    pub fn label_key(self) -> &'static str {
-        match self {
-            ContextAction::Edit       => "ctx.edit",
-            ContextAction::Delete     => "ctx.delete",
-            ContextAction::Deploy     => "ctx.deploy",
-            ContextAction::Start      => "ctx.start",
-            ContextAction::Stop       => "ctx.stop",
-            ContextAction::Logs       => "ctx.logs",
-            ContextAction::AddService => "ctx.add_service",
-            ContextAction::AddHost    => "ctx.add_host",
-        }
-    }
-
-    /// Danger actions render in red.
-    pub fn is_danger(self) -> bool {
-        matches!(self, ContextAction::Delete | ContextAction::Stop)
-    }
-}
-
-/// Options shown in the new-resource selector popup (label key + kind).
-pub const NEW_RESOURCE_ITEMS: &[(&str, ResourceKind)] = &[
-    ("new.project", ResourceKind::Project),
-    ("new.host",    ResourceKind::Host),
-    ("new.service", ResourceKind::Service),
-    ("new.bot",     ResourceKind::Bot),
-];
-
-// ── Full application state ────────────────────────────────────────────────────
 
 pub struct AppState {
     pub screen:               Screen,
@@ -743,6 +515,7 @@ mod tests {
 
     #[test]
     fn project_is_selectable() {
+        use fsn_core::health::HealthLevel;
         let item = SidebarItem::Project { slug: "p".into(), name: "My Project".into(), health: HealthLevel::Ok };
         assert!(item.is_selectable());
     }
@@ -761,6 +534,7 @@ mod tests {
 
     #[test]
     fn hint_key_host() {
+        use fsn_core::health::HealthLevel;
         let item = SidebarItem::Host { slug: "h".into(), name: "srv1".into(), health: HealthLevel::Ok };
         assert_eq!(item.hint_key(), "dash.hint.host");
     }
@@ -804,6 +578,7 @@ mod tests {
 
     #[test]
     fn visible_sidebar_items_no_filter() {
+        use fsn_core::health::HealthLevel;
         let mut state = empty_state();
         state.sidebar_items = vec![
             SidebarItem::Section("sidebar.projects"),
@@ -816,6 +591,7 @@ mod tests {
 
     #[test]
     fn visible_sidebar_items_filter_matches() {
+        use fsn_core::health::HealthLevel;
         let mut state = empty_state();
         state.sidebar_items = vec![
             SidebarItem::Section("sidebar.projects"),
@@ -830,6 +606,7 @@ mod tests {
 
     #[test]
     fn visible_sidebar_items_filter_case_insensitive() {
+        use fsn_core::health::HealthLevel;
         let mut state = empty_state();
         state.sidebar_items = vec![
             SidebarItem::Project { slug: "p".into(), name: "MyApp".into(), health: HealthLevel::Ok },
@@ -840,6 +617,7 @@ mod tests {
 
     #[test]
     fn visible_sidebar_items_filter_no_match() {
+        use fsn_core::health::HealthLevel;
         let mut state = empty_state();
         state.sidebar_items = vec![
             SidebarItem::Project { slug: "p".into(), name: "Alpha".into(), health: HealthLevel::Ok },

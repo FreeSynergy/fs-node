@@ -21,6 +21,7 @@ pub mod new_project;
 pub mod nodes;
 pub mod render_ctx;
 pub mod settings_screen;
+pub mod style;
 pub mod welcome;
 pub mod widgets;
 

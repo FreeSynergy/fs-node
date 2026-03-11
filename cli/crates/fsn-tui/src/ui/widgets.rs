@@ -18,6 +18,7 @@ use ratatui::{
 
 use crate::app::{run_state_i18n, AppState, Lang, RunState};
 use crate::ui::render_ctx::RenderCtx;
+use crate::ui::style::Styleable;
 
 /// Language toggle button: "[DE]" or "[EN]" in the top-right corner.
 pub fn lang_button<'a>(state: &AppState) -> Span<'a> {
@@ -78,24 +79,20 @@ pub fn clear_block(f: &mut RenderCtx<'_>, area: Rect, title: &str) {
     f.render_widget(block, area);
 }
 
-/// TUI color for a RunState — single source of truth, avoids duplicated match blocks.
+/// TUI color for a RunState — delegates to Styleable trait (ui/style.rs).
+///
+/// Kept as a free function for backward compatibility with existing call sites.
+/// New code should call `state.fg_color()` directly via the Styleable trait.
 pub fn run_state_color(state: RunState) -> Color {
-    match state {
-        RunState::Running => Color::Green,
-        RunState::Stopped => Color::DarkGray,
-        RunState::Failed  => Color::Red,
-        RunState::Missing => Color::DarkGray,
-    }
+    state.fg_color()
 }
 
-/// Status character for a RunState — single source of truth.
+/// Status character for a RunState — delegates to Styleable trait (ui/style.rs).
+///
+/// Kept as a free function for backward compatibility with existing call sites.
+/// New code should call `state.indicator_char()` directly via the Styleable trait.
 pub fn run_state_char(state: RunState) -> &'static str {
-    match state {
-        RunState::Running => "●",
-        RunState::Stopped => "○",
-        RunState::Failed  => "✕",
-        RunState::Missing => "·",
-    }
+    state.indicator_char()
 }
 
 /// Animated (char, color) for a RunState.
@@ -140,14 +137,12 @@ pub fn button_line(label: &str, focused: bool, disabled: bool) -> Line<'static> 
     ))
 }
 
-/// Style for a HealthLevel indicator — single source of truth.
+/// Style for a HealthLevel indicator — delegates to Styleable trait (ui/style.rs).
+///
+/// Kept as a free function for backward compatibility with existing call sites.
+/// New code should call `level.style()` directly via the Styleable trait.
 pub fn health_color(level: fsn_core::health::HealthLevel) -> ratatui::style::Style {
-    use fsn_core::health::HealthLevel;
-    match level {
-        HealthLevel::Ok      => Style::new().fg(Color::Green),
-        HealthLevel::Warning => Style::new().fg(Color::Yellow),
-        HealthLevel::Error   => Style::new().fg(Color::Red).add_modifier(Modifier::BOLD),
-    }
+    level.style()
 }
 
 // ── Form node rendering helpers ───────────────────────────────────────────────

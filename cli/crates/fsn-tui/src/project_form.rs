@@ -279,14 +279,48 @@ pub fn edit_project_form(
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 
-/// Returns Some(v) only for values that represent a real assignment
-/// (service name or "external"). Filters out pending "new:" / "store:" values
-/// which are not yet assigned (they trigger task queuing instead).
-fn clean_slot_value(v: &str) -> Option<&str> {
-    if v.is_empty() || v.starts_with("new:") || v.starts_with("store:") {
-        None
+// ── SlotValue — typed parse result for service-slot field values ──────────────
+//
+// Pattern: Single Source of Truth — all "new:" / "store:" / assigned / empty
+// parsing lives here. Both submit.rs (task queuing) and submit_project_form()
+// (TOML writing) use parse_slot_value() instead of duplicating the prefix checks.
+
+/// Typed result of parsing a service-slot field value.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SlotValue<'a> {
+    /// Empty or unset — nothing to write or queue.
+    Empty,
+    /// "new:<class>" — user wants to create a new local service of this class.
+    New { class: &'a str },
+    /// "store:<class>" — user wants to install a module from the store.
+    Store { class: &'a str },
+    /// A concrete assignment (service name or "external") — write to TOML.
+    Assigned(&'a str),
+}
+
+/// Parse a service-slot field value into its typed variant.
+///
+/// Single source of truth: edit here to change how slot strings are interpreted.
+/// Called by submit.rs for task queuing and by submit_project_form() for TOML writing.
+pub fn parse_slot_value(v: &str) -> SlotValue<'_> {
+    if v.is_empty() {
+        SlotValue::Empty
+    } else if let Some(class) = v.strip_prefix("new:") {
+        SlotValue::New { class }
+    } else if let Some(class) = v.strip_prefix("store:") {
+        SlotValue::Store { class }
     } else {
-        Some(v)
+        SlotValue::Assigned(v)
+    }
+}
+
+/// Returns Some(v) only for values that represent a real assignment
+/// (service name or "external"). Filters out pending "new:" / "store:" values.
+/// Delegates to parse_slot_value() — single source of truth.
+fn clean_slot_value(v: &str) -> Option<&str> {
+    match parse_slot_value(v) {
+        SlotValue::Assigned(s) => Some(s),
+        _ => None,
     }
 }
 

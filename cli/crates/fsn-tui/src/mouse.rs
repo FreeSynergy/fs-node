@@ -1,9 +1,9 @@
 // Mouse event handling — single source of truth for all mouse behavior.
 //
-// Design Pattern: Single Source of Truth
+// Design Pattern: Single Source of Truth + OOP dispatch via DashHit
 //   - Which mouse actions exist:          ContextAction in app.rs
-//   - Which actions apply per item type:  context_items_for()  ← edit here
-//   - How clicks map to UI elements:      sidebar_hit(), services_hit()
+//   - Which actions apply per item type:  SidebarItem::context_actions() in app.rs
+//   - How clicks map to UI elements:      dash_hit() — single dispatch for left/right/scroll
 //   - How actions are executed:           execute_context_action() ← edit here
 //
 // Called from events.rs → fsn_event → Event::Mouse branch.
@@ -34,6 +34,34 @@ const DOUBLE_CLICK_MS: u128 = 400;
 
 /// Lines scrolled per scroll-wheel tick.
 const SCROLL_STEP: usize = 3;
+
+// ── Dashboard hit result — eliminates triple-duplicated dispatch ──────────────
+//
+// Pattern: Value Object — represents what the user clicked on in the dashboard.
+// handle_left_click, handle_right_click, and handle_scroll all call dash_hit()
+// and then branch on the result — no per-function sidebar_hit/services_hit calls.
+
+#[derive(Debug)]
+enum DashHit {
+    /// A sidebar item at the given items-list index.
+    Sidebar(usize),
+    /// A service row at the given services-list index.
+    Service(usize),
+    /// Click did not land in either area.
+    Miss,
+}
+
+/// Resolve which dashboard element is at (col, row).
+/// Single source of truth for hit-testing — called by left-click, right-click, and scroll.
+fn dash_hit(col: u16, row: u16, state: &AppState) -> DashHit {
+    if let Some(item_idx) = sidebar_hit(col, row, state) {
+        return DashHit::Sidebar(item_idx);
+    }
+    if let Some(svc_idx) = services_hit(col, row, state) {
+        return DashHit::Service(svc_idx);
+    }
+    DashHit::Miss
+}
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -165,26 +193,22 @@ fn handle_left_click(col: u16, row: u16, state: &mut AppState, root: &Path) -> R
     let dbl = is_double_click(col, row, state);
     state.last_click = Some((col, row, Instant::now()));
 
-    // Sidebar click
-    if let Some(item_idx) = sidebar_hit(col, row, state) {
-        if state.sidebar_items[item_idx].is_selectable() {
-            state.dash_focus = DashFocus::Sidebar;
-            state.sidebar_cursor = item_idx;
-            crate::actions::sync_sidebar_selection(state, root);
+    match dash_hit(col, row, state) {
+        DashHit::Sidebar(item_idx) => {
+            if state.sidebar_items[item_idx].is_selectable() {
+                state.dash_focus = DashFocus::Sidebar;
+                state.sidebar_cursor = item_idx;
+                crate::actions::sync_sidebar_selection(state, root);
 
-            if dbl {
-                // Double-click = activate (same as Enter)
-                if let Some(item) = state.current_sidebar_item().cloned() {
-                    activate_sidebar_item(item, state, root);
+                if dbl {
+                    // Double-click = activate (same as Enter)
+                    if let Some(item) = state.current_sidebar_item().cloned() {
+                        activate_sidebar_item(item, state, root);
+                    }
                 }
             }
         }
-        return Ok(());
-    }
-
-    // Services table click
-    if let Some(svc_idx) = services_hit(col, row, state) {
-        if svc_idx < state.services.len() {
+        DashHit::Service(svc_idx) if svc_idx < state.services.len() => {
             state.dash_focus = DashFocus::Services;
             state.selected = svc_idx;
 
@@ -198,41 +222,35 @@ fn handle_left_click(col: u16, row: u16, state: &mut AppState, root: &Path) -> R
                 }
             }
         }
-        return Ok(());
+        _ => {}
     }
-
     Ok(())
 }
 
 // ── Right click → context menu ────────────────────────────────────────────────
 
 fn handle_right_click(col: u16, row: u16, state: &mut AppState) {
-    // Try sidebar item first.
-    if let Some(item_idx) = sidebar_hit(col, row, state) {
-        if let Some(item) = state.sidebar_items.get(item_idx).cloned() {
-            let items = item.context_actions();
-            if !items.is_empty() {
-                state.sidebar_cursor = item_idx;
-                state.dash_focus = DashFocus::Sidebar;
-                state.push_overlay(OverlayLayer::ContextMenu {
-                    x: col, y: row, items, selected: 0,
-                    source: Some(ActionSource::Sidebar(item)),
-                });
+    match dash_hit(col, row, state) {
+        DashHit::Sidebar(item_idx) => {
+            if let Some(item) = state.sidebar_items.get(item_idx).cloned() {
+                let items = item.context_actions();
+                if !items.is_empty() {
+                    state.sidebar_cursor = item_idx;
+                    state.dash_focus = DashFocus::Sidebar;
+                    state.push_overlay(OverlayLayer::ContextMenu {
+                        x: col, y: row, items, selected: 0,
+                        source: Some(ActionSource::Sidebar(item)),
+                    });
+                }
             }
         }
-        return;
-    }
-
-    // Try services table.
-    // Find the matching SidebarItem::Service so we can reuse item.context_actions()
-    // and item.delete_confirm() — Single Source of Truth, no duplicate action lists.
-    if let Some(svc_idx) = services_hit(col, row, state) {
-        if svc_idx < state.services.len() {
+        DashHit::Service(svc_idx) if svc_idx < state.services.len() => {
             let svc_name = state.services[svc_idx].name.clone();
             state.selected = svc_idx;
             state.dash_focus = DashFocus::Services;
 
             // Locate the matching sidebar item (always present for current project's services).
+            // Reuse item.context_actions() and item.delete_confirm() — Single Source of Truth.
             let sidebar_item = state.sidebar_items.iter()
                 .find(|i| matches!(i, SidebarItem::Service { name, .. } if name == &svc_name))
                 .cloned();
@@ -253,35 +271,47 @@ fn handle_right_click(col: u16, row: u16, state: &mut AppState) {
                 });
             }
         }
+        _ => {}
     }
 }
 
 // ── Scroll ────────────────────────────────────────────────────────────────────
 
 fn handle_scroll(col: u16, row: u16, state: &mut AppState, dir: i32) {
-    // Sidebar area
-    if is_in_sidebar(col, state) {
-        let cur = state.sidebar_cursor as i32 + dir * SCROLL_STEP as i32;
-        let len = state.sidebar_items.len() as i32;
-        let clamped = cur.clamp(0, len - 1) as usize;
-        // Jump to nearest selectable item
-        let target = if dir > 0 {
-            (clamped..state.sidebar_items.len()).find(|&i| state.sidebar_items[i].is_selectable())
-        } else {
-            (0..=clamped).rev().find(|&i| state.sidebar_items[i].is_selectable())
-        };
-        if let Some(idx) = target {
-            state.sidebar_cursor = idx;
+    match dash_hit(col, row, state) {
+        DashHit::Sidebar(_) | DashHit::Miss if is_in_sidebar(col, state) => {
+            let cur = state.sidebar_cursor as i32 + dir * SCROLL_STEP as i32;
+            let len = state.sidebar_items.len() as i32;
+            let clamped = cur.clamp(0, len - 1) as usize;
+            // Jump to nearest selectable item
+            let target = if dir > 0 {
+                (clamped..state.sidebar_items.len()).find(|&i| state.sidebar_items[i].is_selectable())
+            } else {
+                (0..=clamped).rev().find(|&i| state.sidebar_items[i].is_selectable())
+            };
+            if let Some(idx) = target {
+                state.sidebar_cursor = idx;
+            }
         }
-        return;
-    }
-
-    // Services area
-    if let Some(area) = state.services_table_area {
-        if col >= area.x && col < area.right() && row >= area.y && row < area.bottom() {
-            let cur = state.selected as i32 + dir * SCROLL_STEP as i32;
-            let max = state.services.len().saturating_sub(1) as i32;
-            state.selected = cur.clamp(0, max) as usize;
+        DashHit::Service(_) => {
+            if let Some(area) = state.services_table_area {
+                if col >= area.x && col < area.right() && row >= area.y && row < area.bottom() {
+                    let cur = state.selected as i32 + dir * SCROLL_STEP as i32;
+                    let max = state.services.len().saturating_sub(1) as i32;
+                    state.selected = cur.clamp(0, max) as usize;
+                }
+            }
+        }
+        _ => {
+            // Miss — check if in services area by rect (scroll can hit the area even without a
+            // specific service row, e.g. scrolling past the end of the list).
+            if let Some(area) = state.services_table_area {
+                if col >= area.x && col < area.right() && row >= area.y && row < area.bottom() {
+                    let cur = state.selected as i32 + dir * SCROLL_STEP as i32;
+                    let max = state.services.len().saturating_sub(1) as i32;
+                    state.selected = cur.clamp(0, max) as usize;
+                }
+            }
         }
     }
 }
