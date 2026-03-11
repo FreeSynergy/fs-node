@@ -213,6 +213,11 @@ pub struct ServiceMeta {
     pub health_path: Option<String>,
     pub health_port: Option<u16>,
     pub health_scheme: Option<String>,
+
+    /// Fine-grained capabilities this plugin provides beyond the type defaults.
+    /// Example: `capabilities = ["iam_scim", "iam_ldap"]` in the plugin TOML.
+    #[serde(default)]
+    pub capabilities: Vec<Capability>,
 }
 
 impl ServiceMeta {

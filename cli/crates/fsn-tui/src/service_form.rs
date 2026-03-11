@@ -89,7 +89,28 @@ fn service_on_change(nodes: &mut Vec<Box<dyn FormNode>>, key: &'static str) {
     }
 }
 
-// ── Form builder ──────────────────────────────────────────────────────────────
+// ── Plugin defaults helper ────────────────────────────────────────────────────
+
+/// Load the default environment variables from a container plugin class.
+///
+/// Returns "KEY=value\n..." ready for EnvTableNode::set_value(), or an empty
+/// string when the plugin could not be loaded (no registry, unknown class).
+///
+/// The values are raw Jinja2 templates as written in the plugin TOML — the user
+/// can review and adjust them before submitting the form.
+pub fn load_class_env_defaults(class_key: &str, plugins_dir: &Path) -> String {
+    fsn_core::config::ServiceRegistry::load(plugins_dir).ok()
+        .and_then(|r| r.get(class_key).cloned())
+        .map(|class| {
+            class.environment.iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default()
+}
+
+// ── Form builders ─────────────────────────────────────────────────────────────
 
 pub fn new_service_form() -> ResourceForm {
     let nodes = schema_form::build_nodes(
@@ -102,14 +123,18 @@ pub fn new_service_form() -> ResourceForm {
     ResourceForm::new(ResourceKind::Service, SERVICE_TABS, nodes, None, service_on_change)
 }
 
-/// Build a service form with a pre-selected default class.
-/// Used by the Task Wizard to pre-configure required service types
-/// (e.g. "proxy/zentinel" for the proxy task).
-pub fn new_service_form_with_default_class(class: &str) -> ResourceForm {
+/// Build a service form with a pre-selected default class and optional env defaults.
+///
+/// `env_defaults` — raw "KEY=value\n..." string from `load_class_env_defaults()`.
+/// Pass `None` (or an empty string) when no plugin defaults are available.
+pub fn new_service_form_with_default_class(class: &str, env_defaults: Option<&str>) -> ResourceForm {
     let class_dyn = [("class", class.to_string())];
+    let env_str   = env_defaults.unwrap_or("").to_string();
+    let mut prefill = HashMap::new();
+    if !env_str.is_empty() { prefill.insert("env", env_str.as_str()); }
     let nodes = schema_form::build_nodes(
         ServiceFormData::schema(),
-        &HashMap::new(),
+        &prefill,
         DISPLAY_FNS,
         &class_dyn,
         &[],
@@ -117,18 +142,24 @@ pub fn new_service_form_with_default_class(class: &str) -> ResourceForm {
     ResourceForm::new(ResourceKind::Service, SERVICE_TABS, nodes, None, service_on_change)
 }
 
-/// Build a service form with a dynamic list of class options.
-/// Used by the wizard when store entries are available — merges local + store options
-/// so the user can choose between installed modules and downloadable ones.
+/// Build a service form with a dynamic list of class options and optional env defaults.
 ///
 /// `options` — class IDs (e.g. ["proxy/zentinel", "proxy/traefik"]).
 /// `default` — pre-selected class (should be the first/local entry).
-pub fn new_service_form_with_class_options(options: Vec<String>, default: &str) -> ResourceForm {
+/// `env_defaults` — raw "KEY=value\n..." string from `load_class_env_defaults()`.
+pub fn new_service_form_with_class_options(
+    options:      Vec<String>,
+    default:      &str,
+    env_defaults: Option<&str>,
+) -> ResourceForm {
     let class_dyn  = [("class", default.to_string())];
     let class_opts = [("class", options)];
+    let env_str    = env_defaults.unwrap_or("").to_string();
+    let mut prefill = HashMap::new();
+    if !env_str.is_empty() { prefill.insert("env", env_str.as_str()); }
     let nodes = schema_form::build_nodes(
         ServiceFormData::schema(),
-        &HashMap::new(),
+        &prefill,
         DISPLAY_FNS,
         &class_dyn,
         &class_opts,

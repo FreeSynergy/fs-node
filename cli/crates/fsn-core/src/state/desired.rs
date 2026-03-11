@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::config::service::{ServiceClass, ServiceType};
+use crate::config::service::{Capability, ServiceClass, ServiceType};
 use crate::resource::VarProvider;
 
 /// The fully resolved desired state for a project on a host.
@@ -47,6 +47,10 @@ pub struct ServiceInstance {
     /// Jinja2-expanded volume mount strings (ready for Quadlet Volume= lines).
     /// Empty when resolved without a data_root (non-deploy contexts).
     pub resolved_volumes: Vec<String>,
+
+    /// Merged capability set: type defaults + plugin-declared extras.
+    /// Empty for sub-services and types without a known capability set.
+    pub capabilities: Vec<Capability>,
 }
 
 // ── VarProvider impl ──────────────────────────────────────────────────────────

@@ -84,18 +84,23 @@ impl TaskKind {
 
             Self::NewProxy { .. } => {
                 let opts = state.class_options_for_type("proxy", "proxy/zentinel");
-                crate::service_form::new_service_form_with_class_options(opts, "proxy/zentinel")
+                let env  = env_defaults_for("proxy/zentinel");
+                crate::service_form::new_service_form_with_class_options(opts, "proxy/zentinel", env.as_deref())
             }
             Self::NewIAM { .. } => {
                 let opts = state.class_options_for_type("iam", "iam/kanidm");
-                crate::service_form::new_service_form_with_class_options(opts, "iam/kanidm")
+                let env  = env_defaults_for("iam/kanidm");
+                crate::service_form::new_service_form_with_class_options(opts, "iam/kanidm", env.as_deref())
             }
             Self::NewMail { .. } => {
                 let opts = state.class_options_for_type("mail", "mail/stalwart");
-                crate::service_form::new_service_form_with_class_options(opts, "mail/stalwart")
+                let env  = env_defaults_for("mail/stalwart");
+                crate::service_form::new_service_form_with_class_options(opts, "mail/stalwart", env.as_deref())
             }
-            Self::NewService { class, .. } =>
-                crate::service_form::new_service_form_with_default_class(class),
+            Self::NewService { class, .. } => {
+                let env = env_defaults_for(class);
+                crate::service_form::new_service_form_with_default_class(class, env.as_deref())
+            }
         }
     }
 
@@ -164,4 +169,14 @@ impl DependencyResolver for TaskKind {
         }
     }
     fn optional_deps(&self) -> &[DependencyKind] { &[] }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Load plugin env defaults for `class_key` from the configured plugins dir.
+/// Returns `None` when no Store is configured or the class has no env block.
+fn env_defaults_for(class_key: &str) -> Option<String> {
+    let dir = fsn_core::config::resolve_plugins_dir_no_fallback()?;
+    let s = crate::service_form::load_class_env_defaults(class_key, &dir);
+    if s.is_empty() { None } else { Some(s) }
 }

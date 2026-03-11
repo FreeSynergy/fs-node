@@ -114,6 +114,27 @@ impl std::fmt::Display for ServiceType {
 }
 
 impl ServiceType {
+    /// Infer the primary `ServiceType` from a service class key prefix.
+    ///
+    /// Maps the first segment of a class key (e.g. "git" in "git/forgejo")
+    /// to the corresponding ServiceType variant.  Used in pre-registry contexts
+    /// (e.g. cross-service var collection) where the full class is not yet loaded.
+    pub fn from_class_prefix(prefix: &str) -> Option<Self> {
+        match prefix {
+            "mail"       => Some(Self::Mail),
+            "iam"        => Some(Self::IamProvider),
+            "git"        => Some(Self::Git),
+            "chat"       => Some(Self::Chat),
+            "wiki"       => Some(Self::Wiki),
+            "tasks"      => Some(Self::Tasks),
+            "collab"     => Some(Self::Collab),
+            "monitoring" => Some(Self::Monitoring),
+            "tickets"    => Some(Self::Tickets),
+            "maps"       => Some(Self::Maps),
+            _            => None,
+        }
+    }
+
     /// Returns `true` for types that are internal infrastructure
     /// (no subdomain, no proxy route, no user-facing UI).
     pub fn is_internal(&self) -> bool {
@@ -223,8 +244,9 @@ impl ServiceType {
 ///
 /// ServiceType::capabilities() returns the guaranteed minimum for ALL plugins of
 /// that type. Individual container plugins declare additional capabilities in their
-/// TOML (Phase 4/6 work) — e.g. Kanidm adds `IamScim`, Postgres adds `DatabasePostgres`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// TOML via `[module] capabilities = ["iam_scim", "database_postgres", …]`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Capability {
     // ── Infrastructure ─────────────────────────────────────────────────────
     /// Service has no proxy route and is not user-facing (Database, Cache, …)
@@ -269,6 +291,10 @@ pub enum Capability {
     ProxyTls,
     /// DNS-01 ACME challenge support
     ProxyAcmeDns,
+
+    /// Unknown / future capability — tolerated during TOML deserialization.
+    #[serde(other)]
+    Unknown,
 }
 
 // ── ExportedVarContract ───────────────────────────────────────────────────────

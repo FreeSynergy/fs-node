@@ -16,6 +16,7 @@ use anyhow::{bail, Context, Result};
 
 use fsn_core::{
     config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig},
+    config::service::ServiceType,
     resource::ProjectResource,
     state::desired::{DesiredState, ServiceInstance},
 };
@@ -91,29 +92,14 @@ pub fn resolve_desired(
     })
 }
 
-/// Map a service class key prefix to its exported variable prefix.
-/// e.g. "mail/stalwart" → Some("MAIL"), "git/forgejo" → Some("GIT")
-fn service_class_prefix(class_key: &str) -> Option<&'static str> {
-    match class_key.split('/').next()? {
-        "mail"       => Some("MAIL"),
-        "iam"        => Some("IAM"),
-        "git"        => Some("GIT"),
-        "chat"       => Some("CHAT"),
-        "wiki"       => Some("WIKI"),
-        "tasks"      => Some("TASKS"),
-        "collab"     => Some("COLLAB"),
-        "monitoring" => Some("MONITORING"),
-        "tickets"    => Some("TICKETS"),
-        "maps"       => Some("MAPS"),
-        _            => None,
-    }
-}
-
 /// Pre-compute cross-service variables from the project load entries.
 ///
 /// Derived from instance names + project domain before ServiceClass loading,
 /// so no chicken-and-egg problem. Each service can reference sibling services
 /// via `{{ mail_host }}`, `{{ iam_url }}`, etc. in its Jinja2 environment block.
+///
+/// Uses `ServiceType::from_class_prefix()` + `ServiceType::exported_contract()`
+/// as the single source of truth for the prefix mapping — no local match block.
 pub fn collect_cross_service_vars(project: &ProjectConfig) -> HashMap<String, String> {
     let mut vars = HashMap::new();
 
@@ -126,16 +112,15 @@ pub fn collect_cross_service_vars(project: &ProjectConfig) -> HashMap<String, St
 
     // Cross-service vars (MAIL_HOST, IAM_URL, GIT_DOMAIN, etc.)
     for (instance_name, entry) in &project.load.services {
-        if let Some(prefix) = service_class_prefix(&entry.service_class) {
-            let subdomain = entry.subdomain.as_deref().unwrap_or(instance_name.as_str());
-            let domain = format!("{}.{}", subdomain, project.project.domain);
-            vars.insert(format!("{prefix}_HOST"),   instance_name.clone());
-            vars.insert(format!("{prefix}_DOMAIN"), domain.clone());
-            vars.insert(format!("{prefix}_URL"),    format!("https://{domain}"));
-            if let Some(port) = entry.port {
-                vars.insert(format!("{prefix}_PORT"), port.to_string());
-            }
-        }
+        let class_prefix = entry.service_class.split('/').next().unwrap_or("");
+        let Some(stype)    = ServiceType::from_class_prefix(class_prefix) else { continue };
+        let Some(contract) = stype.exported_contract()                    else { continue };
+
+        let subdomain = entry.subdomain.as_deref().unwrap_or(instance_name.as_str());
+        let domain    = format!("{}.{}", subdomain, project.project.domain);
+        let port      = entry.port.unwrap_or(0);
+
+        vars.extend(contract.resolve(instance_name, &domain, port));
     }
 
     vars
@@ -232,11 +217,22 @@ fn resolve_instance(
         sub_services.push(sub);
     }
 
+    // Merge capability set: type defaults + plugin-declared extras.
+    let mut capabilities: Vec<fsn_core::config::Capability> = class.meta.service_types.iter()
+        .flat_map(|t| t.capabilities())
+        .collect();
+    for cap in &class.meta.capabilities {
+        if !capabilities.contains(cap) {
+            capabilities.push(cap.clone());
+        }
+    }
+
     Ok(ServiceInstance {
         name: name.to_string(),
         class_key: class_key.to_string(),
         service_types: class.meta.service_types.clone(),
         version: class.meta.version.clone(),
+        capabilities,
         class,
         resolved_env,
         resolved_volumes,

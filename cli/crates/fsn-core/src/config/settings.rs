@@ -122,17 +122,30 @@ fn settings_path() -> PathBuf {
 /// Callers pass the FSN workspace root so the legacy path always resolves
 /// even when no settings file or env var is present.
 pub fn resolve_plugins_dir(node_root: &std::path::Path) -> PathBuf {
-    // 1. Explicit environment override.
-    if let Ok(dir) = std::env::var("FSN_PLUGINS_DIR") {
-        return PathBuf::from(dir);
+    if let Some(dir) = resolve_plugins_dir_no_fallback() {
+        return dir;
     }
-    // 2. First enabled store with a local_path.
+    // Legacy bundled modules directory.
+    node_root.join("modules")
+}
+
+/// Resolve the plugins directory without requiring a `node_root` fallback.
+///
+/// Returns `None` when neither env var nor settings provide a path.
+/// Used in contexts (TUI, web API) that do not have access to the Node workspace root.
+///
+/// Priority:
+///   1. `FSN_PLUGINS_DIR` environment variable.
+///   2. First enabled store with a `local_path` → `{local_path}/Node/`.
+pub fn resolve_plugins_dir_no_fallback() -> Option<PathBuf> {
+    if let Ok(dir) = std::env::var("FSN_PLUGINS_DIR") {
+        return Some(PathBuf::from(dir));
+    }
     if let Ok(settings) = AppSettings::load() {
         if let Some(store) = settings.stores.iter().find(|s| s.enabled && s.local_path.is_some()) {
             let base = PathBuf::from(store.local_path.as_deref().unwrap());
-            return base.join("Node");
+            return Some(base.join("Node"));
         }
     }
-    // 3. Legacy bundled modules directory.
-    node_root.join("modules")
+    None
 }
