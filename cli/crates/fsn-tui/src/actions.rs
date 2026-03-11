@@ -15,7 +15,7 @@ pub fn delete_selected_project(state: &mut AppState, root: &Path) -> Result<()> 
     let Some(proj) = state.projects.get(state.selected_project) else { return Ok(()); };
     let project_dir = root.join("projects").join(&proj.slug);
     if let Err(e) = std::fs::remove_dir_all(&project_dir) {
-        state.push_notif(NotifKind::Error, format!("Verzeichnis konnte nicht gelöscht werden: {e}"));
+        state.push_notif(NotifKind::Error, format!("Could not delete directory: {e}"));
     }
     state.projects.remove(state.selected_project);
     if state.selected_project > 0 && state.selected_project >= state.projects.len() {
@@ -39,7 +39,7 @@ pub fn delete_selected_host(state: &mut AppState, root: &Path) -> Result<()> {
             .join(&proj.slug)
             .join(format!("{}.host.toml", slug));
         if let Err(e) = std::fs::remove_file(&host_file) {
-            state.push_notif(NotifKind::Warning, format!("Host-Datei nicht gefunden: {e}"));
+            state.push_notif(NotifKind::Warning, format!("Host file not found: {e}"));
         }
     }
     state.hosts.remove(state.selected_host);
@@ -60,7 +60,7 @@ pub fn delete_service_by_name(state: &mut AppState, root: &Path, name: String) -
 
     let svc_file = services_dir.join(format!("{slug}.service.toml"));
     if let Err(e) = std::fs::remove_file(&svc_file) {
-        state.push_notif(NotifKind::Warning, format!("Service-Datei nicht gefunden: {e}"));
+        state.push_notif(NotifKind::Warning, format!("Service file not found: {e}"));
     }
 
     if let Ok(content) = std::fs::read_to_string(&proj.toml_path) {
@@ -151,8 +151,8 @@ pub fn remove_toml_table_block(content: &str, table_path: &str) -> String {
 /// Copy `text` to the system clipboard and push a success/error toast.
 pub fn copy_to_clipboard(state: &mut AppState, text: &str) {
     match arboard::Clipboard::new().and_then(|mut cb| cb.set_text(text)) {
-        Ok(()) => state.push_notif(NotifKind::Info, format!("Kopiert: {}", text)),
-        Err(e) => state.push_notif(NotifKind::Warning, format!("Clipboard-Fehler: {e}")),
+        Ok(()) => state.push_notif(NotifKind::Info, format!("Copied: {}", text)),
+        Err(e) => state.push_notif(NotifKind::Warning, format!("Clipboard error: {e}")),
     }
 }
 
@@ -186,6 +186,36 @@ mod tests {
         let result = remove_toml_table_block(input, "nonexistent");
         assert_eq!(result.trim(), input.trim());
     }
+}
+
+// ── Service lifecycle helpers ─────────────────────────────────────────────────
+//
+// Single source of truth for all systemctl / podman subprocess calls.
+// Event handlers (events_dashboard.rs, mouse.rs) must call these — no inline
+// std::process::Command calls for service operations allowed elsewhere.
+
+/// Start a service via `systemctl --user start <name>.service`.
+/// Updates the row status and pushes an info notification.
+pub fn start_service(state: &mut AppState, name: &str) {
+    let _ = std::process::Command::new("systemctl")
+        .args(["--user", "start", &format!("{}.service", name)])
+        .output();
+    if let Some(row) = state.services.iter_mut().find(|s| s.name == name) {
+        row.status = podman_status(name);
+    }
+    state.push_notif(NotifKind::Info, format!("Service '{}' started", name));
+}
+
+/// Restart a container via `podman restart <name>`.
+/// Updates the row status and pushes an info notification.
+pub fn restart_service(state: &mut AppState, name: &str) {
+    let _ = std::process::Command::new("podman")
+        .args(["restart", name])
+        .output();
+    if let Some(row) = state.services.iter_mut().find(|s| s.name == name) {
+        row.status = podman_status(name);
+    }
+    state.push_notif(NotifKind::Info, format!("Service '{}' restarted", name));
 }
 
 // ── Podman helpers ────────────────────────────────────────────────────────────

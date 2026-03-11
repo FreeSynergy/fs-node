@@ -127,7 +127,7 @@ impl ResourceForm {
     }
 
 
-/// Global index of the focused node, or `None`.
+    /// Global index of the focused node, or `None`.
     pub fn focused_node_global_idx(&self) -> Option<usize> {
         self.current_tab_indices().get(self.active_field).copied()
     }

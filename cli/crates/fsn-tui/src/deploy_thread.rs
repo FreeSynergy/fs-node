@@ -70,7 +70,7 @@ pub fn trigger_deploy(
                 let _ = tx.send(DeployMsg::Log(format!("✗ Registry: {e}")));
                 let _ = tx.send(DeployMsg::Done {
                     success: false,
-                    error:   Some("Registry konnte nicht geladen werden".into()),
+                    error:   Some("Failed to load module registry".into()),
                 });
                 return;
             }

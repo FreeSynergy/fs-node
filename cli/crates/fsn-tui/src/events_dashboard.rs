@@ -20,7 +20,8 @@ use crate::app::{
 use crate::actions::{
     copy_to_clipboard,
     delete_selected_project, delete_selected_host, delete_service_by_name,
-    fetch_logs, podman_status, stop_service_container, sync_sidebar_selection,
+    fetch_logs, restart_service, start_service, stop_service_container,
+    sync_sidebar_selection,
 };
 use crate::deploy_thread::trigger_deploy;
 
@@ -93,17 +94,10 @@ fn handle_dashboard_shared(key: KeyEvent, state: &mut AppState) -> bool {
             true
         }
         KeyCode::Char('n') => {
-            // Show "New Resource" selection menu.
-            // source = None: this is a generic creation menu, not an item right-click.
-            state.push_overlay(crate::app::OverlayLayer::ContextMenu {
-                x: 10, y: 5,
-                items: vec![
-                    crate::app::ContextAction::AddService,
-                    crate::app::ContextAction::AddHost,
-                ],
-                selected: 0,
-                source:   None,
-            });
+            // Show the full new-resource picker (all 4 types: Project / Host / Service / Bot).
+            // Uses NewResource overlay — rendered by ui/mod.rs::render_new_resource(),
+            // handled by handle_new_resource_overlay().
+            state.push_overlay(crate::app::OverlayLayer::NewResource { selected: 0 });
             true
         }
         _ => false,
@@ -225,14 +219,8 @@ fn handle_dashboard_services(key: KeyEvent, state: &mut AppState, root: &Path) -
             }
         }
         KeyCode::Char('r') => {
-            if let Some(svc) = state.services.get(state.selected) {
-                let name = svc.name.clone();
-                let _ = std::process::Command::new("podman")
-                    .args(["restart", &name]).output();
-                if let Some(row) = state.services.get_mut(state.selected) {
-                    row.status = podman_status(&row.name);
-                }
-                state.push_notif(NotifKind::Info, format!("Service '{}' neugestartet", name));
+            if let Some(name) = state.services.get(state.selected).map(|s| s.name.clone()) {
+                restart_service(state, &name);
             }
         }
         KeyCode::Char('x') => {
@@ -241,15 +229,12 @@ fn handle_dashboard_services(key: KeyEvent, state: &mut AppState, root: &Path) -
                 let names: Vec<String> = state.selected_services.iter()
                     .filter_map(|&i| state.services.get(i).map(|s| s.name.clone()))
                     .collect();
-                for name in &names {
-                    let _ = std::process::Command::new("podman").args(["stop", name]).output();
-                    if let Some(row) = state.services.iter_mut().find(|s| &s.name == name) {
-                        row.status = podman_status(name);
-                    }
-                }
                 let count = names.len();
+                for name in names {
+                    stop_service_container(state, name);
+                }
                 state.selected_services.clear();
-                state.push_notif(NotifKind::Info, format!("{} Services gestoppt", count));
+                state.push_notif(NotifKind::Info, format!("{} services stopped", count));
             } else if let Some(svc) = state.services.get(state.selected) {
                 state.push_overlay(OverlayLayer::Confirm {
                     message:    "confirm.stop.service".into(),
@@ -264,25 +249,14 @@ fn handle_dashboard_services(key: KeyEvent, state: &mut AppState, root: &Path) -
                 let names: Vec<String> = state.selected_services.iter()
                     .filter_map(|&i| state.services.get(i).map(|s| s.name.clone()))
                     .collect();
-                for name in &names {
-                    let _ = std::process::Command::new("systemctl")
-                        .args(["--user", "start", &format!("{}.service", name)])
-                        .output();
-                    if let Some(row) = state.services.iter_mut().find(|s| &s.name == name) {
-                        row.status = podman_status(name);
-                    }
-                }
                 let count = names.len();
-                state.selected_services.clear();
-                state.push_notif(NotifKind::Info, format!("{} Services gestartet", count));
-            } else if let Some(svc) = state.services.get(state.selected).cloned() {
-                let _ = std::process::Command::new("systemctl")
-                    .args(["--user", "start", &format!("{}.service", svc.name)])
-                    .output();
-                if let Some(row) = state.services.iter_mut().find(|s| s.name == svc.name) {
-                    row.status = podman_status(&svc.name);
+                for name in names {
+                    start_service(state, &name);
                 }
-                state.push_notif(NotifKind::Info, format!("Service '{}' gestartet", svc.name));
+                state.selected_services.clear();
+                state.push_notif(NotifKind::Info, format!("{} services started", count));
+            } else if let Some(name) = state.services.get(state.selected).map(|s| s.name.clone()) {
+                start_service(state, &name);
             }
         }
 
@@ -406,39 +380,22 @@ fn sidebar_start_resource(state: &mut AppState, root: &Path) {
             }
         }
         Some(SidebarItem::Service { name, .. }) => {
-            let _ = std::process::Command::new("systemctl")
-                .args(["--user", "start", &format!("{}.service", name)])
-                .output();
-            if let Some(row) = state.services.iter_mut().find(|s| s.name == name) {
-                row.status = podman_status(&name);
-            }
+            start_service(state, &name);
         }
         _ => {}
     }
 }
 
 fn sidebar_confirm_delete(state: &mut AppState) {
-    let item = state.current_sidebar_item().cloned();
-    match item {
-        Some(SidebarItem::Project { .. }) if !state.projects.is_empty() => {
-            state.push_overlay(OverlayLayer::Confirm {
-                message: "confirm.delete.project".into(), data: None,
-                yes_action: ConfirmAction::DeleteProject,
-            });
+    // Guard: do not offer delete when there is nothing to delete.
+    if let Some(SidebarItem::Project { .. }) = state.current_sidebar_item() {
+        if state.projects.is_empty() { return; }
+    }
+    if let Some(item) = state.current_sidebar_item().cloned() {
+        // Single source of truth: SidebarItem::delete_confirm() (app.rs).
+        if let Some((message, data, yes_action)) = item.delete_confirm() {
+            state.push_overlay(OverlayLayer::Confirm { message, data, yes_action });
         }
-        Some(SidebarItem::Host { slug, .. }) => {
-            state.push_overlay(OverlayLayer::Confirm {
-                message: "confirm.delete.host".into(), data: Some(slug),
-                yes_action: ConfirmAction::DeleteHost,
-            });
-        }
-        Some(SidebarItem::Service { name, .. }) => {
-            state.push_overlay(OverlayLayer::Confirm {
-                message: "confirm.delete.service".into(), data: Some(name),
-                yes_action: ConfirmAction::DeleteService,
-            });
-        }
-        _ => {}
     }
 }
 
@@ -506,25 +463,25 @@ pub(crate) fn execute_confirm_action(
     match yes_action {
         ConfirmAction::DeleteProject => {
             delete_selected_project(state, root)?;
-            state.push_notif(NotifKind::Success, "Projekt gelöscht");
+            state.push_notif(NotifKind::Success, "Project deleted");
         }
         ConfirmAction::DeleteHost    => {
             delete_selected_host(state, root)?;
-            state.push_notif(NotifKind::Success, "Host gelöscht");
+            state.push_notif(NotifKind::Success, "Host deleted");
         }
         ConfirmAction::LeaveForm => {
             state.close_form_queue();
         }
         ConfirmAction::Quit => { state.should_quit = true; }
         ConfirmAction::DeleteService => {
-            let name = data.clone().unwrap_or_default();
-            delete_service_by_name(state, root, data.unwrap_or_default())?;
-            state.push_notif(NotifKind::Success, format!("Service '{}' gelöscht", name));
+            let name = data.unwrap_or_default();
+            delete_service_by_name(state, root, name.clone())?;
+            state.push_notif(NotifKind::Success, format!("Service '{}' deleted", name));
         }
         ConfirmAction::StopService => {
-            let name = data.clone().unwrap_or_default();
-            stop_service_container(state, data.unwrap_or_default());
-            state.push_notif(NotifKind::Info, format!("Service '{}' gestoppt", name));
+            let name = data.unwrap_or_default();
+            stop_service_container(state, name.clone());
+            state.push_notif(NotifKind::Info, format!("Service '{}' stopped", name));
         }
     }
     Ok(())

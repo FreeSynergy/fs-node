@@ -19,11 +19,11 @@ use anyhow::Result;
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 use crate::app::{
-    ActionSource, AppState, ConfirmAction, ContextAction, DashFocus, LogsState, NotifKind,
+    ActionSource, AppState, ConfirmAction, ContextAction, DashFocus, LogsState,
     OverlayLayer, RunState, SidebarItem,
 };
 use crate::click_map::ClickTarget;
-use crate::actions::{fetch_logs, podman_status};
+use crate::actions::{fetch_logs, start_service};
 use crate::deploy_thread::trigger_deploy;
 use crate::events_dashboard::activate_sidebar_item;
 
@@ -374,15 +374,8 @@ pub fn execute_context_action(
             }
         }
         ContextAction::Start => {
-            let name = service_name_from_source(source, state);
-            if let Some(name) = name {
-                let _ = std::process::Command::new("systemctl")
-                    .args(["--user", "start", &format!("{}.service", name)])
-                    .output();
-                if let Some(row) = state.services.iter_mut().find(|s| s.name == name) {
-                    row.status = podman_status(&name);
-                }
-                state.push_notif(NotifKind::Info, format!("Service '{}' gestartet", name));
+            if let Some(name) = service_name_from_source(source, state) {
+                start_service(state, &name);
             }
         }
         ContextAction::Stop => {

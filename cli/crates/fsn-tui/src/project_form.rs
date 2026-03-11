@@ -247,6 +247,7 @@ pub fn edit_project_form(
     let desc = p.description.as_deref().unwrap_or("").to_string();
     let slots = &handle.config.services;
     let languages_str = p.languages.join(",");
+    let tags_str      = p.tags.join(",");
     let prefill: HashMap<&str, &str> = [
         ("name",          p.name.as_str()),
         ("domain",        p.domain.as_str()),
@@ -254,6 +255,7 @@ pub fn edit_project_form(
         ("contact_email", handle.email()),
         ("language",      p.language.as_str()),
         ("languages",     languages_str.as_str()),
+        ("tags",          tags_str.as_str()),
         ("install_dir",   handle.install_dir()),
         ("version",       p.version.as_str()),
     ].into_iter().filter(|(_, v)| !v.is_empty()).collect();
@@ -289,6 +291,8 @@ fn clean_slot_value(v: &str) -> Option<&str> {
 }
 
 pub fn submit_project_form(form: &ResourceForm, root: &Path) -> Result<()> {
+    use toml::value::{Table, Value};
+
     let is_edit = form.edit_id.is_some();
     let slug = form.edit_id.clone()
         .unwrap_or_else(|| crate::app::slugify(&form.field_value("name")));
@@ -301,65 +305,77 @@ pub fn submit_project_form(form: &ResourceForm, root: &Path) -> Result<()> {
         anyhow::bail!("A project named '{}' already exists", slug);
     }
 
-    let name       = form.field_value("name");
-    let domain     = form.field_value("domain");
-    let desc       = form.field_value("description");
-    let email      = form.field_value("contact_email");
-    let lang       = form.field_value("language");
-    let languages  = form.field_value("languages");
-    let path       = form.field_value("install_dir");
-    let version    = form.field_value("version");
-    let tags       = form.field_value("tags");
-    // Service slot values — only real assignments are written to TOML.
-    let svc_iam    = form.field_value("iam");
-    let svc_wiki   = form.field_value("wiki");
-    let svc_mail   = form.field_value("mail");
-    let svc_mon    = form.field_value("monitoring");
-    let svc_git    = form.field_value("git");
+    let name      = form.field_value("name");
+    let domain    = form.field_value("domain");
+    let desc      = form.field_value("description");
+    let email     = form.field_value("contact_email");
+    let lang      = form.field_value("language");
+    let languages = form.field_value("languages");
+    let path      = form.field_value("install_dir");
+    let version   = form.field_value("version");
+    let tags      = form.field_value("tags");
+    let svc_iam   = form.field_value("iam");
+    let svc_wiki  = form.field_value("wiki");
+    let svc_mail  = form.field_value("mail");
+    let svc_mon   = form.field_value("monitoring");
+    let svc_git   = form.field_value("git");
 
-    let mut file_content = format!(
-        "[project]\nname        = \"{name}\"\ndomain      = \"{domain}\"\ndescription = \"{desc}\"\nlanguage    = \"{lang}\"\ninstall_dir = \"{path}\"\nversion     = \"{version}\"\n"
-    );
+    // ── Build TOML document via toml::value::Table ────────────────────────
+    // Using toml::ser instead of string formatting ensures that special
+    // characters in field values (quotes, backslashes, unicode) are escaped
+    // correctly and can never corrupt the TOML structure.
 
-    // Languages — Vec<String> of content languages supported by this project
+    let mut project_table = Table::new();
+    project_table.insert("name".into(),        Value::String(name));
+    project_table.insert("domain".into(),      Value::String(domain));
+    project_table.insert("description".into(), Value::String(desc));
+    project_table.insert("language".into(),    Value::String(lang));
+    project_table.insert("install_dir".into(), Value::String(path));
+    project_table.insert("version".into(),     Value::String(version));
+
     if !languages.is_empty() {
-        let lang_list: String = languages.split(',')
-            .map(|l| format!("\"{}\"", l.trim()))
-            .collect::<Vec<_>>().join(", ");
-        file_content.push_str(&format!("languages   = [{lang_list}]\n"));
+        let lang_arr: Vec<Value> = languages.split(',')
+            .map(|l| Value::String(l.trim().to_string()))
+            .collect();
+        project_table.insert("languages".into(), Value::Array(lang_arr));
     }
 
-    // Tags — Vec<String> field on ProjectMeta
     if !tags.is_empty() {
-        let tag_list: String = tags.split(',')
-            .map(|t| format!("\"{}\"", t.trim()))
-            .collect::<Vec<_>>().join(", ");
-        file_content.push_str(&format!("tags        = [{tag_list}]\n"));
+        let tag_arr: Vec<Value> = tags.split(',')
+            .map(|t| Value::String(t.trim().to_string()))
+            .collect();
+        project_table.insert("tags".into(), Value::Array(tag_arr));
     }
 
-    // Contact email — written as [project.contact] sub-table (not a direct field on ProjectMeta)
+    // Contact email — [project.contact] sub-table
     if !email.is_empty() {
-        file_content.push_str(&format!("\n[project.contact]\nemail = \"{email}\"\n"));
+        let mut contact = Table::new();
+        contact.insert("email".into(), Value::String(email));
+        project_table.insert("contact".into(), Value::Table(contact));
     }
+
+    let mut root_doc = Table::new();
+    root_doc.insert("project".into(), Value::Table(project_table));
 
     // Service slots — only write non-empty, non-pending assignments
-    let clean_iam  = clean_slot_value(&svc_iam);
-    let clean_wiki = clean_slot_value(&svc_wiki);
-    let clean_mail = clean_slot_value(&svc_mail);
-    let clean_mon  = clean_slot_value(&svc_mon);
-    let clean_git  = clean_slot_value(&svc_git);
-
-    let has_slots = [clean_iam, clean_wiki, clean_mail, clean_mon, clean_git]
-        .iter().any(|v| v.is_some());
-    if has_slots {
-        file_content.push_str("\n[services]\n");
-        if let Some(v) = clean_iam  { file_content.push_str(&format!("iam        = \"{v}\"\n")); }
-        if let Some(v) = clean_wiki { file_content.push_str(&format!("wiki       = \"{v}\"\n")); }
-        if let Some(v) = clean_mail { file_content.push_str(&format!("mail       = \"{v}\"\n")); }
-        if let Some(v) = clean_mon  { file_content.push_str(&format!("monitoring = \"{v}\"\n")); }
-        if let Some(v) = clean_git  { file_content.push_str(&format!("git        = \"{v}\"\n")); }
+    let slot_pairs: &[(&str, String)] = &[
+        ("iam",        svc_iam),
+        ("wiki",       svc_wiki),
+        ("mail",       svc_mail),
+        ("monitoring", svc_mon),
+        ("git",        svc_git),
+    ];
+    if slot_pairs.iter().any(|(_, v)| clean_slot_value(v).is_some()) {
+        let mut services_table = Table::new();
+        for (key, val) in slot_pairs {
+            if let Some(v) = clean_slot_value(val) {
+                services_table.insert((*key).into(), Value::String(v.to_string()));
+            }
+        }
+        root_doc.insert("services".into(), Value::Table(services_table));
     }
 
+    let file_content = toml::to_string_pretty(&Value::Table(root_doc))?;
     std::fs::write(&toml_path, file_content)?;
     Ok(())
 }

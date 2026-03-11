@@ -563,7 +563,7 @@ impl AppState {
                 DeployMsg::Log(line) => ds.log.push(line),
                 DeployMsg::Done { success, error } => {
                     if let Some(err) = error { ds.log.push(format!("✗ {}", err)); }
-                    else { ds.log.push("✓ Fertig!".into()); }
+                    else { ds.log.push("✓ Done!".into()); }
                     ds.done    = true;
                     ds.success = success;
                     self.deploy_rx = None;
@@ -695,7 +695,7 @@ fn fsn_event(
                 state.store_entries = entries;
                 state.store_rx = None;
                 if count > 0 {
-                    state.push_notif(NotifKind::Info, format!("Store: {count} Module geladen"));
+                    state.push_notif(NotifKind::Info, format!("Store: {count} modules loaded"));
                 }
             }
 
