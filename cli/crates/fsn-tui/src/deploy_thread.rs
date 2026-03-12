@@ -80,8 +80,8 @@ pub fn trigger_deploy(
         let host = match host_cfg {
             Some(h) => h,
             None => {
-                let _ = tx.send(DeployMsg::Log("! Kein Host konfiguriert — Quadlets übersprungen".into()));
-                let _ = tx.send(DeployMsg::Log("  → Bitte zuerst einen Host anlegen (Sidebar → n)".into()));
+                let _ = tx.send(DeployMsg::Log("! No host configured — Quadlets skipped".into()));
+                let _ = tx.send(DeployMsg::Log("  → Please add a host first (Sidebar → n)".into()));
                 let _ = tx.send(DeployMsg::Done { success: true, error: None });
                 return;
             }

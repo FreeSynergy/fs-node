@@ -113,8 +113,8 @@ pub fn submit_bot_form(form: &ResourceForm, project_dir: &Path, project_slug: &s
     let description   = form.field_value("description");
     let tags          = form.field_value("tags");
 
-    if name.is_empty()          { anyhow::bail!("Bot-Name ist erforderlich"); }
-    if service_class.is_empty() { anyhow::bail!("Bot-Klasse ist erforderlich"); }
+    if name.is_empty()          { anyhow::bail!("Bot name is required"); }
+    if service_class.is_empty() { anyhow::bail!("Bot class is required"); }
 
     let bots_dir = project_dir.join("bots");
     std::fs::create_dir_all(&bots_dir)?;

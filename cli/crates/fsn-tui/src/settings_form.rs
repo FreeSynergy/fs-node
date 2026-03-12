@@ -88,7 +88,7 @@ pub fn submit_store_form(form: &ResourceForm, settings: &mut fsn_core::config::A
     store.url        = form.field_value("url");
     store.git_url    = { let v = form.field_value("git_url");    if v.is_empty() { None } else { Some(v) } };
     store.local_path = { let v = form.field_value("local_path"); if v.is_empty() { None } else { Some(v) } };
-    store.enabled    = form.field_value("enabled") == "true";
+    store.enabled    = form.field_bool("enabled");
 
     settings.save().map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(())

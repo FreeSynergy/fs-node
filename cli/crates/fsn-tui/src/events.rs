@@ -381,6 +381,11 @@ fn handle_settings_store(key: KeyEvent, state: &mut AppState) -> Result<()> {
 
 // ── Store screen ──────────────────────────────────────────────────────────────
 
+/// Return the ID of the currently-selected store entry, if any.
+fn store_current_id(state: &AppState) -> Option<String> {
+    state.store_entries.get(state.store_cursor).map(|e| e.id.clone())
+}
+
 fn handle_store_screen(key: KeyEvent, state: &mut AppState) -> Result<()> {
     let n_packages = state.store_entries.len();
 
@@ -415,8 +420,7 @@ fn handle_store_screen(key: KeyEvent, state: &mut AppState) -> Result<()> {
 
         // Install / uninstall / reinstall
         KeyCode::Char('i') => {
-            if let Some(entry) = state.store_entries.get(state.store_cursor) {
-                let id = entry.id.clone();
+            if let Some(id) = store_current_id(state) {
                 if !state.settings.is_installed(&id) {
                     state.push_overlay(OverlayLayer::Confirm {
                         message:    "store.confirm.install".into(),
@@ -427,8 +431,7 @@ fn handle_store_screen(key: KeyEvent, state: &mut AppState) -> Result<()> {
             }
         }
         KeyCode::Char('u') => {
-            if let Some(entry) = state.store_entries.get(state.store_cursor) {
-                let id = entry.id.clone();
+            if let Some(id) = store_current_id(state) {
                 if state.settings.is_installed(&id) {
                     state.push_overlay(OverlayLayer::Confirm {
                         message:    "store.confirm.uninstall".into(),
@@ -439,8 +442,7 @@ fn handle_store_screen(key: KeyEvent, state: &mut AppState) -> Result<()> {
             }
         }
         KeyCode::Char('r') => {
-            if let Some(entry) = state.store_entries.get(state.store_cursor) {
-                let id = entry.id.clone();
+            if let Some(id) = store_current_id(state) {
                 state.push_overlay(OverlayLayer::Confirm {
                     message:    "store.confirm.reinstall".into(),
                     data:       Some(id),
@@ -481,18 +483,11 @@ fn handle_settings_languages(key: KeyEvent, state: &mut AppState) -> Result<()> 
         KeyCode::Enter => lang_cursor_activate_pub(state, state.lang_cursor),
 
         // Space: toggle — download if not installed, remove if installed.
+        // Delegates to lang_cursor_toggle_pub — single source of truth.
         KeyCode::Char(' ') => {
             let idx = state.lang_cursor;
             if idx == 0 { return Ok(()); } // English is built-in, cannot toggle
-
-            if let Some(code) = resolve_lang_code(state, idx) {
-                let is_installed = state.available_langs.iter().any(|d| d.code == code);
-                if is_installed {
-                    remove_lang(state, &code);
-                } else {
-                    trigger_lang_download_by_code(state, code);
-                }
-            }
+            lang_cursor_toggle_pub(state, idx);
         }
 
         // Del/D: explicitly remove an installed language.

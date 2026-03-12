@@ -99,8 +99,9 @@ pub fn stop_service_container(state: &mut AppState, name: String) {
 
 pub fn reload_hosts(state: &mut AppState, root: &Path) {
     state.hosts.clear();
-    for proj in &state.projects.clone() {
-        let (hosts, host_errs) = crate::load_hosts(&root.join("projects").join(&proj.slug));
+    let project_slugs: Vec<String> = state.projects.iter().map(|p| p.slug.clone()).collect();
+    for slug in &project_slugs {
+        let (hosts, host_errs) = crate::load_hosts(&root.join("projects").join(slug));
         state.hosts.extend(hosts);
         for msg in host_errs { state.push_notif(NotifKind::Info, msg); }
     }
@@ -258,6 +259,6 @@ pub fn fetch_logs(name: &str) -> Vec<String> {
             let text = if o.stdout.is_empty() { o.stderr } else { o.stdout };
             String::from_utf8_lossy(&text).lines().map(|l| l.to_string()).collect()
         }
-        Err(_) => vec!["[Logs nicht verfügbar]".into()],
+        Err(_) => vec!["[Logs not available]".into()],
     }
 }

@@ -254,6 +254,12 @@ impl ResourceForm {
             .unwrap_or_default()
     }
 
+    /// Typed boolean accessor — returns `true` when the field value is exactly `"true"`.
+    /// Use instead of `field_value(key) == "true"` to avoid silent typo bugs.
+    pub fn field_bool(&self, key: &str) -> bool {
+        self.field_value(key) == "true"
+    }
+
     pub fn set_field_value(&mut self, key: &str, value: &str) {
         if let Some(n) = self.nodes.iter_mut().find(|n| n.key() == key) {
             n.set_value(value);

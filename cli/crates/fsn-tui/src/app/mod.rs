@@ -418,6 +418,7 @@ impl AppState {
 
     /// Remove notifications older than `max_age`. Called each loop tick.
     pub fn expire_notifications(&mut self, max_age: Duration) {
+        if self.notifications.is_empty() { return; }
         self.notifications.retain(|n| n.born.elapsed() < max_age);
     }
 

@@ -102,17 +102,16 @@ pub fn submit_project(state: &mut AppState, root: &Path) -> Result<()> {
 
     match result {
         Some(Ok(())) => {
-            let name = state.active_form().map(|f| f.field_value("name")).unwrap_or_default();
-
-            // Extract "new:" / "store:" slot values BEFORE advancing the queue.
-            // Uses parse_slot_value() — single source of truth for slot string parsing.
-            let queued_tasks: Vec<crate::task_queue::TaskKind> = {
-                use crate::project_form::{parse_slot_value, SlotValue};
+            // Compute name, slug, and queued tasks from the form in one pass
+            // before any state mutation — avoids computing slug twice.
+            use crate::project_form::{parse_slot_value, SlotValue};
+            let (name, slug, queued_tasks) = {
                 let form = state.active_form().unwrap();
+                let name = form.field_value("name");
                 let slug = form.edit_id.clone()
-                    .unwrap_or_else(|| crate::resource_form::slugify(&form.field_value("name")));
+                    .unwrap_or_else(|| crate::resource_form::slugify(&name));
                 let slot_keys = ["iam", "wiki", "mail", "monitoring", "git"];
-                slot_keys.iter()
+                let tasks = slot_keys.iter()
                     .filter_map(|&k| {
                         let val = form.field_value(k);
                         match parse_slot_value(&val) {
@@ -125,18 +124,15 @@ pub fn submit_project(state: &mut AppState, root: &Path) -> Result<()> {
                             _ => None,
                         }
                     })
-                    .collect()
+                    .collect::<Vec<_>>();
+                (name, slug, tasks)
             };
 
             let (projects, proj_errs) = crate::load_projects(root);
             state.projects = projects;
             for msg in proj_errs { state.push_notif(crate::app::NotifKind::Info, msg); }
-            if let Some(form) = state.active_form() {
-                let slug = form.edit_id.clone()
-                    .unwrap_or_else(|| crate::resource_form::slugify(&form.field_value("name")));
-                state.selected_project = state.projects.iter()
-                    .position(|p| p.slug == slug).unwrap_or(0);
-            }
+            state.selected_project = state.projects.iter()
+                .position(|p| p.slug == slug).unwrap_or(0);
             state.rebuild_services();
             state.rebuild_sidebar();
             state.dash_focus = DashFocus::Sidebar;
@@ -195,8 +191,7 @@ pub fn submit_service(state: &mut AppState, root: &Path) -> Result<()> {
                             let (k, v) = line.split_once('=')?;
                             let k = k.trim();
                             if k.is_empty() { return None; }
-                            // Escape backslashes and double-quotes for TOML string literals.
-                            let escaped = v.trim().replace('\\', "\\\\").replace('"', "\\\"");
+                            let escaped = crate::ui::widgets::toml_escape_str(v.trim());
                             Some(format!("{k} = \"{escaped}\""))
                         })
                         .collect();
@@ -265,7 +260,7 @@ pub fn submit_store(state: &mut AppState) -> Result<()> {
         let url        = form.field_value("url");
         let git_url    = { let v = form.field_value("git_url");    if v.is_empty() { None } else { Some(v) } };
         let local_path = { let v = form.field_value("local_path"); if v.is_empty() { None } else { Some(v) } };
-        let enabled    = form.field_value("enabled") == "true";
+        let enabled    = form.field_bool("enabled");
         (idx, name, url, git_url, local_path, enabled)
     });
 

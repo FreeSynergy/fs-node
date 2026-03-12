@@ -251,8 +251,9 @@ pub fn run(root: &Path) -> Result<()> {
     state.store_entries = store_index.packages;
 
     // Load hosts from ALL project directories — show everything in the sidebar.
-    for proj in &state.projects.clone() {
-        let project_dir = root.join("projects").join(&proj.slug);
+    let project_slugs: Vec<String> = state.projects.iter().map(|p| p.slug.clone()).collect();
+    for slug in &project_slugs {
+        let project_dir = root.join("projects").join(slug);
         let (hosts, host_errors) = load_hosts(&project_dir);
         state.hosts.extend(hosts);
         for msg in host_errors { state.push_notif(app::NotifKind::Info, msg); }

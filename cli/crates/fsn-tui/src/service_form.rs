@@ -278,8 +278,7 @@ pub fn submit_service_form(form: &ResourceForm, services_dir: &Path, project_slu
         if let Some((k, v)) = line.split_once('=') {
             let k = k.trim().to_string();
             if k.is_empty() { pending_comment.clear(); continue; }
-            // Escape backslashes and double-quotes for TOML string literals.
-            let v = v.trim().replace('\\', "\\\\").replace('"', "\\\"");
+            let v = crate::ui::widgets::toml_escape_str(v.trim());
             if !pending_comment.is_empty() {
                 env_comments.push((k.clone(), std::mem::take(&mut pending_comment)));
             }
@@ -296,7 +295,7 @@ pub fn submit_service_form(form: &ResourceForm, services_dir: &Path, project_slu
     if !env_comments.is_empty() {
         content.push_str("\n[vars_comments]\n");
         for (k, c) in &env_comments {
-            let c_escaped = c.replace('\\', "\\\\").replace('"', "\\\"");
+            let c_escaped = crate::ui::widgets::toml_escape_str(c);
             content.push_str(&format!("{k} = \"{c_escaped}\"\n"));
         }
     }

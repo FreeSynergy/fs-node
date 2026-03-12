@@ -204,6 +204,16 @@ pub fn render_hint_opt(f: &mut RenderCtx<'_>, area: Rect, hint_key: Option<&str>
     }
 }
 
+// ── TOML helpers ──────────────────────────────────────────────────────────────
+
+/// Escape a string value for use in a TOML basic string (`"..."`).
+///
+/// Single source of truth for TOML string escaping — replaces inline
+/// `.replace('\\', "\\\\").replace('"', "\\\"")` calls in every submit function.
+pub fn toml_escape_str(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
