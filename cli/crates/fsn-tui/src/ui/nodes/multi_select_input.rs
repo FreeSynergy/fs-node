@@ -38,7 +38,7 @@ pub struct MultiSelectInputNode {
     /// All available choices.
     pub options:    Vec<String>,
     /// Maps an option code to a human-readable label.
-    pub display_fn: Option<fn(&str) -> &'static str>,
+    pub display_fn: Option<fn(&str) -> String>,
     pub col_span:   u8,
     pub min_width:  u16,
     /// Popup state (Strategy).
@@ -70,7 +70,7 @@ impl MultiSelectInputNode {
         self
     }
 
-    pub fn display(mut self, f: fn(&str) -> &'static str) -> Self {
+    pub fn display(mut self, f: fn(&str) -> String) -> Self {
         self.display_fn = Some(f);
         self
     }
@@ -91,10 +91,10 @@ impl MultiSelectInputNode {
 
     /// Display string: shows human labels of selected items, or placeholder.
     fn display_value(&self, lang: Lang) -> String {
-        let selected: Vec<&str> = self.value.split(',')
+        let selected: Vec<String> = self.value.split(',')
             .filter(|s| !s.is_empty())
             .map(|code| {
-                if let Some(f) = self.display_fn { f(code) } else { code }
+                if let Some(f) = self.display_fn { f(code) } else { code.to_string() }
             })
             .collect();
         if selected.is_empty() {

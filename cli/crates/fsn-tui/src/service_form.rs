@@ -51,7 +51,7 @@ pub struct ServiceFormData {
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 
-pub fn service_class_display(code: &str) -> &'static str {
+pub fn service_class_display(code: &str) -> String {
     match code {
         "proxy/zentinel"          => "Zentinel (Proxy)",
         "iam/kanidm"              => "Kanidm (IAM)",
@@ -66,11 +66,11 @@ pub fn service_class_display(code: &str) -> &'static str {
         "monitoring/openobserver" => "OpenObserve (Monitoring)",
         "database/postgres"       => "PostgreSQL (Database)",
         "cache/dragonfly"         => "Dragonfly (Cache)",
-        _                         => "—",
-    }
+        _                         => return code.to_string(),
+    }.to_string()
 }
 
-const DISPLAY_FNS: &[(&str, fn(&str) -> &'static str)] = &[
+const DISPLAY_FNS: &[(&str, fn(&str) -> String)] = &[
     ("class", service_class_display),
 ];
 
@@ -146,6 +146,22 @@ pub fn new_service_form() -> ResourceForm {
     // service_on_change only fires on user interactions, so we trigger it once here.
     service_on_change(&mut nodes, "class");
     ResourceForm::new(ResourceKind::Service, SERVICE_TABS, nodes, None, service_on_change)
+}
+
+/// Build a service form with class options loaded from the store.
+///
+/// Uses all available store entries as dropdown options.
+/// Falls back to the static schema list when the store is empty (offline / not yet synced).
+pub fn new_service_form_from_store(store_entries: &[fsn_core::store::StoreEntry]) -> ResourceForm {
+    if store_entries.is_empty() {
+        return new_service_form();
+    }
+    let options: Vec<String> = store_entries.iter().map(|e| e.id.clone()).collect();
+    let default = options[0].clone();
+    let env_defaults = fsn_core::config::resolve_plugins_dir_no_fallback()
+        .map(|dir| load_class_env_defaults(&default, &dir))
+        .filter(|s| !s.is_empty());
+    new_service_form_with_class_options(options, &default, env_defaults.as_deref())
 }
 
 /// Build a service form with a pre-selected default class and optional env defaults.

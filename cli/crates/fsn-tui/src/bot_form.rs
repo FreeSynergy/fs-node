@@ -43,27 +43,27 @@ pub struct BotFormData {
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 
-pub fn bot_type_display(code: &str) -> &'static str {
+pub fn bot_type_display(code: &str) -> String {
     match code {
         "matrix"   => "Matrix",
         "telegram" => "Telegram",
         "webhook"  => "Webhook",
         "custom"   => "Custom",
-        _          => "—",
-    }
+        _          => return code.to_string(),
+    }.to_string()
 }
 
-pub fn bot_class_display(code: &str) -> &'static str {
+pub fn bot_class_display(code: &str) -> String {
     match code {
         "bot/matrix-hookshot" => "Matrix Hookshot",
         "bot/maubot"          => "Maubot",
         "bot/telegram"        => "Telegram Bot",
         "bot/webhook"         => "Webhook",
-        _                     => "—",
-    }
+        _                     => return code.to_string(),
+    }.to_string()
 }
 
-const DISPLAY_FNS: &[(&str, fn(&str) -> &'static str)] = &[
+const DISPLAY_FNS: &[(&str, fn(&str) -> String)] = &[
     ("bot_type",     bot_type_display),
     ("service_class", bot_class_display),
 ];

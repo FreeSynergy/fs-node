@@ -38,15 +38,15 @@ pub struct StoreFormData {
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 
-fn enabled_display(code: &str) -> &'static str {
+fn enabled_display(code: &str) -> String {
     match code {
         "true"  => "Enabled",
         "false" => "Disabled",
-        _       => "—",
-    }
+        _       => return code.to_string(),
+    }.to_string()
 }
 
-const DISPLAY_FNS: &[(&str, fn(&str) -> &'static str)] = &[
+const DISPLAY_FNS: &[(&str, fn(&str) -> String)] = &[
     ("enabled", enabled_display),
 ];
 

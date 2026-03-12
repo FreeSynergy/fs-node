@@ -29,7 +29,7 @@ use crate::ui::nodes::{EnvTableNode, MultiSelectInputNode, SectionNode, SelectIn
 pub fn build_nodes(
     schema:          &FormSchema,
     prefill:         &HashMap<&str, &str>,
-    display_fns:     &[(&'static str, fn(&str) -> &'static str)],
+    display_fns:     &[(&'static str, fn(&str) -> String)],
     dynamics:        &[(&str, String)],
     dynamic_options: &[(&str, Vec<String>)],
 ) -> Vec<Box<dyn FormNode>> {
@@ -39,7 +39,7 @@ pub fn build_nodes(
 fn build_node(
     field:           &FieldMeta,
     prefill:         &HashMap<&str, &str>,
-    display_fns:     &[(&'static str, fn(&str) -> &'static str)],
+    display_fns:     &[(&'static str, fn(&str) -> String)],
     dynamics:        &[(&str, String)],
     dynamic_options: &[(&str, Vec<String>)],
 ) -> Box<dyn FormNode> {

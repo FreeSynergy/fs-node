@@ -63,7 +63,7 @@ pub fn render_project_detail(f: &mut RenderCtx<'_>, state: &AppState, area: Rect
     }
     if !langs.is_empty() {
         lines.push(Line::from(vec![
-            Span::styled("Sprachen:  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Languages: ", Style::default().fg(Color::DarkGray)),
             Span::styled(langs, Style::default().fg(Color::White)),
         ]));
     }
@@ -129,7 +129,7 @@ pub fn render_host_detail(f: &mut RenderCtx<'_>, state: &AppState, area: Rect, s
     let addr     = host.config.host.addr();
     let ssh_user = &host.config.host.ssh_user;
     let ssh_port = host.config.host.ssh_port;
-    let external = if host.config.host.external { "extern" } else { "lokal" };
+    let external = if host.config.host.external { "external" } else { "local" };
     let alias    = host.config.host.alias.as_deref().unwrap_or("—");
 
     // ── Health status ────────────────────────────────────────────────────────
@@ -138,7 +138,7 @@ pub fn render_host_detail(f: &mut RenderCtx<'_>, state: &AppState, area: Rect, s
     push_health_lines(&mut health_lines, &h_status);
     let mut lines: Vec<Line> = vec![
         Line::from(vec![
-            Span::styled("Adresse:   ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Address:   ", Style::default().fg(Color::DarkGray)),
             Span::styled(addr.to_string(), Style::default().fg(Color::White)),
         ]),
         Line::from(vec![
@@ -150,7 +150,7 @@ pub fn render_host_detail(f: &mut RenderCtx<'_>, state: &AppState, area: Rect, s
             Span::styled(alias.to_string(), Style::default().fg(Color::White)),
         ]),
         Line::from(vec![
-            Span::styled("Typ:       ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Type:      ", Style::default().fg(Color::DarkGray)),
             Span::styled(external.to_string(), Style::default().fg(Color::White)),
         ]),
     ];
@@ -171,14 +171,10 @@ pub fn render_service_detail(f: &mut RenderCtx<'_>, state: &AppState, area: Rect
     };
 
     let status       = state.last_podman_statuses.get(svc_name).copied().unwrap_or(RunState::Missing);
-    // widgets::run_state_color / run_state_char — single source of truth, no local match needed.
+    // Single source of truth: widgets + i18n. No local RunState match needed.
     let status_color = widgets::run_state_color(status);
-    let status_label = format!("{} {}", widgets::run_state_char(status), match status {
-        RunState::Running => "Running",
-        RunState::Stopped => "Stopped",
-        RunState::Failed  => "Failed",
-        RunState::Missing => "Missing",
-    });
+    let status_label = format!("{} {}", widgets::run_state_char(status),
+        state.t(crate::app::run_state_i18n(status)));
 
     let block = Block::default()
         .borders(Borders::NONE)
@@ -196,11 +192,11 @@ pub fn render_service_detail(f: &mut RenderCtx<'_>, state: &AppState, area: Rect
 
     let lines = vec![
         Line::from(vec![
-            Span::styled("Klasse:    ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Class:     ", Style::default().fg(Color::DarkGray)),
             Span::styled(entry.service_class.clone(), Style::default().fg(Color::Cyan)),
         ]),
         Line::from(vec![
-            Span::styled("Projekt:   ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Project:   ", Style::default().fg(Color::DarkGray)),
             Span::styled(proj.slug.clone(), Style::default().fg(Color::White)),
         ]),
         Line::from(vec![

@@ -35,7 +35,7 @@ pub struct SelectInputNode {
     /// Available choices. `Vec<String>` supports static and runtime-computed options.
     pub options:    Vec<String>,
     /// Maps an option code to a human-readable label for display.
-    pub display_fn: Option<fn(&str) -> &'static str>,
+    pub display_fn: Option<fn(&str) -> String>,
     pub col_span:   u8,
     pub min_width:  u16,
     /// Popup state (Strategy).
@@ -68,7 +68,7 @@ impl SelectInputNode {
         self
     }
 
-    pub fn display(mut self, f: fn(&str) -> &'static str) -> Self {
+    pub fn display(mut self, f: fn(&str) -> String) -> Self {
         self.display_fn = Some(f);
         self
     }
@@ -83,12 +83,12 @@ impl SelectInputNode {
         self.options.iter().position(|o| o == &self.value).unwrap_or(0)
     }
 
-    fn human_label(&self) -> &str {
+    fn human_label(&self) -> String {
         if let Some(f) = self.display_fn {
             let s = f(&self.value);
             if !s.is_empty() { return s; }
         }
-        &self.value
+        self.value.clone()
     }
 }
 
@@ -121,11 +121,11 @@ impl FormNode for SelectInputNode {
         let display = self.human_label();
         let input_line = if focused {
             Line::from(vec![
-                Span::styled(display.to_string(), Style::default().fg(Color::White)),
+                Span::styled(display, Style::default().fg(Color::White)),
                 Span::styled(" ▼", Style::default().fg(Color::Cyan)),
             ])
         } else {
-            Line::from(Span::styled(display.to_string(), Style::default().fg(Color::White)))
+            Line::from(Span::styled(display, Style::default().fg(Color::White)))
         };
         f.render_stateful_widget(
             Paragraph::new(input_line).block(block),

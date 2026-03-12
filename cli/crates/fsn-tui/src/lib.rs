@@ -75,6 +75,9 @@ pub struct StoreLangEntry {
     pub name:         String,
     pub api_version:  u32,
     pub completeness: u8,
+    /// Filename within the i18n directory (e.g. "de.toml").
+    /// Taken from the `file` field in index.toml; defaults to `"{code}.toml"`.
+    pub file:         String,
 }
 
 /// Fetch the language index from the first enabled store in a background thread.
@@ -94,7 +97,10 @@ pub fn spawn_lang_index_fetcher(
 
 fn fetch_lang_index(settings: &fsn_core::config::AppSettings) -> anyhow::Result<Vec<StoreLangEntry>> {
     #[derive(serde::Deserialize)]
-    struct Entry { code: String, name: String, api_version: u32, completeness: u8 }
+    struct Entry {
+        code: String, name: String, api_version: u32, completeness: u8,
+        #[serde(default)] file: Option<String>,
+    }
     #[derive(serde::Deserialize)]
     struct Index { languages: Vec<Entry> }
 
@@ -116,11 +122,9 @@ fn fetch_lang_index(settings: &fsn_core::config::AppSettings) -> anyhow::Result<
 
     let index: Index = toml::from_str(&content)
         .map_err(|e| anyhow::anyhow!("parse error: {e}"))?;
-    Ok(index.languages.into_iter().map(|e| StoreLangEntry {
-        code:         e.code,
-        name:         e.name,
-        api_version:  e.api_version,
-        completeness: e.completeness,
+    Ok(index.languages.into_iter().map(|e| {
+        let file = e.file.unwrap_or_else(|| format!("{}.toml", e.code));
+        StoreLangEntry { code: e.code, name: e.name, api_version: e.api_version, completeness: e.completeness, file }
     }).collect())
 }
 
@@ -134,26 +138,29 @@ fn fetch_lang_index(settings: &fsn_core::config::AppSettings) -> anyhow::Result<
 /// call `state.reload_langs()` when the result arrives (handled in event_loop.rs).
 pub fn spawn_lang_downloader(
     code:     &str,
+    file:     &str,
     settings: fsn_core::config::AppSettings,
 ) -> mpsc::Receiver<Result<String, String>> {
     let code = code.to_string();
+    let file = file.to_string();
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
-        let result = download_lang(&code, &settings);
+        let result = download_lang(&code, &file, &settings);
         let _ = tx.send(result.map(|_| code).map_err(|e| e.to_string()));
     });
     rx
 }
 
-fn download_lang(code: &str, settings: &fsn_core::config::AppSettings) -> anyhow::Result<()> {
+fn download_lang(code: &str, file: &str, settings: &fsn_core::config::AppSettings) -> anyhow::Result<()> {
     // Determine source: local_path first (fast, no HTTP required), then HTTP.
+    // Use `file` from the store index for the actual filename (supports non-standard names).
     let content = if let Some(store) = settings.stores.iter().find(|s| s.enabled && s.local_path.is_some()) {
         let path = std::path::PathBuf::from(store.local_path.as_deref().unwrap())
-            .join("Node").join("i18n").join(format!("{code}.toml"));
+            .join("Node").join("i18n").join(file);
         std::fs::read_to_string(&path)
             .map_err(|e| anyhow::anyhow!("local read: {e}"))?
     } else if let Some(store) = settings.stores.iter().find(|s| s.enabled) {
-        let url = format!("{}/Node/i18n/{code}.toml", store.url.trim_end_matches('/'));
+        let url = format!("{}/Node/i18n/{file}", store.url.trim_end_matches('/'));
         let rt  = tokio::runtime::Runtime::new()?;
         rt.block_on(async move {
             let resp = reqwest::get(&url).await?.error_for_status()?;
@@ -206,8 +213,12 @@ fn podman_container_statuses() -> HashMap<String, RunState> {
             if name.is_empty() { return None; }
             let run_state = if status.starts_with("Up") {
                 RunState::Running
-            } else if status.starts_with("Exited") {
+            } else if status.starts_with("Exited (0)") {
+                // Clean exit — container stopped intentionally.
                 RunState::Stopped
+            } else if status.starts_with("Exited") {
+                // Non-zero exit code — container crashed or failed.
+                RunState::Failed
             } else {
                 RunState::Missing
             };
@@ -244,8 +255,8 @@ pub fn run(root: &Path) -> Result<()> {
     // Build initial service list from desired state + Podman query.
     state.apply_podman_status(podman_container_statuses());
 
-    // Navigate straight to Dashboard if a project.toml exists.
-    if project_toml_exists(root) {
+    // Navigate straight to Dashboard if at least one project was loaded.
+    if !state.projects.is_empty() {
         state.screen = app::Screen::Dashboard;
     }
 
@@ -415,25 +426,3 @@ pub fn load_service_instances(project_dir: &Path) -> Vec<ServiceHandle> {
     handles
 }
 
-/// Returns true if any `*.project.toml` exists under `root/projects/`.
-fn project_toml_exists(root: &Path) -> bool {
-    let projects_dir = root.join("projects");
-    if !projects_dir.exists() { return false; }
-    let Ok(entries) = std::fs::read_dir(&projects_dir) else { return false; };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() { continue; }
-        let Ok(inner) = std::fs::read_dir(&path) else { continue; };
-        for f in inner.flatten() {
-            let fp = f.path();
-            if fp.extension().and_then(|e| e.to_str()) == Some("toml")
-                && fp.file_stem().and_then(|s| s.to_str())
-                    .map(|s| s.ends_with(".project"))
-                    .unwrap_or(false)
-            {
-                return true;
-            }
-        }
-    }
-    false
-}

@@ -110,12 +110,18 @@ pub fn run_state_char_anim(
     }
 }
 
-/// Truncate a "prefix + name" string to fit within `max_w` characters.
+/// Truncate a "prefix + name" string to fit within `max_w` **display columns**.
 /// Appends "…" when the text must be cut. Used by sidebar and detail renderers.
+///
+/// Uses `char` counts (not byte lengths) so multi-byte Unicode characters
+/// (emoji, CJK, accented letters) are handled correctly without panicking.
 pub fn truncate(prefix: &str, name: &str, max_w: usize) -> String {
-    let total = prefix.len() + name.len();
-    if total > max_w && max_w > prefix.len() + 1 {
-        format!("{}{}…", prefix, &name[..max_w - prefix.len() - 1])
+    let prefix_chars = prefix.chars().count();
+    let name_chars   = name.chars().count();
+    let total        = prefix_chars + name_chars;
+    if total > max_w && max_w > prefix_chars + 1 {
+        let take: String = name.chars().take(max_w - prefix_chars - 1).collect();
+        format!("{}{}…", prefix, take)
     } else {
         format!("{}{}", prefix, name)
     }

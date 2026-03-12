@@ -65,27 +65,27 @@ pub struct HostFormData {
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 
-pub fn dns_provider_display(code: &str) -> &'static str {
+pub fn dns_provider_display(code: &str) -> String {
     match code {
         "hetzner"    => "Hetzner DNS",
         "cloudflare" => "Cloudflare",
         "manual"     => "Manual",
         "none"       => "None (disabled)",
-        _            => "—",
-    }
+        _            => return code.to_string(),
+    }.to_string()
 }
 
-pub fn acme_provider_display(code: &str) -> &'static str {
+pub fn acme_provider_display(code: &str) -> String {
     match code {
         "letsencrypt" => "Let's Encrypt",
         "zerossl"     => "ZeroSSL",
         "buypass"     => "Buypass",
         "none"        => "None (disabled)",
-        _             => "—",
-    }
+        _             => return code.to_string(),
+    }.to_string()
 }
 
-const DISPLAY_FNS: &[(&str, fn(&str) -> &'static str)] = &[
+const DISPLAY_FNS: &[(&str, fn(&str) -> String)] = &[
     ("dns_provider",  dns_provider_display),
     ("acme_provider", acme_provider_display),
 ];

@@ -103,7 +103,7 @@ pub fn activate_sidebar_item(item: SidebarItem, state: &mut AppState, root: &Pat
             state.open_form(form);
         }
         SidebarItem::Action { kind: SidebarAction::NewService, .. } => {
-            state.open_form(crate::service_form::new_service_form());
+            state.open_form(crate::service_form::new_service_form_from_store(&state.store_entries));
         }
         // Project items: check for missing required resources and auto-queue setup forms.
         SidebarItem::Project { .. } => {
@@ -256,7 +256,7 @@ fn open_new_resource_form(item_idx: usize, state: &mut AppState, root: &Path) {
             state.open_form(crate::host_form::new_host_form(slugs, &current));
         }
         ResourceKind::Service => {
-            state.open_form(crate::service_form::new_service_form());
+            state.open_form(crate::service_form::new_service_form_from_store(&state.store_entries));
         }
         ResourceKind::Bot => {
             state.open_form(crate::bot_form::new_bot_form());

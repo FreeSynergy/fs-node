@@ -93,7 +93,7 @@ pub struct ProjectFormData {
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 
-pub fn lang_display(code: &str) -> &'static str {
+pub fn lang_display(code: &str) -> String {
     match code {
         "de" => "Deutsch",
         "en" => "English",
@@ -105,11 +105,11 @@ pub fn lang_display(code: &str) -> &'static str {
         "zh" => "中文",
         "ja" => "日本語",
         "ar" => "العربية",
-        _    => "—",
-    }
+        _    => return code.to_string(),
+    }.to_string()
 }
 
-const DISPLAY_FNS: &[(&str, fn(&str) -> &'static str)] = &[
+const DISPLAY_FNS: &[(&str, fn(&str) -> String)] = &[
     // "language" (single select for UI lang) → native name display.
     // "languages" (multi-select for project content langs) → codes shown directly
     // because the options are dynamic and cannot be resolved by a static fn.
@@ -139,14 +139,14 @@ fn slot_entries_for(
         }
     }
 
-    // 2. Store modules of matching type not yet deployed locally
+    // 2. Store modules of matching type not yet deployed locally.
+    // Compare against service_class (the module ID), not the instance name,
+    // so "kanidm-prod" correctly suppresses the "iam/kanidm" store entry.
     for entry in store_entries {
         if entry.service_type == svc_type {
-            let module_name = entry.id.split('/').last().unwrap_or(&entry.id);
-            let already_configured = services.iter()
-                .any(|s| s.config.service.service_class.starts_with(class_prefix)
-                    && s.name == module_name);
-            if !already_configured {
+            let already_deployed = services.iter()
+                .any(|s| s.config.service.service_class == entry.id);
+            if !already_deployed {
                 entries.push(SlotEntry::available(&entry.id, &entry.name, svc_type));
             }
         }

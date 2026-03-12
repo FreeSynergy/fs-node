@@ -159,7 +159,7 @@ impl SelectionPopup {
         &mut self,
         f:          &mut RenderCtx<'_>,
         options:    &[String],
-        display_fn: Option<fn(&str) -> &'static str>,
+        display_fn: Option<fn(&str) -> String>,
         title_key:  &'static str,
         lang:       Lang,
     ) {
@@ -305,11 +305,11 @@ fn render_radio(
     f:          &mut RenderCtx<'_>,
     area:       Rect,
     options:    &[String],
-    display_fn: Option<fn(&str) -> &'static str>,
+    display_fn: Option<fn(&str) -> String>,
     cursor:     usize,
 ) {
     let lines: Vec<Line> = options.iter().enumerate().map(|(i, opt)| {
-        let label  = display_fn.map(|f| f(opt.as_str())).unwrap_or(opt.as_str());
+        let label  = display_fn.map(|f| f(opt.as_str())).unwrap_or_else(|| opt.clone());
         let marker = if i == cursor { "◉ " } else { "○ " };
         let style  = if i == cursor {
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
@@ -334,12 +334,12 @@ fn render_checkboxes(
     f:          &mut RenderCtx<'_>,
     area:       Rect,
     options:    &[String],
-    display_fn: Option<fn(&str) -> &'static str>,
+    display_fn: Option<fn(&str) -> String>,
     cursor:     usize,
     checked:    &HashSet<usize>,
 ) {
     let lines: Vec<Line> = options.iter().enumerate().map(|(i, opt)| {
-        let label    = display_fn.map(|f| f(opt.as_str())).unwrap_or(opt.as_str());
+        let label    = display_fn.map(|f| f(opt.as_str())).unwrap_or_else(|| opt.clone());
         let is_checked  = checked.contains(&i);
         let checkbox = if is_checked { "[x]" } else { "[ ]" };
         let is_cursor   = i == cursor;
