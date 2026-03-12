@@ -292,10 +292,7 @@ fn render_languages(f: &mut RenderCtx<'_>, state: &AppState, area: Rect, cmap: &
     }
 
     // ── Available for download (from Store, not yet installed) ─────────────────
-    let downloadable: Vec<(String, String)> = state.store_langs.iter()
-        .filter(|e| !state.available_langs.iter().any(|d| d.code == e.code))
-        .map(|e| (e.code.clone(), e.name.clone()))
-        .collect();
+    let downloadable = state.downloadable_store_langs();
 
     if !downloadable.is_empty() {
         lines.push(Line::from(""));
@@ -308,7 +305,7 @@ fn render_languages(f: &mut RenderCtx<'_>, state: &AppState, area: Rect, cmap: &
         ]));
         line_y += 2; // blank + section header (not clickable)
 
-        for (i, (code, name)) in downloadable.iter().enumerate() {
+        for (i, e) in downloadable.iter().enumerate() {
             let dl_cursor = 1 + installed + i;
             let is_sel    = focused && state.lang_cursor == dl_cursor;
 
@@ -326,11 +323,11 @@ fn render_languages(f: &mut RenderCtx<'_>, state: &AppState, area: Rect, cmap: &
             } else {
                 Style::default().fg(Color::DarkGray)
             };
-            let code_upper = code.to_uppercase();
+            let code_upper = e.code.to_uppercase();
             lines.push(Line::from(vec![
                 Span::raw(marker),
                 Span::styled(format!("[{code_upper}] "), Style::default().fg(Color::DarkGray)),
-                Span::styled(name.clone(),             name_style),
+                Span::styled(e.name.clone(),            name_style),
                 Span::raw("  "),
                 Span::styled("↓ Enter/F to download",  Style::default().fg(Color::Yellow)),
             ]));

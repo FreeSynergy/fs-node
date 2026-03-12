@@ -196,6 +196,16 @@ impl AppState {
         let _ = self.settings.save();
     }
 
+    /// Languages available in the Store that are not yet installed locally.
+    ///
+    /// Single source of truth for the "downloadable" list — used by the render
+    /// layer, keyboard handler, and mouse handler to compute cursor bounds.
+    pub fn downloadable_store_langs(&self) -> Vec<&crate::StoreLangEntry> {
+        self.store_langs.iter()
+            .filter(|e| !self.available_langs.iter().any(|d| d.code == e.code))
+            .collect()
+    }
+
     pub fn store_entries_for_type(&self, service_type: &str) -> Vec<&StoreEntry> {
         self.store_entries.iter()
             .filter(|e| e.service_type == service_type)

@@ -18,7 +18,7 @@ use std::path::Path;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{AppState, ConfirmAction, OverlayKind, OverlayLayer, Screen};
+use crate::app::{AppState, ConfirmAction, OverlayKind, OverlayLayer, Screen, SettingsFocus, SettingsSection};
 use crate::resource_form::FormErrorKind;
 use crate::ui::form_node::FormAction;
 use crate::events_dashboard::{self, handle_new_resource_overlay};
@@ -197,7 +197,6 @@ fn handle_resource_form(key: KeyEvent, state: &mut AppState, root: &Path) -> Res
 // ── Settings screen ───────────────────────────────────────────────────────────
 
 fn handle_settings(key: KeyEvent, state: &mut AppState) -> Result<()> {
-    use crate::app::SettingsFocus;
     match state.settings_focus {
         SettingsFocus::Sidebar => handle_settings_sidebar(key, state),
         SettingsFocus::Content => handle_settings_content(key, state),
@@ -205,7 +204,6 @@ fn handle_settings(key: KeyEvent, state: &mut AppState) -> Result<()> {
 }
 
 fn handle_settings_sidebar(key: KeyEvent, state: &mut AppState) -> Result<()> {
-    use crate::app::{SettingsFocus, SettingsSection};
     let n = SettingsSection::ALL.len();
     match key.code {
         KeyCode::Up   => crate::ui::cursor::up(&mut state.settings_sidebar_cursor),
@@ -225,8 +223,6 @@ fn handle_settings_sidebar(key: KeyEvent, state: &mut AppState) -> Result<()> {
 }
 
 fn handle_settings_content(key: KeyEvent, state: &mut AppState) -> Result<()> {
-    use crate::app::{SettingsFocus, SettingsSection};
-
     // ← always goes back to the sidebar.
     if key.code == KeyCode::Left {
         state.settings_focus = SettingsFocus::Sidebar;
@@ -242,7 +238,6 @@ fn handle_settings_content(key: KeyEvent, state: &mut AppState) -> Result<()> {
 }
 
 fn handle_settings_stores(key: KeyEvent, state: &mut AppState) -> Result<()> {
-    use crate::app::SettingsFocus;
     use fsn_core::config::StoreConfig;
 
     let n = state.settings.stores.len();
@@ -289,16 +284,15 @@ fn handle_settings_stores(key: KeyEvent, state: &mut AppState) -> Result<()> {
 }
 
 fn handle_settings_languages(key: KeyEvent, state: &mut AppState) -> Result<()> {
-    use crate::app::SettingsFocus;
-
     // Cursor layout:
     //   0               → English (built-in)
     //   1..=installed   → available_langs (downloaded)
     //   installed+1..   → downloadable store langs not yet installed
+    //
+    // `downloadable_store_langs()` is the single source of truth for the
+    // downloadable list — same helper used in render and trigger_lang_download.
     let installed    = state.available_langs.len();
-    let downloadable = state.store_langs.iter()
-        .filter(|e| !state.available_langs.iter().any(|d| d.code == e.code))
-        .count();
+    let downloadable = state.downloadable_store_langs().len();
     let n_total = 1 + installed + downloadable;
 
     match key.code {
@@ -358,7 +352,6 @@ fn handle_settings_languages(key: KeyEvent, state: &mut AppState) -> Result<()> 
 
 /// Generic content handler — used for sections with no keyboard interaction yet (General, About).
 fn handle_settings_generic(key: KeyEvent, state: &mut AppState) -> Result<()> {
-    use crate::app::SettingsFocus;
     if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) {
         state.settings_focus = SettingsFocus::Sidebar;
     }
@@ -371,17 +364,21 @@ pub(crate) fn trigger_lang_download_pub(state: &mut AppState, download_idx: usiz
 }
 
 /// Spawn a background download for the Nth downloadable store language.
-/// Uses `state.store_langs` (fetched dynamically from the Store index).
+///
+/// `download_idx` indexes into `state.downloadable_store_langs()` — the same
+/// list used by the render layer and cursor-bound calculation.
 fn trigger_lang_download(state: &mut AppState, download_idx: usize) {
     if state.lang_download_rx.is_some() {
         state.push_notif(crate::app::NotifKind::Info, "Download already in progress…");
         return;
     }
-    let uninstalled: Vec<String> = state.store_langs.iter()
-        .filter(|e| !state.available_langs.iter().any(|d| d.code == e.code))
-        .map(|e| e.code.clone())
-        .collect();
-    if let Some(code) = uninstalled.get(download_idx).cloned() {
+    // Collect into owned Strings so the immutable borrow on state ends before
+    // the mutable borrows below (push_notif, lang_download_rx).
+    let code: Option<String> = state
+        .downloadable_store_langs()
+        .get(download_idx)
+        .map(|e| e.code.clone());
+    if let Some(code) = code {
         state.push_notif(crate::app::NotifKind::Info, format!("Downloading {}…", code.to_uppercase()));
         state.lang_download_rx = Some(crate::spawn_lang_downloader(&code, state.settings.clone()));
     }
