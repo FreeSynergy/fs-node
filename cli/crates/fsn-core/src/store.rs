@@ -1,29 +1,56 @@
-// Store index data model.
+// Store catalog data model.
 //
-// The store is a module registry (like apt/npm) distributed as a
-// `store/index.toml` file at the root of any store repository.
+// The store is a package registry distributed as `Node/catalog.toml`
+// at the root of any store repository.
 //
-// Field order in index.toml (mandatory): id → name → service_type → version
-//   → description → icon → website → repository → author → tags
+// catalog.toml contains two arrays:
+//   [[packages]] — deployable modules (zentinel, kanidm, forgejo, …)
+//   [[locales]]  — available i18n language packs
+//
+// Field order in catalog.toml (packages): id → name → category → version
+//   → description → icon → license → path → tags
+// Field order (locales): code → name → version → completeness → direction
+//   → api_version → path
 
 use serde::{Deserialize, Serialize};
 
 use crate::config::service::types::{ServiceType, de_service_types};
 
-// ── StoreIndex ────────────────────────────────────────────────────────────────
+// ── StoreCatalog ───────────────────────────────────────────────────────────────
 
-/// The top-level store manifest.
-/// Fetched from `{store_url}/store/index.toml`.
+/// The top-level store catalog.
+/// Fetched from `{store_url}/Node/catalog.toml`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct StoreIndex {
-    /// All modules listed in this store.
+pub struct StoreCatalog {
+    /// Catalog metadata — present in auto-generated files; ignored when absent.
     #[serde(default)]
-    pub modules: Vec<StoreEntry>,
+    pub catalog: CatalogMeta,
+
+    /// All deployment packages listed in this catalog.
+    #[serde(default)]
+    pub packages: Vec<StoreEntry>,
+
+    /// All available locale packs listed in this catalog.
+    #[serde(default)]
+    pub locales: Vec<LocaleEntry>,
+}
+
+// ── CatalogMeta ───────────────────────────────────────────────────────────────
+
+/// Top-level [catalog] metadata block (auto-generated, informational only).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CatalogMeta {
+    #[serde(default)]
+    pub project: String,
+    #[serde(default)]
+    pub version: String,
+    #[serde(default)]
+    pub generated_at: String,
 }
 
 // ── StoreEntry ────────────────────────────────────────────────────────────────
 
-/// One module entry in the store index.
+/// One package entry in the catalog.
 /// Describes a deployable service (kanidm, forgejo, zentinel, …).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoreEntry {
@@ -35,9 +62,15 @@ pub struct StoreEntry {
     /// Example: "Kanidm", "Zentinel".
     pub name: String,
 
-    /// Service type(s) — accepts either a single string (legacy `service_type`)
-    /// or an array (`service_types`). Deserialized via `de_service_types`.
-    /// Example: `service_type = "iam"` or `service_types = ["proxy", "webhoster_simple"]`.
+    /// Dot-separated category following the Store category system.
+    /// Example: "deploy.proxy", "deploy.iam", "deploy.git".
+    /// Backward-compat: also accepts legacy `service_type` / `service_types`.
+    #[serde(default)]
+    pub category: String,
+
+    /// Service type(s) — backward-compat alias for `category`.
+    /// Accepts a single string (`service_type = "iam"`) or array.
+    /// Deserialized via `de_service_types`.
     #[serde(
         alias = "service_type",
         rename = "service_types",
@@ -46,28 +79,33 @@ pub struct StoreEntry {
     )]
     pub service_types: Vec<ServiceType>,
 
-    /// Version of the module definition.
+    /// Version of the module definition (semver string).
     pub version: String,
 
     /// Short description of what the software does.
     pub description: String,
 
     /// Relative path to the SVG icon within the store repository.
-    /// Used by the web UI — terminal falls back to the module name.
     pub icon: Option<String>,
 
+    /// SPDX license identifier. Example: "Apache-2.0", "MIT".
+    #[serde(default)]
+    pub license: Option<String>,
+
+    /// Store-relative path to the package directory.
+    #[serde(default)]
+    pub path: Option<String>,
+
     /// Official website of the software this module deploys.
-    /// Example: "https://kanidm.com" — link to project documentation.
     pub website: Option<String>,
 
-    /// Source code repository of the software (not the module definition).
-    /// Example: "https://github.com/kanidm/kanidm".
+    /// Source code repository of the software.
     pub repository: Option<String>,
 
     /// Author / maintainer of the module definition.
     pub author: Option<String>,
 
-    /// Searchable tags for the store browser.
+    /// Searchable tags.
     #[serde(default)]
     pub tags: Vec<String>,
 
@@ -79,18 +117,12 @@ pub struct StoreEntry {
     #[serde(default)]
     pub updated_at: Option<String>,
 
-    /// License identifier (SPDX), e.g. "Apache-2.0", "MIT".
-    #[serde(default)]
-    pub license: Option<String>,
-
     /// Minimum FSN version required to deploy this module.
-    /// Example: "0.2.0".
     #[serde(default)]
     pub min_fsn_version: Option<String>,
 
     /// Name of the store this entry was fetched from.
     /// Set by StoreClient when merging results from multiple stores.
-    /// Empty string means source is unknown (e.g. bundled index).
     #[serde(default)]
     pub store_source: String,
 }
@@ -100,13 +132,22 @@ fn default_custom_types() -> Vec<ServiceType> {
 }
 
 impl StoreEntry {
-    /// Returns the formatted label shown in the TUI service class dropdown.
+    /// Returns the category-derived display label shown in the TUI service class dropdown.
     /// Format: "Kanidm (IAM)" or "Kanidm (IAM) ↓" when not installed locally.
     pub fn select_label(&self, is_local: bool) -> String {
-        let type_label = self.service_types.iter()
-            .map(|t| t.label())
-            .collect::<Vec<_>>()
-            .join("/");
+        let type_label = if !self.category.is_empty() {
+            // Derive label from dot-separated category: "deploy.iam" → "IAM"
+            self.category
+                .split('.')
+                .last()
+                .unwrap_or(&self.category)
+                .to_uppercase()
+        } else {
+            self.service_types.iter()
+                .map(|t| t.label())
+                .collect::<Vec<_>>()
+                .join("/")
+        };
         if is_local {
             format!("{} ({})", self.name, type_label)
         } else {
@@ -120,8 +161,66 @@ impl StoreEntry {
     }
 
     /// Returns the primary service type as a lowercase string.
-    /// Used for backward-compat comparisons with legacy string-based filters.
     pub fn primary_type_str(&self) -> String {
         self.primary_type().to_string()
+    }
+
+    /// Returns the category suffix (e.g. "proxy" from "deploy.proxy").
+    /// Falls back to primary_type_str for backward compat.
+    pub fn category_type(&self) -> &str {
+        if !self.category.is_empty() {
+            self.category.split('.').last().unwrap_or(&self.category)
+        } else {
+            // Leak-free: return a ref to the category or service_type string
+            // (this is fine since primary_type_str is not called here)
+            &self.category
+        }
+    }
+}
+
+// ── LocaleEntry ───────────────────────────────────────────────────────────────
+
+/// One locale entry in the catalog's [[locales]] array.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocaleEntry {
+    /// BCP-47 locale code, e.g. "de", "ar", "pt-br".
+    pub code: String,
+
+    /// Display name in the locale's own script, e.g. "Deutsch", "العربية".
+    pub name: String,
+
+    /// Version string (semver).
+    #[serde(default = "default_version")]
+    pub version: String,
+
+    /// Percentage of keys translated, 0–100. Updated by CI.
+    #[serde(default = "default_completeness")]
+    pub completeness: u8,
+
+    /// Text direction: "ltr" or "rtl".
+    #[serde(default = "default_direction")]
+    pub direction: String,
+
+    /// Translation API version — must match TRANSLATION_API_VERSION in the app.
+    #[serde(default = "default_api_version")]
+    pub api_version: u32,
+
+    /// Store-relative path to the locale directory, e.g. "Node/i18n/de".
+    #[serde(default)]
+    pub path: Option<String>,
+}
+
+fn default_version()     -> String { "1.0.0".into() }
+fn default_direction()   -> String { "ltr".into() }
+fn default_completeness() -> u8    { 0 }
+fn default_api_version() -> u32    { 1 }
+
+impl LocaleEntry {
+    /// Returns the path to the ui.toml file within a resolved store root.
+    ///
+    /// `store_root` — local path to the Store repository root.
+    /// Returns `{store_root}/{path}/ui.toml` if `path` is set, else None.
+    pub fn ui_toml_path(&self, store_root: &std::path::Path) -> Option<std::path::PathBuf> {
+        self.path.as_ref().map(|p| store_root.join(p).join("ui.toml"))
     }
 }

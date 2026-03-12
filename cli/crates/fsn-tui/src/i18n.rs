@@ -9,6 +9,11 @@
 //
 // DynamicLang uses Box::leak() so that loaded strings are also &'static str —
 // this keeps the return type of t() uniform and the Lang enum Copy.
+//
+// i18n file format (ui.toml):
+//   [meta]          — code, name, api_version, completeness
+//   [section]       — TOML table hierarchy; flattened to "section.key" at load
+//   [field_help]    — single-level table; keys stored without prefix
 
 use std::collections::HashMap;
 use crate::app::Lang;
@@ -20,15 +25,15 @@ pub const TRANSLATION_API_VERSION: u32 = 1;
 
 // ── DynamicLang ───────────────────────────────────────────────────────────────
 
-/// A language loaded at runtime from a TOML file.
+/// A language loaded at runtime from a ui.toml file.
 ///
 /// All strings are leaked so they are `'static`, matching the static English
 /// strings and keeping `Lang` (which holds `&'static DynamicLang`) `Copy`.
 #[derive(Debug, PartialEq, Eq)]
 pub struct DynamicLang {
-    pub code:         &'static str,   // e.g. "de"
-    pub code_upper:   &'static str,   // e.g. "DE"
-    pub name:         &'static str,   // e.g. "Deutsch"
+    pub code:         &'static str,
+    pub code_upper:   &'static str,
+    pub name:         &'static str,
     pub api_version:  u32,
     pub completeness: u8,
     map:              HashMap<&'static str, &'static str>,
@@ -36,7 +41,12 @@ pub struct DynamicLang {
 }
 
 impl DynamicLang {
-    /// Parse TOML source and leak the result as `&'static DynamicLang`.
+    /// Parse a ui.toml string and leak the result as `&'static DynamicLang`.
+    ///
+    /// Expects the new table-hierarchy format:
+    ///   [meta] code/name/api_version/completeness
+    ///   [section] key = "value"  → flattened to "section.key"
+    ///   [field_help] key = "value"  → stored without prefix
     ///
     /// Memory is intentionally leaked — translations live for the entire app
     /// lifetime (a few hundred KB total), so leaking is the right trade-off.
@@ -47,8 +57,8 @@ impl DynamicLang {
         let meta = doc.get("meta")
             .ok_or_else(|| anyhow::anyhow!("missing [meta] section"))?;
 
-        let code = meta.get("language").and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("missing meta.language"))?.to_owned();
+        let code = meta.get("code").and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("missing meta.code"))?.to_owned();
         let name = meta.get("name").and_then(|v| v.as_str())
             .unwrap_or(&code).to_owned();
         let api_version = meta.get("api_version")
@@ -57,23 +67,25 @@ impl DynamicLang {
             .and_then(|v| v.as_integer()).unwrap_or(0).clamp(0, 100) as u8;
 
         let mut map: HashMap<&'static str, &'static str> = HashMap::new();
-        if let Some(table) = doc.get("keys").and_then(|v| v.as_table()) {
-            for (k, v) in table {
-                if let Some(val) = v.as_str() {
-                    let k: &'static str = Box::leak(k.clone().into_boxed_str());
-                    let v: &'static str = Box::leak(val.to_owned().into_boxed_str());
-                    map.insert(k, v);
-                }
-            }
-        }
-
         let mut field_map: HashMap<&'static str, &'static str> = HashMap::new();
-        if let Some(table) = doc.get("field_help").and_then(|v| v.as_table()) {
-            for (k, v) in table {
-                if let Some(val) = v.as_str() {
-                    let k: &'static str = Box::leak(k.clone().into_boxed_str());
-                    let v: &'static str = Box::leak(val.to_owned().into_boxed_str());
-                    field_map.insert(k, v);
+
+        if let Some(root_table) = doc.as_table() {
+            for (section, section_val) in root_table {
+                if section == "meta" { continue; }
+                if let Some(entries) = section_val.as_table() {
+                    if section == "field_help" {
+                        // field_help keys stored without section prefix
+                        for (k, v) in entries {
+                            if let Some(val) = v.as_str() {
+                                let k: &'static str = Box::leak(k.clone().into_boxed_str());
+                                let v: &'static str = Box::leak(val.to_owned().into_boxed_str());
+                                field_map.insert(k, v);
+                            }
+                        }
+                    } else {
+                        // Regular sections: flatten to "section.key" dot-notation
+                        flatten_table(entries, section, &mut map);
+                    }
                 }
             }
         }
@@ -91,20 +103,52 @@ impl DynamicLang {
         Ok(Box::leak(Box::new(lang)))
     }
 
-    /// Load all `.toml` files from `dir`, silently skipping failures.
+    /// Load all locale subdirectories from `dir`.
+    ///
+    /// Each subdirectory must contain a `ui.toml` file in the new table-hierarchy
+    /// format. Silently skips entries without `ui.toml` or with parse errors.
     pub fn load_dir(dir: &std::path::Path) -> Vec<&'static Self> {
         let Ok(entries) = std::fs::read_dir(dir) else { return vec![] };
         let mut out = Vec::new();
         for entry in entries.filter_map(|e| e.ok()) {
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("toml") { continue; }
-            let Ok(content) = std::fs::read_to_string(&path) else { continue; };
+            if !path.is_dir() { continue; }
+            let ui_path = path.join("ui.toml");
+            if !ui_path.exists() { continue; }
+            let Ok(content) = std::fs::read_to_string(&ui_path) else { continue; };
             match DynamicLang::load(&content) {
                 Ok(lang) => out.push(lang),
-                Err(e)   => tracing::warn!("i18n: failed to load {:?}: {e}", path),
+                Err(e)   => tracing::warn!("i18n: failed to load {:?}: {e}", ui_path),
             }
         }
         out
+    }
+}
+
+// ── flatten_table ─────────────────────────────────────────────────────────────
+
+/// Recursively flatten a TOML table into dot-notation keys.
+///
+/// `[welcome] title = "..."` with prefix "welcome" → key "welcome.title".
+/// `[dash] col.name = "..."` with prefix "dash" → key "dash.col.name".
+fn flatten_table(
+    table:  &toml::value::Table,
+    prefix: &str,
+    out:    &mut HashMap<&'static str, &'static str>,
+) {
+    for (k, v) in table {
+        let full_key = format!("{prefix}.{k}");
+        match v {
+            toml::Value::String(s) => {
+                let k: &'static str = Box::leak(full_key.into_boxed_str());
+                let v: &'static str = Box::leak(s.clone().into_boxed_str());
+                out.insert(k, v);
+            }
+            toml::Value::Table(t) => {
+                flatten_table(t, &full_key, out);
+            }
+            _ => {}
+        }
     }
 }
 
@@ -131,9 +175,6 @@ impl Translate for Lang {
 // ── Free translation functions ────────────────────────────────────────────────
 
 /// Translate `key` for the given `lang`. Falls back to English, then to `key`.
-///
-/// `key` may be any `&str` lifetime; callers typically pass `&'static str`
-/// literals, in which case the return is also effectively `'static`.
 pub fn t<'a>(lang: Lang, key: &'a str) -> &'a str {
     match lang {
         Lang::En         => en(key).unwrap_or(key),

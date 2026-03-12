@@ -549,13 +549,8 @@ fn trigger_lang_download_by_code(state: &mut AppState, code: String) {
         state.push_notif(crate::app::NotifKind::Info, "Download already in progress…");
         return;
     }
-    // Look up the filename from the store index; fall back to "{code}.toml" when offline.
-    let file = state.store_langs.iter()
-        .find(|e| e.code == code)
-        .map(|e| e.file.clone())
-        .unwrap_or_else(|| format!("{code}.toml"));
     state.push_notif(crate::app::NotifKind::Info, format!("Downloading {}…", code.to_uppercase()));
-    state.lang_download_rx = Some(crate::spawn_lang_downloader(&code, &file, state.settings.clone()));
+    state.lang_download_rx = Some(crate::spawn_lang_downloader(&code, state.settings.clone()));
 }
 
 /// Generic content handler — used for sections with no keyboard interaction yet (General, About).

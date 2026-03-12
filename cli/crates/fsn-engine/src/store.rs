@@ -1,8 +1,8 @@
 // Store client – fetches indices and syncs module trees from configured stores.
 //
 // Each store is a Git repository with this structure:
-//   Node/             ← module tree (plugin executables, templates, TOML)
-//   Node/index.toml   ← module catalogue
+//   Node/              ← module tree (plugin executables, templates, TOML)
+//   Node/catalog.toml  ← unified catalog: [[packages]] + [[locales]]
 //
 // Two modes:
 //   fetch_all()     – HTTP, fetches the TOML index only (for browsing)
@@ -17,7 +17,7 @@ use tracing::info;
 
 use fsn_core::{
     config::{AppSettings, ServiceRegistry},
-    store::{StoreEntry, StoreIndex},
+    store::{StoreCatalog, StoreEntry},
 };
 
 // ── StoreClient ───────────────────────────────────────────────────────────────
@@ -40,34 +40,34 @@ impl StoreClient {
         self.registry.get(id).is_some()
     }
 
-    /// Fetch the index from a store URL.
+    /// Fetch the catalog from a store URL.
     ///
-    /// Index URL: `{store_url}/Node/index.toml`.
-    /// Returns an empty index on network error (caller shows "unavailable").
-    pub async fn fetch_index(&self, store_url: &str) -> Result<StoreIndex> {
-        let url = format!("{}/Node/index.toml", store_url.trim_end_matches('/'));
+    /// Catalog URL: `{store_url}/Node/catalog.toml`.
+    /// Returns an empty catalog on network error (caller shows "unavailable").
+    pub async fn fetch_catalog(&self, store_url: &str) -> Result<StoreCatalog> {
+        let url = format!("{}/Node/catalog.toml", store_url.trim_end_matches('/'));
         let text = reqwest::get(&url)
             .await
-            .with_context(|| format!("fetching store index from {url}"))?
+            .with_context(|| format!("fetching store catalog from {url}"))?
             .text()
             .await
-            .with_context(|| "reading store index response")?;
-        toml::from_str(&text).with_context(|| format!("parsing store index from {url}"))
+            .with_context(|| "reading store catalog response")?;
+        toml::from_str(&text).with_context(|| format!("parsing store catalog from {url}"))
     }
 
-    /// Fetch and merge all enabled store indices into a single list.
+    /// Fetch and merge all enabled store catalogs into a single list of packages.
     ///
     /// Entries from earlier stores take precedence when IDs collide.
-    /// Each `StoreEntry` is annotated with `is_local` at call time.
+    /// Each `StoreEntry` is annotated with `store_source` at call time.
     pub async fn fetch_all(&self) -> Vec<StoreEntry> {
         let mut seen = std::collections::HashSet::new();
         let mut result = Vec::new();
 
         for store in &self.settings.stores {
             if !store.enabled { continue }
-            match self.fetch_index(&store.url).await {
-                Ok(index) => {
-                    for mut entry in index.modules {
+            match self.fetch_catalog(&store.url).await {
+                Ok(catalog) => {
+                    for mut entry in catalog.packages {
                         if seen.insert(entry.id.clone()) {
                             entry.store_source = store.name.clone();
                             result.push(entry);
@@ -90,16 +90,16 @@ impl StoreClient {
             .collect()
     }
 
-    /// Load a bundled (offline) index from the local modules directory.
+    /// Load a bundled (offline) catalog from the local modules directory.
     ///
-    /// Reads `{modules_dir}/../store/index.toml` — the index shipped with FSN.
-    /// Falls back to an empty index when the file is absent.
-    pub fn load_bundled(modules_dir: &Path) -> StoreIndex {
+    /// Reads `{modules_dir}/../store/catalog.toml` — the catalog shipped with FSN.
+    /// Falls back to an empty catalog when the file is absent.
+    pub fn load_bundled(modules_dir: &Path) -> StoreCatalog {
         let path = modules_dir.parent()
             .unwrap_or(modules_dir)
             .join("store")
-            .join("index.toml");
-        if !path.exists() { return StoreIndex::default(); }
+            .join("catalog.toml");
+        if !path.exists() { return StoreCatalog::default(); }
         std::fs::read_to_string(&path)
             .ok()
             .and_then(|s| toml::from_str(&s).ok())
