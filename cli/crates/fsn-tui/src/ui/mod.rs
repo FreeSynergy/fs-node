@@ -52,6 +52,7 @@ impl OverlayLayer {
 
 pub fn render(f: &mut RenderCtx<'_>, state: &mut AppState) {
     let full = f.area();
+    state.terminal_area = full;
 
     // Route to the correct screen renderer.
     // Screen::Welcome now uses the Dashboard layout — the Welcome overlay is drawn on top.

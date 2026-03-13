@@ -92,15 +92,19 @@ impl StoreClient {
 
     /// Load a bundled (offline) catalog from the local modules directory.
     ///
-    /// Reads `{modules_dir}/../store/catalog.toml` — the catalog shipped with FSN.
-    /// Falls back to an empty catalog when the file is absent.
+    /// Tries `{modules_dir}/../store/catalog.toml` first (new format),
+    /// then `{modules_dir}/../store/index.toml` (legacy format with `[[modules]]`).
+    /// Falls back to an empty catalog when neither file exists.
     pub fn load_bundled(modules_dir: &Path) -> StoreCatalog {
-        let path = modules_dir.parent()
-            .unwrap_or(modules_dir)
-            .join("store")
-            .join("catalog.toml");
-        if !path.exists() { return StoreCatalog::default(); }
-        std::fs::read_to_string(&path)
+        let base = modules_dir.parent().unwrap_or(modules_dir).join("store");
+        let catalog_path = base.join("catalog.toml");
+        let index_path   = base.join("index.toml");
+
+        let path = if catalog_path.exists() { &catalog_path }
+                   else if index_path.exists() { &index_path }
+                   else { return StoreCatalog::default(); };
+
+        std::fs::read_to_string(path)
             .ok()
             .and_then(|s| toml::from_str(&s).ok())
             .unwrap_or_default()

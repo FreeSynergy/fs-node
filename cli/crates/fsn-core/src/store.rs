@@ -27,7 +27,8 @@ pub struct StoreCatalog {
     pub catalog: CatalogMeta,
 
     /// All deployment packages listed in this catalog.
-    #[serde(default)]
+    /// Accepts both `[[packages]]` (catalog format) and `[[modules]]` (legacy index format).
+    #[serde(default, alias = "modules")]
     pub packages: Vec<StoreEntry>,
 
     /// All available locale packs listed in this catalog.
