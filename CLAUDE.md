@@ -21,7 +21,6 @@ cli/                  → Rust workspace (CLI + TUI + core logic)
   crates/
     fsn-core/         → Node-specific data types + config parsing
     fsn-engine/       → Deployment engine (Zentinel, Quadlet generation)
-    fsn-podman/       → Podman interaction
     fsn-dns/          → DNS provider integrations
     fsn-cli/          → CLI binary (clap)
     fsn-tui/          → Terminal UI (ratatui + rat-salsa)
@@ -37,17 +36,19 @@ projects/             → Project files + branding + sites
 
 All shared libraries live in `../FreeSynergy.Lib/`. Never duplicate their logic in fsn-*.
 
-| Library      | Purpose |
+| Library         | Purpose |
 |---|---|
-| `fsy-types`  | Resource/Capability traits, Meta, TypeRegistry |
-| `fsy-error`  | FsyError, Repairable trait, ValidationIssue |
-| `fsy-config` | TOML loader/saver with backup + auto-repair |
-| `fsy-i18n`   | Snippet-based i18n (t(), t_with()) |
-| `fsy-theme`  | Theme system (theme.toml → TUI palette + CSS) |
-| `fsy-help`   | Context-sensitive help topics |
-| `fsy-health` | Generic health check framework |
-| `fsy-core`   | FormAction, SelectionResult |
-| `fsy-tui`    | FormNode trait + all TUI node implementations |
+| `fsn-types`     | Resource/Capability traits, Meta, TypeRegistry |
+| `fsn-error`     | FsyError, Repairable trait, ValidationIssue |
+| `fsn-config`    | TOML loader/saver with backup + auto-repair |
+| `fsn-i18n`      | Snippet-based i18n (t(), t_with()) |
+| `fsn-theme`     | Theme system (theme.toml → TUI palette + CSS) |
+| `fsn-help`      | Context-sensitive help topics |
+| `fsn-health`    | Generic health check framework + HealthCheck trait |
+| `fsn-container` | Container abstraction (Podman via bollard) |
+| `fsn-template`  | Tera template engine wrapper |
+| `fsn-plugin-sdk`     | WASM Plugin SDK |
+| `fsn-plugin-runtime` | WASM Host runtime |
 
 ## Module Conventions
 
@@ -78,7 +79,7 @@ Every module has two health check levels:
 
 ## TUI Architecture
 
-Component-based with `FormNode` trait (`fsy-tui`). Nodes in `fsy-tui/src/nodes/`:
+Component-based with `FormNode` trait (`fsn-tui` from Lib). Nodes in `fsn-tui/src/nodes/`:
 `TextInputNode`, `SelectInputNode`, `MultiSelectInputNode`, `TextAreaNode`,
 `EnvTableNode`, `SectionNode`. Overlay stack (`overlay_stack: Vec<OverlayLayer>`).
 

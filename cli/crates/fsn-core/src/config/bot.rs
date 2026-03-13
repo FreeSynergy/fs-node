@@ -1,3 +1,4 @@
+use fsn_error::FsyError;
 // Bot configuration — automation agents running within a project.
 //
 // Examples: Matrix bot (Hookshot / Maubot), Telegram bot, webhook receiver.
@@ -10,7 +11,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::config::meta::ResourceMeta;
-use crate::error::FsnError;
+
 use crate::resource::{BotResource, Resource, ResourcePhase};
 
 // ── BotConfig ─────────────────────────────────────────────────────────────────
@@ -86,15 +87,15 @@ impl Resource for BotConfig {
     fn tags(&self) -> &[String] { &self.bot.meta.tags }
     fn phase(&self) -> ResourcePhase { ResourcePhase::Unknown }
 
-    fn validate(&self) -> Result<(), FsnError> {
+    fn validate(&self) -> Result<(), FsyError> {
         if self.bot.meta.name.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "bot.name is required".into() });
+            return Err(FsyError::Config("bot.name is required".into()));
         }
         if self.bot.project.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "bot.project is required".into() });
+            return Err(FsyError::Config("bot.project is required".into()));
         }
         if self.bot.service_class.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "bot.service_class is required".into() });
+            return Err(FsyError::Config("bot.service_class is required".into()));
         }
         Ok(())
     }

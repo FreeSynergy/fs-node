@@ -11,7 +11,7 @@ pub mod error;
 pub mod store;
 
 pub use config::bot::{BotConfig, BotMeta, BotType};
-pub use error::FsnError;
+pub use error::FsyError;
 pub use resource::{
     Resource, ResourcePhase,
     ProjectResource, HostResource, ServiceResource, BotResource,

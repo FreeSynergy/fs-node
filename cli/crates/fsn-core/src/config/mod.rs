@@ -43,8 +43,8 @@ pub use vault::VaultConfig;
 ///
 /// Single source of truth for the read-and-parse pattern used by all config
 /// types (`ProjectConfig`, `HostConfig`, `ServiceInstanceConfig`, …).
-/// Returns typed `FsnError` variants so callers do not need to map manually.
-pub fn load_toml<T>(path: &std::path::Path) -> Result<T, crate::error::FsnError>
+/// Returns typed `FsyError` variants so callers do not need to map manually.
+pub fn load_toml<T>(path: &std::path::Path) -> Result<T, fsn_error::FsyError>
 where
     T: serde::de::DeserializeOwned,
 {
@@ -60,17 +60,14 @@ where
 pub fn load_toml_validated<T>(
     path: &std::path::Path,
     kind: validate::TomlKind,
-) -> Result<T, crate::error::FsnError>
+) -> Result<T, fsn_error::FsyError>
 where
     T: serde::de::DeserializeOwned,
 {
     let path_str = path.display().to_string();
-    let content = std::fs::read_to_string(path).map_err(|_| crate::error::FsnError::ConfigNotFound {
-        path: path_str.clone(),
-    })?;
+    let content = std::fs::read_to_string(path)
+        .map_err(|_| fsn_error::FsyError::NotFound(path_str.clone()))?;
     validate::validate_toml_content(&content, kind, &path_str)?;
-    toml::from_str(&content).map_err(|e| crate::error::FsnError::ConfigParse {
-        path: path_str,
-        source: e,
-    })
+    toml::from_str(&content)
+        .map_err(|e| fsn_error::FsyError::Parse(format!("{path_str}: {e}")))
 }

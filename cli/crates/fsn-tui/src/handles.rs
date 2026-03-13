@@ -9,8 +9,8 @@ use anyhow::Result;
 
 use fsn_core::config::host::HostConfig;
 use fsn_core::config::project::{ProjectConfig, ServiceInstanceConfig};
-use fsn_core::error::FsnError;
 use fsn_core::resource::{HostResource, ProjectResource, Resource, ServiceResource};
+use fsn_error::FsyError;
 pub use fsn_core::state::actual::RunState;
 
 // ── Project handle ────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ impl Resource for ProjectHandle {
     fn id(&self)   -> &str         { &self.slug }
     fn display_name(&self) -> &str { self.config.project.meta.display_name() }
     fn description(&self)  -> Option<&str> { self.config.project.meta.description.as_deref() }
-    fn validate(&self) -> Result<(), FsnError> { self.config.validate() }
+    fn validate(&self) -> Result<(), FsyError> { self.config.validate() }
 }
 
 impl ProjectResource for ProjectHandle {
@@ -82,7 +82,7 @@ impl Resource for HostHandle {
     fn id(&self)   -> &str         { &self.slug }
     fn display_name(&self) -> &str { self.config.host.meta.display_name() }
     fn tags(&self)  -> &[String]  { &self.config.host.meta.tags }
-    fn validate(&self) -> Result<(), FsnError> { self.config.validate() }
+    fn validate(&self) -> Result<(), FsyError> { self.config.validate() }
 }
 
 impl HostResource for HostHandle {
@@ -112,7 +112,7 @@ impl Resource for ServiceHandle {
     fn id(&self)   -> &str         { &self.name }
     fn display_name(&self) -> &str { self.config.service.meta.display_name() }
     fn tags(&self)  -> &[String]  { &self.config.service.meta.tags }
-    fn validate(&self) -> Result<(), FsnError> { self.config.validate() }
+    fn validate(&self) -> Result<(), FsyError> { self.config.validate() }
 }
 
 impl ServiceResource for ServiceHandle {

@@ -1,3 +1,4 @@
+use fsn_error::FsyError;
 // Service class definition – maps to modules/{type}/{name}/{name}.toml
 //
 // Design Pattern: Module split:
@@ -19,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use toml::Value;
 
 use crate::config::manifest::ModuleManifest;
-use crate::error::FsnError;
+
 use crate::resource::Resource;
 
 // ── Service Class ─────────────────────────────────────────────────────────────
@@ -355,15 +356,15 @@ impl Resource for ServiceClass {
     fn description(&self) -> Option<&str> { self.meta.description.as_deref() }
     fn tags(&self) -> &[String] { &self.meta.tags }
 
-    fn validate(&self) -> Result<(), FsnError> {
+    fn validate(&self) -> Result<(), FsyError> {
         if self.meta.name.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "module.name is required".into() });
+            return Err(FsyError::Config("module.name is required".into()));
         }
         if self.meta.version.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "module.version is required".into() });
+            return Err(FsyError::Config("module.version is required".into()));
         }
         if self.container.image.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "container.image is required".into() });
+            return Err(FsyError::Config("container.image is required".into()));
         }
         Ok(())
     }

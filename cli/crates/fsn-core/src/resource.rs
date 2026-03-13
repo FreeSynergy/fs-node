@@ -12,7 +12,8 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use crate::error::FsnError;
+use fsn_error::FsyError;
+
 
 // ── Lifecycle phase ───────────────────────────────────────────────────────────
 
@@ -79,8 +80,8 @@ pub trait Resource: fmt::Debug {
     /// Validate all structural invariants.
     ///
     /// Returns `Ok(())` when the resource is self-consistent.
-    /// Returns `Err(FsnError::ConstraintViolation)` on the first violation found.
-    fn validate(&self) -> Result<(), FsnError>;
+    /// Returns `Err(FsyError::ConstraintViolation)` on the first violation found.
+    fn validate(&self) -> Result<(), FsyError>;
 
     /// Current lifecycle phase.
     ///

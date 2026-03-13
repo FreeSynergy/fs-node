@@ -1,3 +1,4 @@
+use fsn_error::FsyError;
 // Project config – maps to projects/{name}/{name}.project.toml
 //
 // Naming convention (per RULES.md):
@@ -11,7 +12,7 @@ use std::path::Path;
 use toml::Value;
 
 use crate::config::meta::ResourceMeta;
-use crate::error::FsnError;
+
 use crate::resource::{ProjectResource, Resource, ServiceResource};
 
 /// Root structure of a project config file.
@@ -215,7 +216,7 @@ pub struct ServiceInstanceMeta {
 }
 
 impl ServiceInstanceConfig {
-    pub fn load(path: &std::path::Path) -> Result<Self, crate::error::FsnError> {
+    pub fn load(path: &std::path::Path) -> Result<Self, fsn_error::FsyError> {
         crate::config::load_toml_validated(path, crate::config::validate::TomlKind::Service)
     }
 }
@@ -226,15 +227,15 @@ impl Resource for ServiceInstanceConfig {
     fn display_name(&self) -> &str { self.service.meta.display_name() }
     fn tags(&self) -> &[String] { &self.service.meta.tags }
 
-    fn validate(&self) -> Result<(), FsnError> {
+    fn validate(&self) -> Result<(), FsyError> {
         if self.service.meta.name.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "service.name is required".into() });
+            return Err(FsyError::Config("service.name is required".into()));
         }
         if self.service.service_class.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "service.service_class is required".into() });
+            return Err(FsyError::Config("service.service_class is required".into()));
         }
         if self.service.project.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "service.project is required".into() });
+            return Err(FsyError::Config("service.project is required".into()));
         }
         Ok(())
     }
@@ -249,7 +250,7 @@ impl ServiceResource for ServiceInstanceConfig {
 }
 
 impl ProjectConfig {
-    pub fn load(path: &Path) -> Result<Self, FsnError> {
+    pub fn load(path: &Path) -> Result<Self, FsyError> {
         crate::config::load_toml_validated(path, crate::config::validate::TomlKind::Project)
     }
 }
@@ -261,12 +262,12 @@ impl Resource for ProjectConfig {
     fn description(&self) -> Option<&str> { self.project.meta.description.as_deref() }
     fn tags(&self) -> &[String] { &self.project.meta.tags }
 
-    fn validate(&self) -> Result<(), FsnError> {
+    fn validate(&self) -> Result<(), FsyError> {
         if self.project.meta.name.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "project.name is required".into() });
+            return Err(FsyError::Config("project.name is required".into()));
         }
         if self.project.domain.is_empty() {
-            return Err(FsnError::ConstraintViolation { message: "project.domain is required".into() });
+            return Err(FsyError::Config("project.domain is required".into()));
         }
         Ok(())
     }

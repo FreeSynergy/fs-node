@@ -1,3 +1,4 @@
+use fsn_error::FsyError;
 // Module + plugin registry – scans modules/ directory and loads all module
 // class TOMLs and plugin TOMLs.
 //
@@ -15,7 +16,7 @@ use walkdir::WalkDir;
 
 use crate::config::plugin::PluginConfig;
 use crate::config::service::ServiceClass;
-use crate::error::FsnError;
+
 
 /// In-memory index of all available module classes and plugins.
 ///
@@ -38,7 +39,7 @@ impl ServiceRegistry {
     ///
     /// Depth-4 enables sub-modules nested under a parent module
     /// (e.g. `proxy/zentinel/zentinel-control-plane`).
-    pub fn load(modules_dir: &Path) -> Result<Self, FsnError> {
+    pub fn load(modules_dir: &Path) -> Result<Self, FsyError> {
         let mut registry = Self {
             classes:     HashMap::new(),
             plugins:     HashMap::new(),
@@ -144,20 +145,16 @@ impl ServiceRegistry {
         Ok(registry)
     }
 
-    fn load_class(path: &Path) -> Result<ServiceClass, FsnError> {
-        let content = std::fs::read_to_string(path).map_err(FsnError::Io)?;
-        toml::from_str(&content).map_err(|e| FsnError::ConfigParse {
-            path: path.display().to_string(),
-            source: e,
-        })
+    fn load_class(path: &Path) -> Result<ServiceClass, FsyError> {
+        let content = std::fs::read_to_string(path).map_err(FsyError::Io)?;
+        let p = path.display().to_string();
+        toml::from_str(&content).map_err(|e| FsyError::Parse(format!("{p}: {e}")))
     }
 
-    fn load_plugin(path: &Path) -> Result<PluginConfig, FsnError> {
-        let content = std::fs::read_to_string(path).map_err(FsnError::Io)?;
-        toml::from_str(&content).map_err(|e| FsnError::ConfigParse {
-            path: path.display().to_string(),
-            source: e,
-        })
+    fn load_plugin(path: &Path) -> Result<PluginConfig, FsyError> {
+        let content = std::fs::read_to_string(path).map_err(FsyError::Io)?;
+        let p = path.display().to_string();
+        toml::from_str(&content).map_err(|e| FsyError::Parse(format!("{p}: {e}")))
     }
 
     /// Look up a module class by its "{type}/{name}" key.

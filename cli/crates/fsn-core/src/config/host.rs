@@ -1,3 +1,4 @@
+use fsn_error::FsyError;
 // Host config – maps to projects/{project}/{hostname}.host.toml
 //
 // Rules (per RULES.md):
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::config::meta::ResourceMeta;
-use crate::error::FsnError;
+
 use crate::resource::{HostResource, Resource};
 
 /// Root structure of a host config file.
@@ -143,7 +144,7 @@ fn default_acme() -> String { "letsencrypt".into() }
 
 impl HostConfig {
     /// Load a host config from a TOML file.
-    pub fn load(path: &Path) -> Result<Self, FsnError> {
+    pub fn load(path: &Path) -> Result<Self, FsyError> {
         crate::config::load_toml_validated(path, crate::config::validate::TomlKind::Host)
     }
 }
@@ -154,9 +155,9 @@ impl Resource for HostConfig {
     fn display_name(&self) -> &str { self.host.meta.display_name() }
     fn tags(&self) -> &[String] { &self.host.meta.tags }
 
-    fn validate(&self) -> Result<(), FsnError> {
-        if self.host.meta.name.is_empty() { return Err(FsnError::ConstraintViolation { message: "host.name is required".into() }); }
-        if self.host.addr().is_empty()    { return Err(FsnError::ConstraintViolation { message: "host.address is required".into() }); }
+    fn validate(&self) -> Result<(), FsyError> {
+        if self.host.meta.name.is_empty() { return Err(FsyError::Config("host.name is required".into())); }
+        if self.host.addr().is_empty()    { return Err(FsyError::Config("host.address is required".into())); }
         Ok(())
     }
 }

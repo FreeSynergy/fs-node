@@ -1,3 +1,4 @@
+use fsn_error::FsyError;
 // Application settings – stored at ~/.config/fsn/settings.toml
 //
 // Contains user-level preferences: store URLs, UI language, etc.
@@ -6,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::error::FsnError;
+
 
 // ── AppSettings ───────────────────────────────────────────────────────────────
 
@@ -102,26 +103,24 @@ fn default_true() -> bool { true }
 impl AppSettings {
     /// Load settings from `~/.config/fsn/settings.toml`.
     /// Returns `Default` when the file does not exist.
-    pub fn load() -> Result<Self, FsnError> {
+    pub fn load() -> Result<Self, FsyError> {
         let path = settings_path();
         if !path.exists() {
             return Ok(Self::default());
         }
         let content = std::fs::read_to_string(&path)?;
-        toml::from_str(&content).map_err(|e| FsnError::ConfigParse {
-            path: path.display().to_string(),
-            source: e,
-        })
+        toml::from_str(&content)
+            .map_err(|e| FsyError::Parse(format!("{}: {e}", path.display())))
     }
 
     /// Persist settings to `~/.config/fsn/settings.toml`.
-    pub fn save(&self) -> Result<(), FsnError> {
+    pub fn save(&self) -> Result<(), FsyError> {
         let path = settings_path();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let content = toml::to_string_pretty(self)
-            .map_err(|e| FsnError::Template(e.to_string()))?;
+            .map_err(|e| FsyError::Internal(e.to_string()))?;
         std::fs::write(&path, content)?;
         Ok(())
     }

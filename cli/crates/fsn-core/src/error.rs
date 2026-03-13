@@ -1,29 +1,10 @@
-use thiserror::Error;
+// Error types for FreeSynergy.Node.
+//
+// Uses FsyError from fsn-error (FreeSynergy.Lib) as the canonical error type.
+// Node-specific error conditions map to FsyError variants via helper constructors
+// (FsyError::config(), FsyError::not_found(), FsyError::parse(), etc.).
 
-#[derive(Debug, Error)]
-pub enum FsnError {
-    #[error("Config file not found: {path}")]
-    ConfigNotFound { path: String },
+pub use fsn_error::FsyError;
 
-    #[error("Config parse error in {path}: {source}")]
-    ConfigParse {
-        path: String,
-        #[source]
-        source: toml::de::Error,
-    },
-
-    #[error("Config validation failed for {path}: {reason}")]
-    ConfigInvalid { path: String, reason: String },
-
-    #[error("Module class not found: {class}")]
-    ServiceClassNotFound { class: String },
-
-    #[error("Constraint violation: {message}")]
-    ConstraintViolation { message: String },
-
-    #[error("Template error: {0}")]
-    Template(String),
-
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-}
+/// Node-local alias for readability in Node-specific code.
+pub type FsnError = FsyError;
