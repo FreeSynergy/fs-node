@@ -1057,6 +1057,7 @@ version = "0.1.0"
 dependencies = [
  "age",
  "anyhow",
+ "fsy-health",
  "indexmap",
  "secrecy 0.10.3",
  "serde",
@@ -1173,6 +1174,13 @@ dependencies = [
 [[package]]
 name = "fsy-core"
 version = "0.1.0"
+
+[[package]]
+name = "fsy-health"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "fsy-tui"

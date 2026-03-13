@@ -24,9 +24,16 @@ repository  = "https://github.com/FreeSynergyNet/FreeSynergy.Node"
 # External crates (outside this workspace)
 store-sdk   = { path = "../../Store/crates/store-sdk" }
 
-# FreeSynergy.UI — shared TUI abstraction library
-fsy-core    = { path = "../../FreeSynergy.UI/fsy-core" }
-fsy-tui     = { path = "../../FreeSynergy.UI/fsy-tui" }
+# FreeSynergy.Lib — shared libraries
+fsy-types   = { path = "../../FreeSynergy.Lib/fsy-types" }
+fsy-error   = { path = "../../FreeSynergy.Lib/fsy-error" }
+fsy-config  = { path = "../../FreeSynergy.Lib/fsy-config" }
+fsy-i18n    = { path = "../../FreeSynergy.Lib/fsy-i18n" }
+fsy-theme   = { path = "../../FreeSynergy.Lib/fsy-theme" }
+fsy-help    = { path = "../../FreeSynergy.Lib/fsy-help" }
+fsy-health  = { path = "../../FreeSynergy.Lib/fsy-health" }
+fsy-core    = { path = "../../FreeSynergy.Lib/fsy-core" }
+fsy-tui     = { path = "../../FreeSynergy.Lib/fsy-tui" }
 
 # Internal crates
 fsn-form-derive = { path = "crates/fsn-form-derive" }
