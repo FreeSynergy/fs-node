@@ -1,6 +1,6 @@
 use std::path::Path;
 use anyhow::Result;
-use fsy_container::SystemdManager;
+use fsn_container::SystemdManager;
 
 /// Restart one or all FSN-managed services.
 pub async fn run(_root: &Path, _project: Option<&Path>, service: Option<&str>) -> Result<()> {

@@ -22,7 +22,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
 
-pub use fsy_core::FormAction;
+pub use fsn_core::FormAction;
 
 use crate::ui::render_ctx::RenderCtx;
 

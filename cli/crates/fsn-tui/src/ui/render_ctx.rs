@@ -8,7 +8,7 @@
 //
 // Design: Facade pattern — same interface, different backend.
 //
-// Lang + translate(): mirrors the fsy_tui::RenderCtx API so FormNode::render()
+// Lang + translate(): mirrors the fsn_tui::RenderCtx API so FormNode::render()
 // nodes can call `f.translate("key")` without carrying a `lang` parameter.
 // The active language travels with the render context, not with each call site.
 

@@ -2,7 +2,7 @@
 // Replaces sync-stack.yml
 
 use anyhow::Result;
-use fsy_container::{SystemdManager, UnitActiveState};
+use fsn_container::{SystemdManager, UnitActiveState};
 use fsn_core::state::{ActualState, HealthStatus, RunState, ServiceStatus};
 
 /// Query the current state of all FSN-managed services on this host.

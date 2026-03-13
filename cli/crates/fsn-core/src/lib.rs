@@ -17,3 +17,22 @@ pub use resource::{
     ProjectResource, HostResource, ServiceResource, BotResource,
     VarProvider,
 };
+
+// ── Form vocabulary (ported from fsn-lib/fsn-core) ───────────────────────────
+
+/// What a form node returns after handling a keyboard or mouse event.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FormAction {
+    Consumed, ValueChanged, FocusNext, FocusPrev, AcceptAndNext,
+    TabNext, TabPrev, Submit, Cancel, LangToggle, Quit, Unhandled,
+}
+
+/// What a selection popup returns after handling a key or mouse event.
+#[derive(Debug, PartialEq)]
+pub enum SelectionResult {
+    Consumed,
+    Accepted(String),
+    AcceptedMulti(Vec<String>),
+    Rejected,
+    Unhandled,
+}

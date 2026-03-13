@@ -24,19 +24,17 @@ repository  = "https://github.com/FreeSynergyNet/FreeSynergy.Node"
 store-sdk   = { path = "../../Store/crates/store-sdk" }
 
 # FreeSynergy.Lib — shared libraries
-fsy-types          = { path = "../../FreeSynergy.Lib/fsy-types" }
-fsy-error          = { path = "../../FreeSynergy.Lib/fsy-error" }
-fsy-config         = { path = "../../FreeSynergy.Lib/fsy-config" }
-fsy-i18n           = { path = "../../FreeSynergy.Lib/fsy-i18n" }
-fsy-theme          = { path = "../../FreeSynergy.Lib/fsy-theme" }
-fsy-help           = { path = "../../FreeSynergy.Lib/fsy-help" }
-fsy-health         = { path = "../../FreeSynergy.Lib/fsy-health" }
-fsy-core           = { path = "../../FreeSynergy.Lib/fsy-core" }
-fsy-tui            = { path = "../../FreeSynergy.Lib/fsy-tui" }
-fsy-plugin-sdk     = { path = "../../FreeSynergy.Lib/fsy-plugin-sdk" }
-fsy-plugin-runtime = { path = "../../FreeSynergy.Lib/fsy-plugin-runtime" }
-fsy-container      = { path = "../../FreeSynergy.Lib/fsy-container" }
-fsy-template       = { path = "../../FreeSynergy.Lib/fsy-template" }
+fsn-types          = { path = "../../FreeSynergy.Lib/fsn-types" }
+fsn-error          = { path = "../../FreeSynergy.Lib/fsn-error" }
+fsn-config         = { path = "../../FreeSynergy.Lib/fsn-config" }
+fsn-i18n           = { path = "../../FreeSynergy.Lib/fsn-i18n" }
+fsn-theme          = { path = "../../FreeSynergy.Lib/fsn-theme" }
+fsn-help           = { path = "../../FreeSynergy.Lib/fsn-help" }
+fsn-health         = { path = "../../FreeSynergy.Lib/fsn-health" }
+fsn-plugin-sdk     = { path = "../../FreeSynergy.Lib/fsn-plugin-sdk" }
+fsn-plugin-runtime = { path = "../../FreeSynergy.Lib/fsn-plugin-runtime" }
+fsn-container      = { path = "../../FreeSynergy.Lib/fsn-container" }
+fsn-template       = { path = "../../FreeSynergy.Lib/fsn-template" }
 
 # Internal crates
 fsn-form-derive = { path = "crates/fsn-form-derive" }

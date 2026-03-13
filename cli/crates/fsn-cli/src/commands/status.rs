@@ -1,6 +1,6 @@
 use std::path::Path;
 use anyhow::Result;
-use fsy_container::{SystemdManager, UnitActiveState};
+use fsn_container::{SystemdManager, UnitActiveState};
 
 /// Print the systemd state of all FSN-managed services.
 pub async fn run(_root: &Path, _project: Option<&Path>) -> Result<()> {

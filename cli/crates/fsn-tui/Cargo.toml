@@ -6,13 +6,10 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-# FreeSynergy.UI — will be used progressively as API migration completes
-fsy-core   = { workspace = true }
-fsy-tui    = { workspace = true }
-fsn-form   = { workspace = true }
-fsn-core   = { workspace = true }
+fsn-core      = { workspace = true }
+fsn-form      = { workspace = true }
 fsn-engine    = { workspace = true }
-fsy-container = { workspace = true }
+fsn-container = { workspace = true }
 ratatui       = { workspace = true }
 crossterm     = { workspace = true }
 rat-salsa     = { workspace = true }

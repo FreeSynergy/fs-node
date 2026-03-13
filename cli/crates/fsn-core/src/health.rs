@@ -3,7 +3,7 @@
 // Pattern: Validator (cross-resource) + Strategy (per-resource rule set).
 //
 // Types (HealthLevel, HealthStatus, HealthIssue, HealthRules) come from
-// fsy-health. This module only contains the FSN-specific check functions.
+// fsn-health. This module only contains the FSN-specific check functions.
 //
 // Required vs. optional (per spec):
 //   Project required:  host, proxy (via host), mail service, wiki service
@@ -14,7 +14,7 @@
 use crate::config::host::HostConfig;
 use crate::config::project::{ProjectConfig, ServiceInstanceConfig};
 
-pub use fsy_health::{HealthCheck, HealthIssue, HealthLevel, HealthRules, HealthStatus};
+pub use fsn_health::{HealthCheck, HealthIssue, HealthLevel, HealthRules, HealthStatus};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

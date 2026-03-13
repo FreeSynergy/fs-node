@@ -362,7 +362,7 @@ fn precompute_module_vars(
     project_name: &str,
     project_domain: &str,
 ) -> HashMap<String, String> {
-    use fsy_template::{TemplateContext, TemplateEngine};
+    use fsn_template::{TemplateContext, TemplateEngine};
 
     let engine = TemplateEngine::new();
     let mut out = HashMap::new();

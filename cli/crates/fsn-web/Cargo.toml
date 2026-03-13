@@ -7,7 +7,7 @@ license.workspace    = true
 
 [dependencies]
 fsn-core      = { workspace = true }
-fsy-container = { workspace = true }
+fsn-container = { workspace = true }
 fsn-engine    = { workspace = true }
 axum       = { workspace = true }
 tower-http = { workspace = true }

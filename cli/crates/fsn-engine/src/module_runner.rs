@@ -1,11 +1,11 @@
-// Module plugin runner — delegates to fsy-plugin-runtime.
+// Module plugin runner — delegates to fsn-plugin-runtime.
 //
-// `ModuleRunner` is now a thin alias for `fsy_plugin_runtime::PluginRunner`.
-// `ContextBuilder` builds a `fsy_plugin_sdk::PluginContext` from FSN engine types.
+// `ModuleRunner` is now a thin alias for `fsn_plugin_runtime::PluginRunner`.
+// `ContextBuilder` builds a `fsn_plugin_sdk::PluginContext` from FSN engine types.
 
-pub use fsy_plugin_runtime::PluginRunner as ModuleRunner;
+pub use fsn_plugin_runtime::ProcessPluginRunner as ModuleRunner;
 
-use fsy_plugin_sdk::{InstanceInfo, PeerRoute, PeerService, PluginContext};
+use fsn_plugin_sdk::{InstanceInfo, PeerRoute, PeerService, PluginContext};
 
 // ── ContextBuilder ────────────────────────────────────────────────────────────
 

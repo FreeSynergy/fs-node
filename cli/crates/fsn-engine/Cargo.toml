@@ -8,9 +8,10 @@ license.workspace    = true
 [dependencies]
 store-sdk          = { workspace = true }
 fsn-core           = { workspace = true }
-fsy-plugin-runtime = { workspace = true }
-fsy-template       = { workspace = true }
-fsy-container      = { workspace = true }
+fsn-plugin-runtime = { workspace = true }
+fsn-plugin-sdk     = { workspace = true }
+fsn-template       = { workspace = true }
+fsn-container      = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
 toml               = { workspace = true }

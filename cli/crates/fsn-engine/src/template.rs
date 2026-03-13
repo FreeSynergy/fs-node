@@ -1,7 +1,7 @@
-// Template rendering via fsy-template (Tera engine).
+// Template rendering via fsn-template (Tera engine).
 //
 // FSN-specific context (`FsnTemplateContext`) holds all the domain fields
-// and converts to `fsy_template::TemplateContext` for rendering.
+// and converts to `fsn_template::TemplateContext` for rendering.
 // `ProxyServiceSpec` is an FSN-specific data type used by proxy module templates.
 
 use std::collections::HashMap;
@@ -9,7 +9,10 @@ use std::collections::HashMap;
 use anyhow::Result;
 use serde::Serialize;
 
-use fsy_template::{TemplateContext, TemplateEngine};
+use fsn_template::{TemplateContext as LibCtx, TemplateEngine};
+
+/// FSN-level alias for callers within this crate.
+pub type TemplateContext<'a> = FsnTemplateContext<'a>;
 use fsn_core::config::{RouteSpec, VaultConfig};
 
 // ── ProxyServiceSpec ──────────────────────────────────────────────────────────
@@ -68,8 +71,8 @@ pub struct FsnTemplateContext<'a> {
 
 impl<'a> FsnTemplateContext<'a> {
     /// Convert to a [`TemplateContext`] ready for rendering.
-    pub fn to_fsy(&self) -> Result<TemplateContext> {
-        let mut ctx = TemplateContext::new();
+    pub fn to_fsn(&self) -> Result<LibCtx> {
+        let mut ctx = LibCtx::new();
 
         ctx.set_str("project_name",         self.project_name);
         ctx.set_str("project_domain",        self.project_domain);
@@ -112,8 +115,8 @@ impl<'a> FsnTemplateContext<'a> {
 /// Render a single Jinja2/Tera template string with the given FSN context.
 pub fn render(template: &str, ctx: &FsnTemplateContext) -> Result<String> {
     let engine = TemplateEngine::new();
-    let fsy_ctx = ctx.to_fsy()?;
-    engine.render_str(template, &fsy_ctx)
+    let lib_ctx = ctx.to_fsn()?;
+    engine.render_str(template, &lib_ctx)
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
@@ -122,7 +125,3 @@ pub fn render_file(template_content: &str, ctx: &FsnTemplateContext) -> Result<S
     render(template_content, ctx)
 }
 
-// ── Backward-compatible type alias ────────────────────────────────────────────
-
-/// Alias for callers that used the old name `TemplateContext`.
-pub type TemplateContext<'a> = FsnTemplateContext<'a>;

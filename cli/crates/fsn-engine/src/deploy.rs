@@ -25,7 +25,7 @@ use fsn_core::{
     config::{ProjectConfig, VaultConfig, service::ServiceType},
     state::desired::{DesiredState, ServiceInstance},
 };
-use fsy_container::SystemdManager;
+use fsn_container::SystemdManager;
 use tracing::{info, warn};
 
 use crate::generate::{env as gen_env, kdl as gen_kdl, quadlet as gen_quadlet};

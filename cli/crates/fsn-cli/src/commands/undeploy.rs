@@ -1,6 +1,6 @@
 use std::path::Path;
 use anyhow::Result;
-use fsy_container::SystemdManager;
+use fsn_container::SystemdManager;
 use fsn_engine::deploy::{DeployOpts, undeploy_instance};
 
 /// Stop and remove Quadlet files for one or all services.
