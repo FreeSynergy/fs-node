@@ -352,7 +352,7 @@ fn collect_plugin_vars(host: &HostConfig, registry: &ServiceRegistry) -> HashMap
 
 /// Pre-compute the [vars] block from a module class.
 ///
-/// Each var value is itself a Jinja2 template (may reference `project_root`,
+/// Each var value is itself a Tera template (may reference `project_root`,
 /// `instance_name`, `project_name`, `project_domain`). We render them with a
 /// minimal context (no module_vars self-reference) to get concrete paths/strings.
 fn precompute_module_vars(
@@ -362,27 +362,24 @@ fn precompute_module_vars(
     project_name: &str,
     project_domain: &str,
 ) -> HashMap<String, String> {
-    use minijinja::Environment;
-    let mut out = HashMap::new();
-    let env = Environment::new();
+    use fsy_template::{TemplateContext, TemplateEngine};
 
-    let base_vars: HashMap<String, minijinja::Value> = [
-        ("project_root",   project_root),
-        ("instance_name",  instance_name),
-        ("project_name",   project_name),
-        ("project_domain", project_domain),
-    ]
-    .into_iter()
-    .map(|(k, v)| (k.to_string(), minijinja::Value::from(v)))
-    .collect();
+    let engine = TemplateEngine::new();
+    let mut out = HashMap::new();
+
+    // Build a minimal base context with the four root variables.
+    let mut base = TemplateContext::new();
+    base.set_str("project_root",   project_root);
+    base.set_str("instance_name",  instance_name);
+    base.set_str("project_name",   project_name);
+    base.set_str("project_domain", project_domain);
 
     for (key, val) in vars {
         let template_str = match val {
             toml::Value::String(s) => s.clone(),
             other => other.to_string(),
         };
-        let rendered = env.template_from_str(&template_str)
-            .and_then(|t| t.render(&base_vars))
+        let rendered = engine.render_str(&template_str, &base)
             .unwrap_or_else(|_| template_str.clone());
         out.insert(key.clone(), rendered);
     }

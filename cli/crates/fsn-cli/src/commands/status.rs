@@ -1,9 +1,11 @@
 use std::path::Path;
 use anyhow::Result;
-use fsn_podman::systemd::{self, UnitStatus};
+use fsy_container::{SystemdManager, UnitActiveState};
 
+/// Print the systemd state of all FSN-managed services.
 pub async fn run(_root: &Path, _project: Option<&Path>) -> Result<()> {
-    let units: Vec<String> = systemd::list_fsn_units().await?;
+    let systemd = SystemdManager::new();
+    let units = fsn_engine::observe::list_fsn_units(&systemd).await?;
 
     if units.is_empty() {
         println!("No FSN-managed services found.");
@@ -15,12 +17,16 @@ pub async fn run(_root: &Path, _project: Option<&Path>) -> Result<()> {
 
     for unit in &units {
         let name = unit.trim_end_matches(".service");
-        let state = match systemd::status(name).await {
-            Ok(UnitStatus::Active)   => "active",
-            Ok(UnitStatus::Inactive) => "inactive",
-            Ok(UnitStatus::Failed)   => "FAILED",
-            Ok(UnitStatus::NotFound) => "not-found",
-            Err(_)                   => "error",
+        let state = match systemd.status(unit).await {
+            Ok(s) => match s.active_state {
+                UnitActiveState::Active       => "active",
+                UnitActiveState::Inactive     => "inactive",
+                UnitActiveState::Activating   => "activating",
+                UnitActiveState::Deactivating => "deactivating",
+                UnitActiveState::Failed       => "FAILED",
+                UnitActiveState::Unknown      => "unknown",
+            },
+            Err(_) => "error",
         };
         println!("{:<30} {}", name, state);
     }

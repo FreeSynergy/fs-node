@@ -10,10 +10,10 @@ name = "fsn"
 path = "src/main.rs"
 
 [dependencies]
-fsn-core    = { workspace = true }
-fsn-engine  = { workspace = true }
-fsn-podman  = { workspace = true }
-fsn-dns     = { workspace = true }
+fsn-core       = { workspace = true }
+fsn-engine     = { workspace = true }
+fsy-container  = { workspace = true }
+fsn-dns        = { workspace = true }
 fsn-web     = { workspace = true }
 fsn-tui     = { workspace = true }
 clap        = { workspace = true }

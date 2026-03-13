@@ -6,8 +6,9 @@ edition.workspace    = true
 license.workspace    = true
 
 [dependencies]
-fsy-health = { workspace = true }
-store-sdk  = { workspace = true }
+fsy-health     = { workspace = true }
+fsy-plugin-sdk = { workspace = true }
+store-sdk      = { workspace = true }
 serde      = { workspace = true }
 toml       = { workspace = true }
 serde_json = { workspace = true }

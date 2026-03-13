@@ -17,7 +17,7 @@ use axum::{
     Json, Router,
 };
 use fsn_core::config::service::FieldType;
-use fsn_podman::systemd::{self, UnitStatus};
+use fsy_container::{SystemdManager, UnitActiveState};
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -111,18 +111,25 @@ async fn get_service(
 
 /// POST /api/v1/project/service/:name/start
 async fn start_service(Path(name): Path<String>) -> impl IntoResponse {
-    action_result(systemd::start(&format!("{}.service", name)).await)
+    let systemd = SystemdManager::new();
+    action_result(systemd.start(&format!("{}.service", name)).await
+        .map_err(|e| anyhow::anyhow!("{e}")))
 }
 
 /// POST /api/v1/project/service/:name/stop
 async fn stop_service(Path(name): Path<String>) -> impl IntoResponse {
-    action_result(systemd::stop(&format!("{}.service", name)).await)
+    let systemd = SystemdManager::new();
+    action_result(systemd.stop(&format!("{}.service", name)).await
+        .map_err(|e| anyhow::anyhow!("{e}")))
 }
 
 /// POST /api/v1/project/service/:name/restart
 async fn restart_service(Path(name): Path<String>) -> impl IntoResponse {
+    let systemd = SystemdManager::new();
     let unit = format!("{}.service", name);
-    let r = systemd::stop(&unit).await.and(systemd::start(&unit).await);
+    let r = systemd.stop(&unit).await
+        .and(systemd.start(&unit).await)
+        .map_err(|e| anyhow::anyhow!("{e}"));
     action_result(r)
 }
 
@@ -141,27 +148,38 @@ async fn setup_requirements(State(s): State<AppState>) -> impl IntoResponse {
 // ── Legacy handlers (backward compat) ────────────────────────────────────────
 
 async fn status_legacy() -> impl IntoResponse {
-    let units = systemd::list_fsn_units().await.unwrap_or_default();
+    let systemd = SystemdManager::new();
+    let units = fsn_engine::observe::list_fsn_units(&systemd).await.unwrap_or_default();
     let mut out = Vec::new();
     for unit in &units {
         let name = unit.trim_end_matches(".service").to_string();
-        let state = unit_state_str(systemd::status(unit).await);
+        let state = unit_state_str(systemd.status(unit).await
+            .map(|s| s.active_state)
+            .ok());
         out.push(serde_json::json!({ "name": name, "state": state }));
     }
     Json(out)
 }
 
 async fn restart_legacy(Path(name): Path<String>) -> impl IntoResponse {
+    let systemd = SystemdManager::new();
     let unit = format!("{}.service", name);
-    action_result(systemd::stop(&unit).await.and(systemd::start(&unit).await))
+    let r = systemd.stop(&unit).await
+        .and(systemd.start(&unit).await)
+        .map_err(|e| anyhow::anyhow!("{e}"));
+    action_result(r)
 }
 
 async fn stop_legacy(Path(name): Path<String>) -> impl IntoResponse {
-    action_result(systemd::stop(&format!("{}.service", name)).await)
+    let systemd = SystemdManager::new();
+    action_result(systemd.stop(&format!("{}.service", name)).await
+        .map_err(|e| anyhow::anyhow!("{e}")))
 }
 
 async fn start_legacy(Path(name): Path<String>) -> impl IntoResponse {
-    action_result(systemd::start(&format!("{}.service", name)).await)
+    let systemd = SystemdManager::new();
+    action_result(systemd.start(&format!("{}.service", name)).await
+        .map_err(|e| anyhow::anyhow!("{e}")))
 }
 
 // ── Data loading helpers ──────────────────────────────────────────────────────
@@ -171,12 +189,15 @@ async fn load_project_services(s: &AppState) -> (String, String, Vec<ServiceInfo
     let root = s.fsn_root.as_ref();
 
     // Load from systemd (always works even without config files)
-    let units = systemd::list_fsn_units().await.unwrap_or_default();
+    let systemd = SystemdManager::new();
+    let units = fsn_engine::observe::list_fsn_units(&systemd).await.unwrap_or_default();
     let mut services = Vec::new();
 
     for unit in &units {
         let name  = unit.trim_end_matches(".service").to_string();
-        let state = unit_state_str(systemd::status(unit).await);
+        let state = unit_state_str(systemd.status(unit).await
+            .map(|s| s.active_state)
+            .ok());
         services.push(ServiceInfo {
             name:           name.clone(),
             state,
@@ -294,13 +315,16 @@ fn action_result(r: anyhow::Result<()>) -> Json<serde_json::Value> {
     }
 }
 
-fn unit_state_str(r: anyhow::Result<UnitStatus>) -> String {
-    match r {
-        Ok(UnitStatus::Active)   => "running",
-        Ok(UnitStatus::Inactive) => "stopped",
-        Ok(UnitStatus::Failed)   => "failed",
-        Ok(UnitStatus::NotFound) => "missing",
-        Err(_)                   => "error",
+/// Convert an optional `UnitActiveState` to a display string.
+fn unit_state_str(state: Option<UnitActiveState>) -> String {
+    match state {
+        Some(UnitActiveState::Active)                 => "running",
+        Some(UnitActiveState::Inactive)
+        | Some(UnitActiveState::Deactivating)         => "stopped",
+        Some(UnitActiveState::Failed)                 => "failed",
+        Some(UnitActiveState::Activating)
+        | Some(UnitActiveState::Unknown)
+        | None                                        => "missing",
     }.to_string()
 }
 

@@ -4,7 +4,6 @@ members = [
     "crates/fsn-form",
     "crates/fsn-core",
     "crates/fsn-engine",
-    "crates/fsn-podman",
     "crates/fsn-dns",
     "crates/fsn-cli",
     "crates/fsn-web",
@@ -25,22 +24,25 @@ repository  = "https://github.com/FreeSynergyNet/FreeSynergy.Node"
 store-sdk   = { path = "../../Store/crates/store-sdk" }
 
 # FreeSynergy.Lib — shared libraries
-fsy-types   = { path = "../../FreeSynergy.Lib/fsy-types" }
-fsy-error   = { path = "../../FreeSynergy.Lib/fsy-error" }
-fsy-config  = { path = "../../FreeSynergy.Lib/fsy-config" }
-fsy-i18n    = { path = "../../FreeSynergy.Lib/fsy-i18n" }
-fsy-theme   = { path = "../../FreeSynergy.Lib/fsy-theme" }
-fsy-help    = { path = "../../FreeSynergy.Lib/fsy-help" }
-fsy-health  = { path = "../../FreeSynergy.Lib/fsy-health" }
-fsy-core    = { path = "../../FreeSynergy.Lib/fsy-core" }
-fsy-tui     = { path = "../../FreeSynergy.Lib/fsy-tui" }
+fsy-types          = { path = "../../FreeSynergy.Lib/fsy-types" }
+fsy-error          = { path = "../../FreeSynergy.Lib/fsy-error" }
+fsy-config         = { path = "../../FreeSynergy.Lib/fsy-config" }
+fsy-i18n           = { path = "../../FreeSynergy.Lib/fsy-i18n" }
+fsy-theme          = { path = "../../FreeSynergy.Lib/fsy-theme" }
+fsy-help           = { path = "../../FreeSynergy.Lib/fsy-help" }
+fsy-health         = { path = "../../FreeSynergy.Lib/fsy-health" }
+fsy-core           = { path = "../../FreeSynergy.Lib/fsy-core" }
+fsy-tui            = { path = "../../FreeSynergy.Lib/fsy-tui" }
+fsy-plugin-sdk     = { path = "../../FreeSynergy.Lib/fsy-plugin-sdk" }
+fsy-plugin-runtime = { path = "../../FreeSynergy.Lib/fsy-plugin-runtime" }
+fsy-container      = { path = "../../FreeSynergy.Lib/fsy-container" }
+fsy-template       = { path = "../../FreeSynergy.Lib/fsy-template" }
 
 # Internal crates
 fsn-form-derive = { path = "crates/fsn-form-derive" }
 fsn-form    = { path = "crates/fsn-form" }
 fsn-core    = { path = "crates/fsn-core" }
 fsn-engine  = { path = "crates/fsn-engine" }
-fsn-podman  = { path = "crates/fsn-podman" }
 fsn-dns     = { path = "crates/fsn-dns" }
 fsn-web     = { path = "crates/fsn-web" }
 fsn-tui     = { path = "crates/fsn-tui" }
@@ -62,9 +64,6 @@ tokio          = { version = "1",    features = ["full"] }
 # Error handling
 anyhow         = { version = "1" }
 thiserror      = { version = "2" }
-
-# Templating (Jinja2-compatible; same .j2 templates work)
-minijinja      = { version = "2",    features = ["loader"] }
 
 # CLI
 clap           = { version = "4",    features = ["derive", "color", "env"] }

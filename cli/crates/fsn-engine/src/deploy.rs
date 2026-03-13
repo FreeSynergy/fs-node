@@ -25,7 +25,7 @@ use fsn_core::{
     config::{ProjectConfig, VaultConfig, service::ServiceType},
     state::desired::{DesiredState, ServiceInstance},
 };
-use fsn_podman::systemd;
+use fsy_container::SystemdManager;
 use tracing::{info, warn};
 
 use crate::generate::{env as gen_env, kdl as gen_kdl, quadlet as gen_quadlet};
@@ -103,7 +103,9 @@ pub async fn deploy_all(
 
     // ── Phase 3: Reload systemd (once, after all files are on disk) ───────────
     info!("Reloading systemd user daemon…");
-    systemd::daemon_reload().await?;
+    let systemd = SystemdManager::new();
+    systemd.daemon_reload().await
+        .with_context(|| "systemd daemon-reload failed")?;
 
     // ── Phase 4: Enable + start + health check (sub-modules first) ───────────
     for instance in &instances {
@@ -113,8 +115,8 @@ pub async fn deploy_all(
         // Quadlet-generated units are auto-enabled via WantedBy=default.target
         // during daemon-reload — calling enable separately is not needed and
         // will fail with "unit is transient or generated". Best-effort only.
-        let _ = systemd::enable(&unit).await;
-        systemd::start(&unit).await
+        let _ = systemd.enable(&unit).await;
+        systemd.start(&unit).await
             .with_context(|| format!("starting {unit}"))?;
 
         health::wait_for_ready(instance, opts.health_timeout).await
@@ -147,10 +149,11 @@ pub async fn deploy_all(
 /// Stop and remove a single service (keep data directories).
 pub async fn undeploy_instance(name: &str, opts: &DeployOpts) -> Result<()> {
     let unit = format!("{}.service", name);
+    let systemd = SystemdManager::new();
 
     // Best-effort stop/disable (may already be stopped)
-    let _ = systemd::stop(&unit).await;
-    let _ = run_systemctl_disable(&unit).await;
+    let _ = systemd.stop(&unit).await;
+    let _ = systemd.disable(&unit).await;
 
     // Remove Quadlet files
     let container_file = opts.quadlet_dir.join(format!("{}.container", name));
@@ -163,7 +166,8 @@ pub async fn undeploy_instance(name: &str, opts: &DeployOpts) -> Result<()> {
     let marker = opts.state_dir.join(format!("{}.version", name));
     if marker.exists() { std::fs::remove_file(marker)?; }
 
-    systemd::daemon_reload().await?;
+    systemd.daemon_reload().await
+        .with_context(|| "systemd daemon-reload failed")?;
     info!("Removed {}", name);
     Ok(())
 }
@@ -232,15 +236,6 @@ pub fn project_network_name(project_name: &str) -> String {
         .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
         .collect();
     format!("fsn-{}", slug)
-}
-
-async fn run_systemctl_disable(unit: &str) -> Result<()> {
-    let st = tokio::process::Command::new("systemctl")
-        .args(["--user", "disable", unit])
-        .status()
-        .await?;
-    anyhow::ensure!(st.success(), "systemctl --user disable {unit} failed");
-    Ok(())
 }
 
 // ── Plugin config generation (Phase 5) ───────────────────────────────────────

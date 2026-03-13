@@ -6,9 +6,9 @@ edition.workspace    = true
 license.workspace    = true
 
 [dependencies]
-fsn-core   = { workspace = true }
-fsn-podman = { workspace = true }
-fsn-engine = { workspace = true }
+fsn-core      = { workspace = true }
+fsy-container = { workspace = true }
+fsn-engine    = { workspace = true }
 axum       = { workspace = true }
 tower-http = { workspace = true }
 tokio      = { workspace = true }
