@@ -12,6 +12,12 @@
 // StoreSource selection per configured store:
 //   local_path set  → StoreSource::Local  (dev mode, no HTTP)
 //   otherwise       → StoreSource::Http   (production)
+//
+// Offline-first strategy:
+//   fetch_all() tries every enabled store.  If all network fetches fail and no
+//   entries were collected, it falls back to the bundled catalog (load_bundled).
+//   The caller receives a full entry list even without connectivity, and any
+//   errors are returned alongside so the UI can show a "working offline" notice.
 
 use std::path::{Path, PathBuf};
 
@@ -28,13 +34,25 @@ use fsn_store::{StoreClient as SdkClient, StoreSource};
 
 /// FSN store client — manages catalog fetching and local module availability.
 pub struct StoreClient {
-    settings: AppSettings,
-    registry: ServiceRegistry,
+    settings:    AppSettings,
+    registry:    ServiceRegistry,
+    /// Local modules directory for the bundled offline fallback.
+    /// Passed to `load_bundled()` when all network stores are unreachable.
+    modules_dir: Option<PathBuf>,
 }
 
 impl StoreClient {
     pub fn new(settings: AppSettings, registry: ServiceRegistry) -> Self {
-        Self { settings, registry }
+        Self { settings, registry, modules_dir: None }
+    }
+
+    /// Set the local modules directory used as bundled offline fallback.
+    ///
+    /// When all enabled stores fail to fetch, `fetch_all` falls back to the
+    /// catalog in `{modules_dir}/../store/catalog.toml` (or `index.toml`).
+    pub fn with_modules_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.modules_dir = Some(dir.into());
+        self
     }
 
     /// Returns `true` when the module id is present in the local registry.
@@ -51,8 +69,12 @@ impl StoreClient {
     /// Entries from earlier stores take precedence when IDs collide.
     /// Each `StoreEntry` is annotated with `store_source` at call time.
     ///
-    /// Returns `(entries, errors)`. Per-store failures are collected in `errors`
-    /// so the caller can surface them while still returning partial results.
+    /// **Offline-first fallback:** when all enabled stores fail and the result
+    /// is empty, the bundled catalog (see `with_modules_dir`) is loaded as a
+    /// last resort.  The caller can detect offline mode via the non-empty
+    /// `errors` vec while still receiving a usable entry list.
+    ///
+    /// Returns `(entries, errors)`.
     pub async fn fetch_all(&self) -> (Vec<StoreEntry>, Vec<String>) {
         let mut seen   = std::collections::HashSet::new();
         let mut result = Vec::new();
@@ -84,6 +106,27 @@ impl StoreClient {
                 }
             }
         }
+
+        // Offline-first: if no entries were collected (all stores failed or none
+        // are enabled) and a modules directory is configured, fall back to the
+        // bundled catalog so the caller always has something to work with.
+        if result.is_empty() {
+            if let Some(modules_dir) = &self.modules_dir {
+                let bundled = Self::load_bundled(modules_dir);
+                if !bundled.packages.is_empty() {
+                    tracing::warn!(
+                        "All store fetches failed — serving bundled offline catalog \
+                         ({} entries)", bundled.packages.len()
+                    );
+                    for entry in bundled.packages {
+                        if seen.insert(entry.id.clone()) {
+                            result.push(entry);
+                        }
+                    }
+                }
+            }
+        }
+
         (result, errors)
     }
 

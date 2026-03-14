@@ -25,3 +25,7 @@ tokio              = { workspace = true }
 reqwest            = { workspace = true }
 tracing            = { workspace = true }
 fsn-host = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+insta  = { workspace = true }

@@ -83,3 +83,18 @@ rand           = { version = "0.8" }
 russh          = { version = "0.45" }
 russh-keys     = { version = "0.45" }
 
+# WebSocket (Desktop Live-Updates, fsn serve)
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+
+# gRPC (Inter-Process Communication)
+tonic          = { version = "0.12" }
+prost          = { version = "0.13" }
+
+# JSON-Schema Generation aus Rust-Structs
+schemars       = { version = "0.8", features = ["preserve_order"] }
+
+# Test infrastructure (declared here; individual crates use in [dev-dependencies])
+rstest         = { version = "0.23" }
+insta          = { version = "1",   features = ["toml"] }
+testcontainers = { version = "0.23" }
+

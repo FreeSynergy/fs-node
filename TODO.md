@@ -241,12 +241,12 @@ Stand: 2026-03
 ### Zu ergänzen (fehlen noch, stehen im Plan)
 
 - [x] `russh` — fsn-host SSH vollständig implementiert
-- [ ] `tokio-tungstenite` — WebSocket (für Desktop Live-Updates)
-- [ ] `tonic` — gRPC (für Inter-Process Communication)
-- [ ] `schemars` — JSON-Schema Generation aus Rust-Structs
-- [ ] `rstest` + `insta` — bessere Test-Infrastruktur
-- [ ] `testcontainers` — Integration Tests mit echten Containern
-- [ ] `cargo-fuzz` — Fuzzing Setup
+- [x] `tokio-tungstenite` — WebSocket (für Desktop Live-Updates)
+- [x] `tonic` — gRPC (für Inter-Process Communication)
+- [x] `schemars` — JSON-Schema Generation aus Rust-Structs
+- [x] `rstest` + `insta` — bessere Test-Infrastruktur
+- [x] `testcontainers` — Integration Tests mit echten Containern
+- [x] `cargo-fuzz` — Fuzzing Setup (`cli/fuzz/`, Targets: fuzz_config, fuzz_template)
 - [x] `backon` — Retry-Backoff (für Store-HTTP-Calls)
 - [x] `rand` — kryptographisch sicherer RNG (statt nano-Zeit PRNG in init.rs)
 
@@ -263,13 +263,13 @@ Stand: 2026-03
 
 ## Sonstiges / Kleinigkeiten
 
-- [ ] `REFACTORING-PLAN-v3-FINAL.md` → nach `docs/ARCHITECTURE.md` refactoren und umbenennen
-- [ ] `TODO.md` (diese Datei) im TODO-Abschnitt unten nicht als done markieren solange offen
-- [ ] `fsn tui` Command: entweder `fsd-conductor` per `std::process::Command` starten oder Command entfernen
-- [ ] Audit-Log Infrastruktur (AuditEntry → per CRDT synchronisiert)
-- [ ] Offline-First: Store-Katalog-Cache-Strategie festlegen
-- [ ] Graceful Degradation: Plugin lädt nicht → Rest funktioniert
-- [ ] Error-Recovery für Netzwerk: RetryPolicy in fsn-store
+- [x] `REFACTORING-PLAN-v3-FINAL.md` → nach `docs/ARCHITECTURE.md` refactoren und umbenennen
+- [x] `TODO.md` (diese Datei) im TODO-Abschnitt unten nicht als done markieren solange offen
+- [x] `fsn tui` Command: `fsd-conductor` per `std::process::Command` starten (fsd Fallback)
+- [x] Audit-Log Infrastruktur (`AuditEntry` + `AuditLog` in fsn-core; CRDT-Sync: Phase 2)
+- [x] Offline-First: Store-Katalog-Cache-Strategie (`fetch_all()` → bundled Fallback)
+- [x] Graceful Degradation: Plugin lädt nicht → warn + Rest läuft weiter
+- [x] Error-Recovery für Netzwerk: RetryPolicy in fsn-store (backon, 3 retries, exp. backoff)
 
 ---
 

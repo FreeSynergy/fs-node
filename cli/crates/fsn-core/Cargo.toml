@@ -18,3 +18,8 @@ secrecy    = { workspace = true }
 age        = { workspace = true }
 walkdir    = { workspace = true }
 anyhow     = { workspace = true }
+schemars   = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }
+insta  = { workspace = true }

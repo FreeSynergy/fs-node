@@ -1,0 +1,29 @@
+[package]
+name    = "fsn-fuzz"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+fsn-core      = { path = "../crates/fsn-core" }
+fsn-deploy    = { path = "../crates/fsn-deploy" }
+
+# cargo-fuzz requires profile.release overrides
+[profile.release]
+debug = true
+
+[[bin]]
+name = "fuzz_config"
+path = "fuzz_targets/fuzz_config.rs"
+test = false
+doc  = false
+
+[[bin]]
+name = "fuzz_template"
+path = "fuzz_targets/fuzz_template.rs"
+test = false
+doc  = false

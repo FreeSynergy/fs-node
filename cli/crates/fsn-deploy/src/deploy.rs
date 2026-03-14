@@ -257,13 +257,23 @@ pub fn project_network_name(project_name: &str) -> String {
 ///   Plugin  — service has `[plugin]` with `generate-config` + `store_root` is set
 ///   Builtin — service is a Proxy and no plugin path available (no `store_root`
 ///             or no manifest); falls back to `gen_kdl`
+/// Run `generate-config` for all applicable services.
+///
+/// Plugin failures are non-fatal: a warning is emitted and the rest of the
+/// deploy continues.  This implements graceful degradation — a broken or
+/// missing plugin must never block unrelated services from starting.
 fn run_all_plugin_configs(
     desired:   &DesiredState,
     data_root: &Path,
     opts:      &DeployOpts,
 ) -> Result<()> {
     for instance in &desired.services {
-        run_service_plugin_config(instance, desired, data_root, opts)?;
+        if let Err(e) = run_service_plugin_config(instance, desired, data_root, opts) {
+            warn!(
+                service = %instance.name,
+                "plugin generate-config failed (continuing): {:#}", e
+            );
+        }
     }
     Ok(())
 }
