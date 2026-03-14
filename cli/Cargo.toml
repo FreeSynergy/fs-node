@@ -4,6 +4,7 @@ members = [
     "crates/fsn-deploy",
     "crates/fsn-dns",
     "crates/fsn-host",
+    "crates/fsn-wizard",
     "crates/fsn-cli",
 ]
 resolver = "2"
@@ -36,6 +37,7 @@ fsn-core    = { path = "crates/fsn-core" }
 fsn-deploy  = { path = "crates/fsn-deploy" }
 fsn-dns     = { path = "crates/fsn-dns" }
 fsn-host    = { path = "crates/fsn-host" }
+fsn-wizard  = { path = "crates/fsn-wizard" }
 
 # Serialization
 serde          = { version = "1",    features = ["derive"] }
@@ -65,6 +67,9 @@ secrecy        = { version = "0.10", features = ["serde"] }
 
 # Encryption at rest (vault.age)
 age            = { version = "0.10", features = ["armor"] }
+
+# YAML parsing (wizard)
+serde_yaml     = { version = "0.9" }
 
 # Misc
 walkdir        = { version = "2" }

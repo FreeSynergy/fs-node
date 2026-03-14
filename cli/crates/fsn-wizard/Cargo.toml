@@ -1,0 +1,19 @@
+[package]
+name        = "fsn-wizard"
+description = "Container assistant — Docker Compose / YAML to FSN module TOML converter"
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+authors.workspace    = true
+repository.workspace = true
+
+[dependencies]
+fsn-error  = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+toml       = { workspace = true }
+thiserror  = { workspace = true }
+tracing    = { workspace = true }
+
+[dev-dependencies]

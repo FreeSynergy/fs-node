@@ -1,8 +1,4 @@
-# FreeSynergy — Kompletter Refactoring-Plan v3 (Final)
-
-**Stand:** März 2026
-**Autor:** KalEl + Claude
-**Version:** 3.1 — Desktop-Architektur, fsn-Prefix, Conductor, Studio
+# FreeSynergy — Architecture
 
 ---
 

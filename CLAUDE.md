@@ -51,7 +51,7 @@ All shared libraries live in `../FreeSynergy.Lib/`. Never duplicate their logic 
 
 ## Module Conventions
 
-- Path: `modules/{type}/{name}/{name}.yml`
+- Path: `modules/{type}/{name}/{name}.toml`
 - Block order: `module` → `vars` → `load` → `container` → `environment`
 - `container.healthcheck` is required for every module
 - `container.published_ports: []` for all except Zentinel
