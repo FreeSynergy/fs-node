@@ -3,7 +3,7 @@
 ## What is this?
 
 FreeSynergy.Node – a modular, decentralized deployment system based on
-Podman Quadlets, managed via Ansible, with a Rust CLI + TUI.
+Podman Quadlets, managed via a Rust CLI.
 
 ## Rules
 
@@ -12,25 +12,24 @@ Podman Quadlets, managed via Ansible, with a Rust CLI + TUI.
 - YAML style: max 160 chars per line, space after colon
 - No CHANGELOG.md (removed for token savings)
 - OOP everywhere: traits over match blocks, types carry their own behavior
-- After every feature: provide a git commit command
+- After every feature: commit directly
 
 ## Repository Structure
 
 ```
-cli/                  → Rust workspace (CLI + TUI + core logic)
+cli/                  → Rust workspace (CLI + deployment engine)
   crates/
     fsn-core/         → Node-specific data types + config parsing
-    fsn-engine/       → Deployment engine (Zentinel, Quadlet generation)
+    fsn-deploy/       → Deployment engine (Quadlet generation, Zentinel, reconciliation)
     fsn-dns/          → DNS provider integrations
-    fsn-cli/          → CLI binary (clap)
-    fsn-tui/          → Terminal UI (ratatui + rat-salsa)
-    fsn-web/          → Web UI backend (axum)
-    fsn-form/         → Form schema + derive macro
-    fsn-form-derive/  → Proc macro for forms
+    fsn-host/         → Host management (SSH, remote install, provisioning)
+    fsn-cli/          → CLI binary (clap) — `fsn` command
 modules/              → Module definitions (YAML + Templates + Hooks)
 hosts/                → Host files (one per server)
 projects/             → Project files + branding + sites
 ```
+
+**UI is in FreeSynergy.Desktop** (separate repo, `fsd` binary). Node is CLI-only.
 
 ## Library Dependencies (FreeSynergy.Lib)
 
@@ -39,10 +38,10 @@ All shared libraries live in `../FreeSynergy.Lib/`. Never duplicate their logic 
 | Library         | Purpose |
 |---|---|
 | `fsn-types`     | Resource/Capability traits, Meta, TypeRegistry |
-| `fsn-error`     | FsyError, Repairable trait, ValidationIssue |
+| `fsn-error`     | FsnError, Repairable trait, ValidationIssue |
 | `fsn-config`    | TOML loader/saver with backup + auto-repair |
 | `fsn-i18n`      | Snippet-based i18n (t(), t_with()) |
-| `fsn-theme`     | Theme system (theme.toml → TUI palette + CSS) |
+| `fsn-theme`     | Theme system (theme.toml → CSS) |
 | `fsn-help`      | Context-sensitive help topics |
 | `fsn-health`    | Generic health check framework + HealthCheck trait |
 | `fsn-container` | Container abstraction (Podman via bollard) |
@@ -77,39 +76,21 @@ Every module has two health check levels:
 1. **Quadlet** (`container.healthcheck`): Podman-level, restarts container on failure
 2. **Zentinel** (`container.health_path`): Proxy-level, removes upstream from rotation
 
-## TUI Architecture
-
-Component-based with `FormNode` trait (`fsn-tui` from Lib). Nodes in `fsn-tui/src/nodes/`:
-`TextInputNode`, `SelectInputNode`, `MultiSelectInputNode`, `TextAreaNode`,
-`EnvTableNode`, `SectionNode`. Overlay stack (`overlay_stack: Vec<OverlayLayer>`).
-
-Adding a new node: implement `handle_key()` + `render()`, no changes in events.rs needed.
-
 ## OOP Rules (always follow)
 
 - Behavior belongs to the type itself, NOT external match blocks
 - Small objects > big match block
-- New categories/types → new Trait/Impl, not new `match` arm in events.rs
+- New categories/types → new Trait/Impl, not new `match` arm
 
 ## Debugging
 
 ```bash
-# All containers
 podman ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-
-# Quadlet files
 ls ~/.config/containers/systemd/
-
-# Container logs
 podman logs -f kanidm
 journalctl --user -u kanidm.service
-
-# Systemd status
 systemctl --user status kanidm.service
-
-# Reload quadlets
-systemctl --user daemon-reload
-systemctl --user restart kanidm.service
+systemctl --user daemon-reload && systemctl --user restart kanidm.service
 ```
 
 ## Branding

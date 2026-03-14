@@ -1,6 +1,6 @@
 [package]
-name        = "fsn-engine"
-description = "FreeSynergy.Node – state reconciliation and code generation engine"
+name        = "fsn-deploy"
+description = "FreeSynergy.Node – deployment engine (Quadlet generation, Zentinel, reconciliation)"
 version.workspace    = true
 edition.workspace    = true
 license.workspace    = true

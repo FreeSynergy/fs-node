@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use fsn_core::{
     config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig, resolve_plugins_dir},
 };
-use fsn_engine::{
+use fsn_deploy::{
     deploy::{DeployOpts, deploy_all},
     diff::compute_diff,
     observe::observe,

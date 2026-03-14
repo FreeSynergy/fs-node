@@ -17,7 +17,7 @@ use fsn_core::config::{
     registry::ServiceRegistry,
     vault::VaultConfig,
 };
-use fsn_engine::setup::collect_requirements;
+use fsn_deploy::setup::collect_requirements;
 
 pub async fn run(root: &Path) -> Result<()> {
     println!("=== FreeSynergy.Node Setup Wizard ===\n");
@@ -170,7 +170,7 @@ fn collect_module_secrets(root: &Path, proj_dir: &Path, modules_dir: &Path) -> R
     let host = fsn_core::config::HostConfig::load(&host_path)
         .with_context(|| format!("Loading {}", host_path.display()))?;
 
-    let desired = fsn_engine::resolve::resolve_desired(&project, &host, &registry, &vault, None)
+    let desired = fsn_deploy::resolve::resolve_desired(&project, &host, &registry, &vault, None)
         .context("Resolving desired state")?;
 
     let requirements = collect_requirements(&desired);

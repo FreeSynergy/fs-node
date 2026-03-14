@@ -4,7 +4,7 @@
 use std::path::Path;
 use anyhow::Result;
 use fsn_core::config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig, resolve_plugins_dir};
-use fsn_engine::{diff::compute_diff, observe::observe, resolve::resolve_desired};
+use fsn_deploy::{diff::compute_diff, observe::observe, resolve::resolve_desired};
 
 use crate::commands::deploy::{find_project, find_host};
 

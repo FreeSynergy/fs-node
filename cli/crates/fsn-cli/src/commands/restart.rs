@@ -11,7 +11,7 @@ pub async fn run(_root: &Path, _project: Option<&Path>, service: Option<&str>) -
         systemd.start(&unit).await?;
         println!("Restarted {}", name);
     } else {
-        let units = fsn_engine::observe::list_fsn_units(&systemd).await?;
+        let units = fsn_deploy::observe::list_fsn_units(&systemd).await?;
         for unit in &units {
             let _ = systemd.stop(unit).await;
             let _ = systemd.start(unit).await;

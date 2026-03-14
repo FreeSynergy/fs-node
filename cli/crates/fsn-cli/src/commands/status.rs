@@ -5,7 +5,7 @@ use fsn_container::{SystemdManager, UnitActiveState};
 /// Print the systemd state of all FSN-managed services.
 pub async fn run(_root: &Path, _project: Option<&Path>) -> Result<()> {
     let systemd = SystemdManager::new();
-    let units = fsn_engine::observe::list_fsn_units(&systemd).await?;
+    let units = fsn_deploy::observe::list_fsn_units(&systemd).await?;
 
     if units.is_empty() {
         println!("No FSN-managed services found.");

@@ -1,8 +1,10 @@
-// `fsn tui` — start the terminal UI dashboard.
+// `fsn tui` — opens the desktop UI (FreeSynergy.Desktop must be installed).
 
 use std::path::Path;
 use anyhow::Result;
 
-pub async fn run(root: &Path) -> Result<()> {
-    fsn_tui::run(root)
+pub async fn run(_root: &Path) -> Result<()> {
+    eprintln!("The TUI is now part of FreeSynergy.Desktop.");
+    eprintln!("Run `fsd` to open the desktop, or `fsd-conductor` for container management.");
+    Ok(())
 }

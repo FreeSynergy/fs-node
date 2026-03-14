@@ -1,13 +1,10 @@
 [workspace]
 members = [
-    "crates/fsn-form-derive",
-    "crates/fsn-form",
     "crates/fsn-core",
-    "crates/fsn-engine",
+    "crates/fsn-deploy",
     "crates/fsn-dns",
+    "crates/fsn-host",
     "crates/fsn-cli",
-    "crates/fsn-web",
-    "crates/fsn-tui",
 ]
 resolver = "2"
 
@@ -16,7 +13,7 @@ version     = "0.1.0"
 edition     = "2021"
 license     = "MIT"
 authors     = ["FreeSynergy.Net"]
-repository  = "https://github.com/FreeSynergyNet/FreeSynergy.Node"
+repository  = "https://github.com/FreeSynergy/Node"
 
 # ── Shared dependency versions ────────────────────────────────────────────────
 [workspace.dependencies]
@@ -37,18 +34,10 @@ fsn-container      = { path = "../../FreeSynergy.Lib/fsn-container" }
 fsn-template       = { path = "../../FreeSynergy.Lib/fsn-template" }
 
 # Internal crates
-fsn-form-derive = { path = "crates/fsn-form-derive" }
-fsn-form    = { path = "crates/fsn-form" }
 fsn-core    = { path = "crates/fsn-core" }
-fsn-engine  = { path = "crates/fsn-engine" }
+fsn-deploy  = { path = "crates/fsn-deploy" }
 fsn-dns     = { path = "crates/fsn-dns" }
-fsn-web     = { path = "crates/fsn-web" }
-fsn-tui     = { path = "crates/fsn-tui" }
-
-# TUI
-ratatui    = { version = "0.30" }
-crossterm  = { version = "0.29" }
-sysinfo    = { version = "0.33" }
+fsn-host    = { path = "crates/fsn-host" }
 
 # Serialization
 serde          = { version = "1",    features = ["derive"] }
@@ -66,12 +55,8 @@ thiserror      = { version = "2" }
 # CLI
 clap           = { version = "4",    features = ["derive", "color", "env"] }
 
-# HTTP client (DNS APIs)
+# HTTP client (DNS APIs, store)
 reqwest        = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
-
-# WebUI
-axum           = { version = "0.8" }
-tower-http     = { version = "0.6",  features = ["fs", "cors", "trace"] }
 
 # Logging / tracing
 tracing        = { version = "0.1" }
@@ -83,17 +68,7 @@ secrecy        = { version = "0.10", features = ["serde"] }
 # Encryption at rest (vault.age)
 age            = { version = "0.10", features = ["armor"] }
 
-# TUI framework — rat-salsa ecosystem (event loop + mouse + focus + widgets)
-rat-salsa      = { version = "4.0" }
-rat-widget     = { version = "3.2" }
-rat-menu       = { version = "3.1" }
-rat-theme4     = { version = "4.5" }
-
-# TUI enhancements
-tui-big-text   = { version = "0.8" }
-
 # Misc
 walkdir        = { version = "2" }
 async-trait    = { version = "0.1" }
 libc           = { version = "0.2" }
-arboard        = { version = "3", default-features = false, features = ["wayland-data-control"] }
