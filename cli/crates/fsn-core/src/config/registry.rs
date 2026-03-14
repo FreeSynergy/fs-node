@@ -110,10 +110,10 @@ impl ServiceRegistry {
             }
         }
 
-        // ── Plugin scan (depth 5): modules/{type}/plugins/{plugin_type}/{name}.toml ──
+        // ── Plugin scan (depth 4): modules/{type}/plugins/{plugin_type}/{name}.toml ──
         for entry in WalkDir::new(modules_dir)
-            .min_depth(5)
-            .max_depth(5)
+            .min_depth(4)
+            .max_depth(4)
             .into_iter()
             .filter_map(|e| e.ok())
         {
@@ -184,3 +184,4 @@ impl ServiceRegistry {
         &self.modules_dir
     }
 }
+

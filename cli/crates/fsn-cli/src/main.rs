@@ -1,5 +1,6 @@
 mod cli;
 mod commands;
+mod db;
 
 use anyhow::Result;
 use tracing_subscriber::EnvFilter;
@@ -19,7 +20,16 @@ async fn main() -> Result<()> {
     let lang = detect_lang();
     let _ = fsn_i18n::init_with_toml_strs(&lang, &[("en", LOCALE_EN), ("de", LOCALE_DE)]);
 
-    cli::run().await
+    // DB init (non-fatal: CLI works without persistence)
+    if let Err(e) = db::init().await {
+        tracing::warn!("DB unavailable: {e}");
+    } else {
+        db::spawn_flush_loop();
+    }
+
+    let result = cli::run().await;
+    db::flush().await;
+    result
 }
 
 /// Detect the active UI language from environment variables.

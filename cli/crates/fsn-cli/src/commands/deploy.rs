@@ -82,6 +82,10 @@ pub async fn run(
     deploy_all(&deploy_desired, &proj, &vault, &opts, root, &data_root).await
         .context("Deploy failed")?;
 
+    crate::db::write_audit_entry(
+        &fsn_core::audit::AuditEntry::new("system", "deploy", "project", &proj.project.meta.name),
+    ).await;
+
     println!("\n✓ Deploy complete ({} service(s))", deploy_desired.services.len());
     Ok(())
 }

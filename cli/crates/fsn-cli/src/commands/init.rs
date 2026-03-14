@@ -318,3 +318,71 @@ fn generate_secret(len: usize) -> String {
         .map(|_| CHARSET[rng.gen_range(0..CHARSET.len())] as char)
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn slug_generation_replaces_spaces_and_lowercases() {
+        let name = "My Awesome Project";
+        let slug = name.to_lowercase().replace(' ', "-");
+        assert_eq!(slug, "my-awesome-project");
+    }
+
+    #[test]
+    fn slug_generation_handles_single_word() {
+        let name = "FreeSynergy";
+        let slug = name.to_lowercase().replace(' ', "-");
+        assert_eq!(slug, "freesynergy");
+    }
+
+    #[test]
+    fn find_existing_project_finds_project_toml() {
+        let tmp = tempfile::tempdir().unwrap();
+        let proj_dir = tmp.path().join("projects").join("my-project");
+        fs::create_dir_all(&proj_dir).unwrap();
+        fs::write(proj_dir.join("my-project.project.toml"), "[project]\nname = \"my-project\"\ndomain = \"example.com\"").unwrap();
+
+        let found = find_existing_project(tmp.path());
+        assert!(found.is_some(), "should find the project file");
+        assert!(found.unwrap().to_string_lossy().ends_with(".project.toml"));
+    }
+
+    #[test]
+    fn find_existing_project_returns_none_when_empty() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("projects")).unwrap();
+
+        let found = find_existing_project(tmp.path());
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn find_existing_project_returns_none_without_projects_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let found = find_existing_project(tmp.path());
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn generate_secret_has_correct_length() {
+        let s = generate_secret(32);
+        assert_eq!(s.len(), 32);
+    }
+
+    #[test]
+    fn generate_secret_is_alphanumeric() {
+        let s = generate_secret(64);
+        assert!(s.chars().all(|c| c.is_ascii_alphanumeric()), "secret must be alphanumeric");
+    }
+
+    #[test]
+    fn generate_secret_varies_between_calls() {
+        // With 32 chars from 62-char alphabet, collision probability is negligible
+        let a = generate_secret(32);
+        let b = generate_secret(32);
+        assert_ne!(a, b, "two generated secrets should not be identical");
+    }
+}

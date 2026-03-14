@@ -30,6 +30,7 @@ fsn-plugin-sdk     = { path = "../../FreeSynergy.Lib/fsn-plugin-sdk" }
 fsn-plugin-runtime = { path = "../../FreeSynergy.Lib/fsn-plugin-runtime", features = ["wasm"] }
 fsn-container      = { path = "../../FreeSynergy.Lib/fsn-container" }
 fsn-template       = { path = "../../FreeSynergy.Lib/fsn-template" }
+fsn-db             = { path = "../../FreeSynergy.Lib/fsn-db", features = ["sqlite"] }
 fsn-store          = { path = "../../FreeSynergy.Lib/fsn-store" }
 
 # Internal crates
@@ -97,4 +98,5 @@ schemars       = { version = "0.8", features = ["preserve_order"] }
 rstest         = { version = "0.23" }
 insta          = { version = "1",   features = ["toml"] }
 testcontainers = { version = "0.23" }
+tempfile       = { version = "3" }
 
