@@ -109,14 +109,14 @@ Stand: 2026-03
 - [x] Window-Manager (Fenster öffnen, schließen, verschieben, z-index)
 - [x] Wallpaper-Anzeige (Color, URL, File, Default)
 - [x] Notification-System (Toast, 4 Severity-Level)
-- [ ] WindowFrame: Minimize/Maximize verdrahten
-- [ ] AppRegistry: App-spezifischen Content in WindowFrame injizieren
+- [x] WindowFrame: Minimize/Maximize verdrahten
+- [x] AppRegistry: App-spezifischen Content in WindowFrame injizieren
 
 ### fsd-conductor (Container Management)
 
-- [x] Service-Liste (Stub)
-- [x] Log-Viewer (Stub)
-- [ ] Start / Stop / Restart pro Service (fsn-container verdrahten)
+- [x] Service-Liste (Podman-Integration, 5s polling)
+- [x] Log-Viewer (Podman-Integration, 3s polling, Clear + Follow)
+- [x] Start / Stop / Restart pro Service (fsn-container verdrahten)
 - [ ] Ressourcen-Anzeige (CPU, RAM, Volumes)
 - [ ] Health-Status (✓/⚠/✗) live
 - [ ] Abhängigkeits-Graph visualisieren
@@ -157,7 +157,7 @@ Stand: 2026-03
 ### fsd-app (Einstiegspunkt)
 
 - [x] Shell laden (fsd-app startet Desktop)
-- [ ] AppRegistry: alle Apps registrieren + Content in WindowFrame injizieren
+- [x] AppRegistry: alle Apps registrieren + Content in WindowFrame injizieren
 - [ ] Dioxus Multiwindow Setup
 
 ---
@@ -277,9 +277,9 @@ Stand: 2026-03
 
 1. ~~**fsn-store** implementieren~~ ✓ fertig — Node nutzt jetzt fsn-store (Lib)
 2. ~~**fsn-container** in Lib fertigstellen + Node-Implementierung ablösen~~ ✓ fertig — fsn-podman entfernt, Lib-Version aktiv
-3. **fsn-host** SSH (Remote-Deploy)
-4. **fsn-crypto** age-Encryption (vault.toml braucht das)
-5. **i18n** `.ftl`-Migration
-6. **FreeSynergy.Desktop** Repo anlegen + fsd-conductor als erstes
+3. ~~**fsn-host** SSH (Remote-Deploy)~~ ✓ fertig — russh, exec, write_file, remote systemd, `fsn deploy --host <name>`
+4. ~~**fsn-crypto** age-Encryption~~ ✓ fertig — vault.age mit passphrase KDF, VaultConfig in fsn-core
+5. ~~**FreeSynergy.Desktop** Repo anlegen + fsd-conductor als erstes~~ ✓ fertig — fsd-shell, fsd-conductor, fsd-app compilierbar (braucht libxdo-devel)
+6. **i18n** `.ftl`-Migration
 7. **fsn-plugin-runtime** WASM Host (für Zentinel als echtes Plugin)
 8. **fsn-auth + fsn-federation** (für Bot-Management + OIDC)
