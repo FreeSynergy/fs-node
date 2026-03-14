@@ -16,6 +16,22 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
+    // Global panic handler — log the panic via tracing instead of writing raw
+    // to stderr so that structured log pipelines capture it, then abort.
+    std::panic::set_hook(Box::new(|info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_else(|| "<unknown>".to_string());
+        let message = info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| info.payload().downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("(no message)");
+        tracing::error!(panic.location = %location, panic.message = %message, "fsn panicked — this is a bug, please report it");
+    }));
+
     // Detect system language from LANG / LANGUAGE env vars; default to "en".
     let lang = detect_lang();
     let _ = fsn_i18n::init_with_toml_strs(&lang, &[("en", LOCALE_EN), ("de", LOCALE_DE)]);
