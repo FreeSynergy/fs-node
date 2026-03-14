@@ -24,9 +24,11 @@
 pub mod compose;
 pub mod detect;
 pub mod generate;
+pub mod setup_fields;
 pub mod wizard;
 
 pub use compose::{ComposeInput, ComposeService};
 pub use detect::ServiceTypeHint;
 pub use generate::ModuleToml;
+pub use setup_fields::{SetupField, SetupFieldType};
 pub use wizard::Wizard;

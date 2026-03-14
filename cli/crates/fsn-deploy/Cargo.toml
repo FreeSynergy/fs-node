@@ -5,6 +5,9 @@ version.workspace    = true
 edition.workspace    = true
 license.workspace    = true
 
+[features]
+wasm = ["fsn-plugin-runtime/wasm"]
+
 [dependencies]
 fsn-store          = { workspace = true }
 fsn-core           = { workspace = true }

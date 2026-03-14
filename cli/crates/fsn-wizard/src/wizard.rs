@@ -5,6 +5,7 @@ use fsn_error::FsyError;
 use crate::compose::{ComposeInput, ComposeService};
 use crate::detect::{self, ServiceTypeHint};
 use crate::generate::{self, ModuleToml};
+use crate::setup_fields::{self, SetupField};
 
 // ── WizardResult ──────────────────────────────────────────────────────────────
 
@@ -20,6 +21,11 @@ impl WizardResult {
     /// Render the generated module TOML as a string.
     pub fn to_toml(&self) -> String {
         self.module.to_toml()
+    }
+
+    /// Return the required setup fields for this service's detected class.
+    pub fn setup_fields(&self) -> Vec<SetupField> {
+        setup_fields::setup_fields_for(&self.hint.class)
     }
 }
 
@@ -75,6 +81,14 @@ impl Wizard {
                     "wizard: service '{service_name}' not found in compose file"
                 ))
             })
+    }
+
+    /// Return the required setup fields for a given service class.
+    ///
+    /// These mirror the `[[setup.fields]]` entries in the module TOML and tell
+    /// the operator what secrets and configuration values they need to supply.
+    pub fn setup_fields(&self, class: &str) -> Vec<SetupField> {
+        setup_fields::setup_fields_for(class)
     }
 }
 

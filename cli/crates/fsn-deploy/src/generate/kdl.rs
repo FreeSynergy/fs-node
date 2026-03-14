@@ -188,6 +188,8 @@ mod tests {
                 health_port: None,
                 health_scheme: None,
                 capabilities: vec![],
+                roles: Default::default(),
+                ui: Default::default(),
             },
             vars: IndexMap::default(),
             load: ServiceLoad::default(),

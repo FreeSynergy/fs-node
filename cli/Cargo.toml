@@ -27,7 +27,7 @@ fsn-theme          = { path = "../../FreeSynergy.Lib/fsn-theme" }
 fsn-help           = { path = "../../FreeSynergy.Lib/fsn-help" }
 fsn-health         = { path = "../../FreeSynergy.Lib/fsn-health" }
 fsn-plugin-sdk     = { path = "../../FreeSynergy.Lib/fsn-plugin-sdk" }
-fsn-plugin-runtime = { path = "../../FreeSynergy.Lib/fsn-plugin-runtime" }
+fsn-plugin-runtime = { path = "../../FreeSynergy.Lib/fsn-plugin-runtime", features = ["wasm"] }
 fsn-container      = { path = "../../FreeSynergy.Lib/fsn-container" }
 fsn-template       = { path = "../../FreeSynergy.Lib/fsn-template" }
 fsn-store          = { path = "../../FreeSynergy.Lib/fsn-store" }

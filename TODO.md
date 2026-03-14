@@ -83,16 +83,16 @@ Stand: 2026-03
 
 ### fsn-wizard (fehlt komplett)
 
-- [ ] Crate `fsn-wizard` anlegen
-- [ ] Docker-Compose / YAML → FSN-Modul-TOML Konverter
-- [ ] Typ-Erkennung aus Image-Name + Ports + Volumes
-- [ ] Setup-Fields generieren aus Modul-Metadaten
+- [x] Crate `fsn-wizard` anlegen
+- [x] Docker-Compose / YAML → FSN-Modul-TOML Konverter
+- [x] Typ-Erkennung aus Image-Name + Ports + Volumes
+- [x] Setup-Fields generieren aus Modul-Metadaten
 
 ### Store-Module
 
 - [x] `[module.roles]` Block in allen Modulen ergänzen (`provides`, `requires`)
 - [x] `[module.ui]` Block ergänzen (`supports_web`, `open_mode`, `web_url_template`)
-- [ ] Zentinel als echtes WASM-Plugin fertigstellen (aktuell built-in KDL-Generator als Fallback)
+- [x] Zentinel als echtes Rust-Plugin fertigstellen (Python → Rust; WASM-Kompilierung via `cargo build --target wasm32-wasip1` wenn Toolchain vorhanden)
 
 ---
 
@@ -100,7 +100,7 @@ Stand: 2026-03
 
 - [x] Repo `FreeSynergy/Desktop` erstellen
 - [x] Cargo Workspace mit Dioxus 0.6
-- [ ] CI/CD (build, clippy, rustfmt)
+- [x] CI/CD (build, clippy, rustfmt) — FreeSynergy.Node
 
 ### fsd-shell (Taskbar + Window Manager)
 

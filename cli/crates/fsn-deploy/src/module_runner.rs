@@ -1,11 +1,69 @@
 // Module plugin runner — delegates to fsn-plugin-runtime.
 //
-// `ModuleRunner` is now a thin alias for `fsn_plugin_runtime::PluginRunner`.
+// Dispatch priority:
+//   1. plugin.wasm  — WASM plugin via wasmtime sandbox  (feature = "wasm")
+//   2. plugin       — native process plugin (stdin JSON → stdout JSON)
+//
 // `ContextBuilder` builds a `fsn_plugin_sdk::PluginContext` from FSN engine types.
 
-pub use fsn_plugin_runtime::ProcessPluginRunner as ModuleRunner;
+use anyhow::Result;
+use fsn_plugin_sdk::{PluginContext, PluginResponse};
+use fsn_plugin_runtime::ProcessPluginRunner;
+use std::path::PathBuf;
 
-use fsn_plugin_sdk::{InstanceInfo, PeerRoute, PeerService, PluginContext};
+// ── ModuleRunner ──────────────────────────────────────────────────────────────
+
+/// Plugin runner for a store module directory.
+///
+/// Tries `plugin.wasm` (WASM runtime) first, then falls back to
+/// the `plugin` executable (process plugin protocol).
+pub struct ModuleRunner {
+    store_module_dir: PathBuf,
+}
+
+impl ModuleRunner {
+    pub fn new(dir: impl Into<PathBuf>) -> Self {
+        Self { store_module_dir: dir.into() }
+    }
+
+    /// Invoke the plugin with the given context and return its response.
+    pub fn run(&self, ctx: &PluginContext) -> Result<PluginResponse> {
+        #[cfg(feature = "wasm")]
+        {
+            let wasm_path = self.store_module_dir.join("plugin.wasm");
+            if wasm_path.exists() {
+                return self.run_wasm(&wasm_path, ctx);
+            }
+        }
+
+        // Fallback: process plugin executable
+        let runner = ProcessPluginRunner::new(&self.store_module_dir);
+        Ok(runner.run(ctx)?)
+    }
+
+    /// Apply a plugin response: write declared files, run declared shell commands.
+    pub fn apply(&self, response: &PluginResponse) -> Result<()> {
+        let runner = ProcessPluginRunner::new(&self.store_module_dir);
+        Ok(runner.apply(response)?)
+    }
+
+    #[cfg(feature = "wasm")]
+    fn run_wasm(&self, wasm_path: &std::path::Path, ctx: &PluginContext) -> Result<PluginResponse> {
+        use fsn_plugin_runtime::{PluginRuntime, PluginSandbox};
+
+        let runtime = PluginRuntime::new()?;
+        let sandbox = PluginSandbox::minimal();
+        let mut handle = runtime.load_file(wasm_path, sandbox)?;
+
+        tracing::debug!(
+            path = %wasm_path.display(),
+            command = %ctx.command,
+            "invoking WASM plugin"
+        );
+
+        Ok(handle.execute(ctx)?)
+    }
+}
 
 // ── ContextBuilder ────────────────────────────────────────────────────────────
 
@@ -22,6 +80,7 @@ impl ContextBuilder {
         peers: &[&fsn_core::state::desired::ServiceInstance],
     ) -> PluginContext {
         use fsn_core::resource::VarProvider as _;
+        use fsn_plugin_sdk::{InstanceInfo, PeerRoute, PeerService};
 
         let peer_services: Vec<PeerService> = peers.iter().map(|p| {
             let routes: Vec<PeerRoute> = p.class.contract.routes.iter().map(|r| PeerRoute {

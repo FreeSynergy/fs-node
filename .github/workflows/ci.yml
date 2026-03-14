@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+
+      - name: Check formatting
+        working-directory: cli
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: cli
+        run: cargo clippy --all -- -D warnings
+
+      - name: Build all crates
+        working-directory: cli
+        run: cargo build --all
+
+      - name: Run tests
+        working-directory: cli
+        run: cargo test --all
