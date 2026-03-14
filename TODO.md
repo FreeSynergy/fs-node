@@ -117,9 +117,9 @@ Stand: 2026-03
 - [x] Service-Liste (Podman-Integration, 5s polling)
 - [x] Log-Viewer (Podman-Integration, 3s polling, Clear + Follow)
 - [x] Start / Stop / Restart pro Service (fsn-container verdrahten)
-- [ ] Ressourcen-Anzeige (CPU, RAM, Volumes)
-- [ ] Health-Status (✓/⚠/✗) live
-- [ ] Abhängigkeits-Graph visualisieren
+- [x] Ressourcen-Anzeige (CPU, RAM, Volumes)
+- [x] Health-Status (✓/⚠/✗) live
+- [x] Abhängigkeits-Graph visualisieren
 - [ ] Bot-Management (wenn fsn-auth fertig)
 
 ### fsd-store (Package Manager)
@@ -127,9 +127,9 @@ Stand: 2026-03
 - [x] Modul-Browser (Stub)
 - [x] Suche + Filter (Stub)
 - [x] Install-Wizard (Stub, Schritt-Indikator)
-- [ ] Echten Katalog aus fsn-store laden
-- [ ] Update-Check + Update durchführen
-- [ ] Modul entfernen
+- [x] Echten Katalog aus fsn-store laden
+- [x] Update-Check + Update durchführen
+- [x] Modul entfernen
 
 ### fsd-studio (Plugin/Modul-Ersteller)
 
@@ -247,8 +247,8 @@ Stand: 2026-03
 - [ ] `rstest` + `insta` — bessere Test-Infrastruktur
 - [ ] `testcontainers` — Integration Tests mit echten Containern
 - [ ] `cargo-fuzz` — Fuzzing Setup
-- [ ] `backon` — Retry-Backoff (für Store-HTTP-Calls)
-- [ ] `rand` — kryptographisch sicherer RNG (statt nano-Zeit PRNG in init.rs)
+- [x] `backon` — Retry-Backoff (für Store-HTTP-Calls)
+- [x] `rand` — kryptographisch sicherer RNG (statt nano-Zeit PRNG in init.rs)
 
 ---
 
