@@ -66,12 +66,12 @@ Stand: 2026-03
 
 ### fsn-host (SSH / Remote-Deploy)
 
-- [ ] SSH-Session via `russh` implementieren
-- [ ] Remote-Befehlsausführung (shell commands über SSH)
-- [ ] Dateitransfer (Quadlet-Dateien remote schreiben)
-- [ ] Remote systemd steuern (daemon-reload, start, stop via SSH)
-- [ ] `DeployOpts` um SSH-Target erweitern
-- [ ] `fsn deploy --host <name>` — Remote-Deploy Pfad
+- [x] SSH-Session via `russh` implementieren
+- [x] Remote-Befehlsausführung (shell commands über SSH)
+- [x] Dateitransfer (Quadlet-Dateien remote schreiben)
+- [x] Remote systemd steuern (daemon-reload, start, stop via SSH)
+- [x] `DeployOpts` um SSH-Target erweitern
+- [x] `fsn deploy --host <name>` — Remote-Deploy Pfad
 
 ### fsn-cli
 
@@ -90,9 +90,8 @@ Stand: 2026-03
 
 ### Store-Module
 
-- [ ] `[module.roles]` Block in allen Modulen ergänzen (`provides`, `requires`)
-  - Betrifft: zentinel, kanidm, stalwart, forgejo, outline, tuwunel, vikunja, cryptpad, etc.
-- [ ] `[module.ui]` Block ergänzen (`supports_web`, `open_mode`, `web_url_template`)
+- [x] `[module.roles]` Block in allen Modulen ergänzen (`provides`, `requires`)
+- [x] `[module.ui]` Block ergänzen (`supports_web`, `open_mode`, `web_url_template`)
 - [ ] Zentinel als echtes WASM-Plugin fertigstellen (aktuell built-in KDL-Generator als Fallback)
 
 ---
