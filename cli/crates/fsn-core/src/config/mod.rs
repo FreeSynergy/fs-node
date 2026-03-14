@@ -25,6 +25,7 @@ pub use service::{
     ServiceLoad, ServiceSetup, SetupField, FieldType,
     SubServiceRef, ServiceRef,
     ServiceContract, RouteSpec, HeaderSpec,
+    ModuleRoles, ModuleUi,
 };
 pub use project::{
     ModuleRef,       // backwards-compat alias
@@ -34,7 +35,7 @@ pub use project::{
 };
 pub use plugin::{PluginConfig, PluginMeta};
 pub use registry::ServiceRegistry;
-pub use settings::{AppSettings, StoreConfig, resolve_plugins_dir, resolve_plugins_dir_no_fallback};
+pub use settings::{AppSettings, StoreConfig, ServiceRoleRegistry, resolve_plugins_dir, resolve_plugins_dir_no_fallback};
 pub use vault::VaultConfig;
 
 // ── Shared TOML loader ────────────────────────────────────────────────────────

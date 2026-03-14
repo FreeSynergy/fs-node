@@ -1,11 +1,14 @@
-use fsn_error::FsyError;
 // Application settings – stored at ~/.config/fsn/settings.toml
 //
-// Contains user-level preferences: store URLs, UI language, etc.
+// Contains user-level preferences: store URLs, UI language, service role assignments, etc.
 // Loaded once at startup; saved when the user changes settings in the TUI.
 
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
+use fsn_error::FsyError;
 
 
 
@@ -28,11 +31,16 @@ pub struct AppSettings {
     /// Example: ["proxy/zentinel", "iam/kanidm"]
     #[serde(default)]
     pub installed_modules: Vec<String>,
+
+    /// Service role assignments — maps role ID → container/service name.
+    /// Example: { "auth" = "kanidm", "mail" = "stalwart", "proxy" = "zentinel" }
+    #[serde(default)]
+    pub service_roles: HashMap<String, String>,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
-        Self { stores: default_stores(), preferred_lang: None, installed_modules: Vec::new() }
+        Self { stores: default_stores(), preferred_lang: None, installed_modules: Vec::new(), service_roles: HashMap::new() }
     }
 }
 
@@ -171,4 +179,85 @@ pub fn resolve_plugins_dir_no_fallback() -> Option<PathBuf> {
         }
     }
     None
+}
+
+// ── ServiceRoleRegistry ───────────────────────────────────────────────────────
+
+/// Scans all module TOML files and builds a map of role → providers.
+///
+/// Used by the Settings UI to populate the service role selector dropdowns.
+/// Call `ServiceRoleRegistry::build_from_dir(modules_dir)` on startup.
+#[derive(Debug, Default, Clone)]
+pub struct ServiceRoleRegistry {
+    /// Maps role ID → list of module names that provide it.
+    pub providers: HashMap<String, Vec<String>>,
+}
+
+/// Minimal TOML shape for extracting roles from a module file.
+#[derive(Deserialize)]
+struct MinimalModuleFile {
+    #[serde(rename = "module")]
+    meta: MinimalModuleMeta,
+}
+
+#[derive(Deserialize)]
+struct MinimalModuleMeta {
+    name: String,
+    #[serde(default)]
+    roles: MinimalRoles,
+}
+
+#[derive(Deserialize, Default)]
+struct MinimalRoles {
+    #[serde(default)]
+    provides: Vec<String>,
+}
+
+impl ServiceRoleRegistry {
+    /// Build the registry by walking `modules_dir` and parsing all `*.toml` files.
+    ///
+    /// Errors in individual files are silently skipped — partial results are
+    /// always better than a startup crash.
+    pub fn build_from_dir(modules_dir: &std::path::Path) -> Self {
+        let mut providers: HashMap<String, Vec<String>> = HashMap::new();
+
+        if !modules_dir.exists() {
+            return Self { providers };
+        }
+
+        for entry in walkdir_toml(modules_dir) {
+            let Ok(content) = std::fs::read_to_string(&entry) else { continue };
+            let Ok(parsed) = toml::from_str::<MinimalModuleFile>(&content) else { continue };
+            for role in parsed.meta.roles.provides {
+                providers.entry(role).or_default().push(parsed.meta.name.clone());
+            }
+        }
+
+        Self { providers }
+    }
+
+    /// Returns all module names that claim to provide `role_id`.
+    pub fn providers_for(&self, role_id: &str) -> &[String] {
+        self.providers.get(role_id).map(Vec::as_slice).unwrap_or(&[])
+    }
+
+    /// Returns all role IDs seen across all modules.
+    pub fn all_roles(&self) -> impl Iterator<Item = &String> {
+        self.providers.keys()
+    }
+}
+
+/// Walk `dir` recursively and return paths to all `*.toml` files.
+fn walkdir_toml(dir: &std::path::Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut result = Vec::new();
+    for e in entries.flatten() {
+        let path = e.path();
+        if path.is_dir() {
+            result.extend(walkdir_toml(&path));
+        } else if path.extension().map_or(false, |ext| ext == "toml") {
+            result.push(path);
+        }
+    }
+    result
 }

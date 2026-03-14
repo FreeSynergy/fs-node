@@ -219,6 +219,48 @@ pub struct ServiceMeta {
     /// Example: `capabilities = ["iam_scim", "iam_ldap"]` in the plugin TOML.
     #[serde(default)]
     pub capabilities: Vec<Capability>,
+
+    /// Service role declarations — which roles this module provides / requires.
+    #[serde(default)]
+    pub roles: ModuleRoles,
+
+    /// UI integration hints — how the Desktop should open this service.
+    #[serde(default)]
+    pub ui: ModuleUi,
+}
+
+// ── ModuleRoles ───────────────────────────────────────────────────────────────
+
+/// Service role declarations embedded in `[module.roles]`.
+///
+/// Roles are MIME-like identifiers for system functions (e.g. "proxy", "iam").
+/// `provides` lists what this module can fulfil.
+/// `requires` lists what must be assigned before this module will work.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ModuleRoles {
+    /// Role IDs this module can fulfil (e.g. `["proxy", "webhoster"]`).
+    #[serde(default)]
+    pub provides: Vec<String>,
+
+    /// Role IDs this module depends on being fulfilled by another service.
+    #[serde(default)]
+    pub requires: Vec<String>,
+}
+
+// ── ModuleUi ──────────────────────────────────────────────────────────────────
+
+/// Desktop UI hints embedded in `[module.ui]`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ModuleUi {
+    /// Whether this service has a web UI that can be opened in the Desktop browser.
+    #[serde(default)]
+    pub supports_web: bool,
+
+    /// How the Desktop opens this service: `"tab"` (default), `"window"`, `"embed"`.
+    pub open_mode: Option<String>,
+
+    /// Jinja2 template for the service URL (e.g. `"https://{{ service_domain }}"`).
+    pub web_url_template: Option<String>,
 }
 
 impl ServiceMeta {
