@@ -311,17 +311,10 @@ fn confirm_default_no(label: &str) -> Result<bool> {
 }
 
 fn generate_secret(len: usize) -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos() as u64;
-    let chars: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let mut state = seed ^ 0x9e3779b97f4a7c15;
+    use rand::Rng;
+    const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let mut rng = rand::thread_rng();
     (0..len)
-        .map(|_| {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-            chars[((state >> 33) as usize) % chars.len()] as char
-        })
+        .map(|_| CHARSET[rng.gen_range(0..CHARSET.len())] as char)
         .collect()
 }

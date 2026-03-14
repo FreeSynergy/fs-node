@@ -76,6 +76,10 @@ walkdir        = { version = "2" }
 async-trait    = { version = "0.1" }
 libc           = { version = "0.2" }
 
+# Random (crypto-safe RNG)
+rand           = { version = "0.8" }
+
 # SSH (remote deploy)
 russh          = { version = "0.45" }
 russh-keys     = { version = "0.45" }
+

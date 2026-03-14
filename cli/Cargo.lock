@@ -1267,6 +1267,7 @@ dependencies = [
  "fsn-dns",
  "fsn-host",
  "libc",
+ "rand 0.8.5",
  "tokio",
  "toml 0.8.23",
  "tracing",
