@@ -1,6 +1,6 @@
 [package]
 name        = "fsn-wizard"
-description = "Container assistant — Docker Compose / YAML to FSN module TOML converter"
+description = "Import tool — converts Docker Compose YAML into FSN module TOML (import-only, not runtime)"
 version.workspace    = true
 edition.workspace    = true
 license.workspace    = true

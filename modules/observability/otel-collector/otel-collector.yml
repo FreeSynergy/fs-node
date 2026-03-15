@@ -39,8 +39,6 @@ container:
   networks: []
   volumes:
     - "{{ module_vars.config_dir }}/otel-config.yaml:/etc/otelcol-contrib/config.yaml:ro,Z"
-    # Podman socket for container stats (read-only)
-    - "/run/user/{{ ansible_user_uid }}/podman/podman.sock:/var/run/docker.sock:ro"
     # Journal logs for container log collection
     - "/var/log/journal:/var/log/journal:ro"
     - "/run/log/journal:/run/log/journal:ro"
@@ -56,6 +54,4 @@ container:
   health_path: ~
   health_port: ~
 
-environment:
-  # Podman host (for docker_stats receiver compatibility)
-  DOCKER_HOST: "unix:///var/run/docker.sock"
+environment: {}

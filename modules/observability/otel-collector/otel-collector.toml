@@ -4,7 +4,7 @@
 #   module → vars → load → container → environment → setup
 #
 # NOTE: Only one collector per host (per_host = 1).
-# Mounts Podman socket and journal for full host observability.
+# Mounts journal for full host observability.
 
 [module]
 name        = "otel-collector"
@@ -37,8 +37,6 @@ image     = "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemet
 image_tag = "latest"
 volumes   = [
     "{{ module_vars.config_dir }}/otel-config.yaml:/etc/otelcol-contrib/config.yaml:ro,Z",
-    # Podman socket for container stats (read-only)
-    "/run/user/{{ ansible_user_uid }}/podman/podman.sock:/var/run/docker.sock:ro",
     # Journal logs for container log collection
     "/var/log/journal:/var/log/journal:ro",
     "/run/log/journal:/run/log/journal:ro",
@@ -50,10 +48,6 @@ interval     = "30s"
 timeout      = "5s"
 retries      = 3
 start_period = "15s"
-
-[environment]
-# Podman host (for docker_stats receiver compatibility)
-DOCKER_HOST = "unix:///var/run/docker.sock"
 
 # No setup.fields – collector needs no secrets of its own;
 # OpenObserver credentials come from the openobserver sub-service.

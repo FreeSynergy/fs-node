@@ -1,6 +1,7 @@
-//! fsn-wizard — Container assistant for FreeSynergy.
+//! fsn-wizard — Import tool for FreeSynergy.
 //!
-//! Converts Docker Compose / YAML container definitions into FSN module TOML.
+//! Import tool: converts Docker Compose / YAML container definitions into FSN module TOML.
+//! This is an import-only tool — Docker Compose is not used at runtime. FSN uses Quadlets.
 //!
 //! # Pipeline
 //!
