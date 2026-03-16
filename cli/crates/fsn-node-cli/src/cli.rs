@@ -219,6 +219,24 @@ pub enum StoreCommand {
     },
     /// Check for available updates
     Update,
+    /// Manage UI language packs
+    I18n {
+        #[command(subcommand)]
+        cmd: I18nCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum I18nCommand {
+    /// Show available languages and their completeness
+    Status,
+    /// Download and activate a language pack
+    Set {
+        /// BCP 47 language code (e.g. "de", "fr", "ja")
+        lang: String,
+    },
+    /// Check if installed language is up to date with the current schema
+    Check,
 }
 
 #[derive(Subcommand)]
@@ -279,6 +297,11 @@ pub async fn run() -> Result<()> {
             StoreCommand::Info { id }       => commands::store::info(&id).await,
             StoreCommand::Install { id }    => commands::store::install(&id).await,
             StoreCommand::Update            => commands::store::update_check().await,
+            StoreCommand::I18n { cmd }      => match cmd {
+                I18nCommand::Status        => commands::store::i18n_status().await,
+                I18nCommand::Set { lang }  => commands::store::i18n_set(&lang).await,
+                I18nCommand::Check         => commands::store::i18n_check().await,
+            },
         },
         Command::Server { cmd }            => match cmd {
             ServerCommand::Setup           => commands::server_setup::run(&root).await,
