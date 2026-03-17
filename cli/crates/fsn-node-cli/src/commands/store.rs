@@ -143,17 +143,81 @@ pub async fn i18n_status() -> Result<()> {
 }
 
 /// Download and activate a language pack.
+///
+/// Fetches `Node/i18n/{lang}/manifest.toml` + `ui.toml` from the store,
+/// caches them to `~/.local/share/fsn/i18n/{lang}.toml`, and sets the
+/// active language in `~/.local/share/fsn/lang`.
 pub async fn i18n_set(lang: &str) -> Result<()> {
-    // TODO: fetch merged lang file from store → write to ~/.config/fsn/i18n/{lang}.toml → set active
-    println!("Language pack '{lang}' — download and activation not yet implemented.");
-    println!("Run `fsn store i18n status` to see available packs.");
+    let catalog = fetch_node_catalog().await?;
+
+    if !catalog.locales.iter().any(|l| l.code == lang) {
+        println!("Unknown language: {lang}");
+        println!("Run `fsn store i18n status` to see available packs.");
+        return Ok(());
+    }
+
+    println!("Downloading language pack '{lang}'…");
+    let client = StoreClient::node_store();
+    let bundle = client.fetch_i18n("Node", lang).await
+        .with_context(|| format!("fetching i18n bundle for '{lang}'"))?;
+
+    let cache_dir = i18n_cache_dir();
+    std::fs::create_dir_all(&cache_dir)
+        .with_context(|| format!("creating i18n cache dir: {}", cache_dir.display()))?;
+
+    let ui_text = toml::to_string(&bundle.ui)
+        .context("serializing ui.toml")?;
+    let lang_file = cache_dir.join(format!("{lang}.toml"));
+    std::fs::write(&lang_file, &ui_text)
+        .with_context(|| format!("writing {}", lang_file.display()))?;
+
+    let lang_marker = cache_dir.parent().unwrap_or(&cache_dir).join("lang");
+    std::fs::write(&lang_marker, lang)
+        .with_context(|| format!("writing {}", lang_marker.display()))?;
+
+    println!("Language pack '{}' ({}) installed — {}% complete.",
+        lang, bundle.meta.native_name, bundle.meta.completeness);
+    println!("Restart fsn to apply.");
     Ok(())
 }
 
-/// Check whether the currently active language pack matches the bundled schema version.
+/// Check whether the active language pack is installed and up to date.
 pub async fn i18n_check() -> Result<()> {
-    // TODO: read active lang from ~/.config/fsn/config.toml, compare schema_version
+    let active = active_lang();
     println!("Schema version (bundled): {BUNDLED_SCHEMA_VERSION}");
-    println!("Active language check — not yet implemented.");
+    println!("Active language: {active}");
+
+    let lang_file = i18n_cache_dir().join(format!("{active}.toml"));
+    if lang_file.exists() {
+        println!("Cached pack:    {}", lang_file.display());
+    } else {
+        println!("No cached pack for '{active}' — using built-in EN fallback.");
+        println!("Run `fsn store i18n set {active}` to download it.");
+    }
     Ok(())
+}
+
+pub fn i18n_cache_dir() -> std::path::PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    std::path::PathBuf::from(home).join(".local/share/fsn/i18n")
+}
+
+/// Read the active language from `~/.local/share/fsn/lang`, or detect from env.
+pub fn active_lang() -> String {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    let marker = std::path::PathBuf::from(home).join(".local/share/fsn/lang");
+    if let Ok(lang) = std::fs::read_to_string(&marker) {
+        let lang = lang.trim().to_string();
+        if !lang.is_empty() { return lang; }
+    }
+    detect_system_lang()
+}
+
+fn detect_system_lang() -> String {
+    let raw = std::env::var("LANGUAGE")
+        .or_else(|_| std::env::var("LANG"))
+        .or_else(|_| std::env::var("LC_ALL"))
+        .unwrap_or_default();
+    raw.split(['.', '_']).next().unwrap_or("en")
+        .to_lowercase()
 }

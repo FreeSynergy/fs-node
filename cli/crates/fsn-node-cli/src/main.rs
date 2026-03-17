@@ -5,19 +5,15 @@ mod db;
 use anyhow::Result;
 use tracing_subscriber::EnvFilter;
 
-// Bundled locale strings compiled into the binary for offline-first i18n.
+// Only EN is bundled — all other languages are downloaded via `fsn store i18n set`.
 const LOCALE_EN: &str = include_str!("../locales/en/cli.toml");
-const LOCALE_DE: &str = include_str!("../locales/de/cli.toml");
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing (controlled by RUST_LOG env var)
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    // Global panic handler — log the panic via tracing instead of writing raw
-    // to stderr so that structured log pipelines capture it, then abort.
     std::panic::set_hook(Box::new(|info| {
         let location = info
             .location()
@@ -32,11 +28,19 @@ async fn main() -> Result<()> {
         tracing::error!(panic.location = %location, panic.message = %message, "fsn panicked — this is a bug, please report it");
     }));
 
-    // Detect system language from LANG / LANGUAGE env vars; default to "en".
-    let lang = detect_lang();
-    let _ = fsn_i18n::init_with_toml_strs(&lang, &[("en", LOCALE_EN), ("de", LOCALE_DE)]);
+    // Active language: user-set marker file → system env → "en"
+    let lang = commands::store::active_lang();
 
-    // DB init (non-fatal: CLI works without persistence)
+    // Build locale list: EN always present as fallback; add cached pack if available
+    let cached = load_cached_lang(&lang);
+    let cached_str = cached.as_deref().unwrap_or("");
+
+    if cached.is_some() {
+        let _ = fsn_i18n::init_with_toml_strs(&lang, &[("en", LOCALE_EN), (&lang, cached_str)]);
+    } else {
+        let _ = fsn_i18n::init_with_toml_strs("en", &[("en", LOCALE_EN)]);
+    }
+
     if let Err(e) = db::init().await {
         tracing::warn!("DB unavailable: {e}");
     } else {
@@ -48,20 +52,10 @@ async fn main() -> Result<()> {
     result
 }
 
-/// Detect the active UI language from environment variables.
-///
-/// Reads `LANGUAGE`, `LANG`, or `LC_ALL` (in order of precedence) and
-/// extracts the ISO 639-1 two-letter code.  Defaults to `"en"`.
-fn detect_lang() -> String {
-    let raw = std::env::var("LANGUAGE")
-        .or_else(|_| std::env::var("LANG"))
-        .or_else(|_| std::env::var("LC_ALL"))
-        .unwrap_or_default();
-
-    // Take the first two characters of e.g. "de_DE.UTF-8" → "de"
-    let code = raw.split(['.', '_']).next().unwrap_or("en");
-    match code {
-        "de" => "de".to_string(),
-        _    => "en".to_string(),
-    }
+/// Load the cached ui.toml for `lang` from `~/.local/share/fsn/i18n/{lang}.toml`.
+/// Returns None if not found.
+fn load_cached_lang(lang: &str) -> Option<String> {
+    if lang == "en" { return None; }
+    let path = commands::store::i18n_cache_dir().join(format!("{lang}.toml"));
+    std::fs::read_to_string(path).ok()
 }
