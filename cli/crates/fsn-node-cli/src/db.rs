@@ -90,6 +90,11 @@ pub async fn write_audit_entry(entry: &AuditEntry) {
     }
 }
 
+/// Return the active database connection, if initialized.
+pub fn get_conn() -> Option<std::sync::Arc<DbConnection>> {
+    DB.get().cloned()
+}
+
 /// Flush all pending writes to disk.
 ///
 /// Call before process exit to ensure the last audit entries are persisted.

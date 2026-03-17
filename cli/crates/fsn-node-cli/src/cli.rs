@@ -219,10 +219,44 @@ pub enum StoreCommand {
     },
     /// Check for available updates
     Update,
+    /// List all installed packages
+    List {
+        /// Filter by package type (app, container, language, theme, widget, …)
+        #[arg(long)]
+        r#type: Option<String>,
+    },
+    /// Remove an installed package
+    Remove {
+        /// Package ID (e.g. "lang/de", "theme/dark-pro")
+        id: String,
+        /// Skip confirmation prompt
+        #[arg(long)]
+        confirm: bool,
+    },
+    /// Roll back a package to a previous version
+    Rollback {
+        /// Package ID
+        id: String,
+        /// Target version (omit to roll back to the previous version)
+        #[arg(long)]
+        version: Option<String>,
+    },
+    /// Force-refresh the store catalog cache
+    Sync,
     /// Manage UI language packs
     I18n {
         #[command(subcommand)]
         cmd: I18nCommand,
+    },
+    /// Manage themes
+    Theme {
+        #[command(subcommand)]
+        cmd: PackageAssetCommand,
+    },
+    /// Manage widgets
+    Widget {
+        #[command(subcommand)]
+        cmd: PackageAssetCommand,
     },
 }
 
@@ -237,6 +271,35 @@ pub enum I18nCommand {
     },
     /// Check if installed language is up to date with the current schema
     Check,
+}
+
+/// Subcommands for theme and widget management.
+#[derive(Subcommand)]
+pub enum PackageAssetCommand {
+    /// List available packages in the catalog
+    Available {
+        /// Search query (leave empty to list all)
+        #[arg(default_value = "")]
+        query: String,
+    },
+    /// List installed packages
+    List,
+    /// Install a package from the store
+    Install {
+        /// Package ID
+        id: String,
+        /// Preview without applying changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Remove an installed package
+    Remove {
+        /// Package ID
+        id: String,
+        /// Skip confirmation prompt
+        #[arg(long)]
+        confirm: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -297,10 +360,26 @@ pub async fn run() -> Result<()> {
             StoreCommand::Info { id }       => commands::store::info(&id).await,
             StoreCommand::Install { id }    => commands::store::install(&id).await,
             StoreCommand::Update            => commands::store::update_check().await,
+            StoreCommand::List { r#type }   => commands::store::list(r#type.as_deref()).await,
+            StoreCommand::Remove { id, confirm } => commands::store::pkg_remove(&id, confirm).await,
+            StoreCommand::Rollback { id, version } => commands::store::rollback(&id, version.as_deref()).await,
+            StoreCommand::Sync              => commands::store::sync().await,
             StoreCommand::I18n { cmd }      => match cmd {
                 I18nCommand::Status        => commands::store::i18n_status().await,
                 I18nCommand::Set { lang }  => commands::store::i18n_set(&lang).await,
                 I18nCommand::Check         => commands::store::i18n_check().await,
+            },
+            StoreCommand::Theme { cmd }     => match cmd {
+                PackageAssetCommand::Available { query } => commands::store::asset_available("theme", &query).await,
+                PackageAssetCommand::List                => commands::store::asset_list("theme").await,
+                PackageAssetCommand::Install { id, dry_run } => commands::store::asset_install("theme", &id, dry_run).await,
+                PackageAssetCommand::Remove { id, confirm }  => commands::store::asset_remove("theme", &id, confirm).await,
+            },
+            StoreCommand::Widget { cmd }    => match cmd {
+                PackageAssetCommand::Available { query } => commands::store::asset_available("widget", &query).await,
+                PackageAssetCommand::List                => commands::store::asset_list("widget").await,
+                PackageAssetCommand::Install { id, dry_run } => commands::store::asset_install("widget", &id, dry_run).await,
+                PackageAssetCommand::Remove { id, confirm }  => commands::store::asset_remove("widget", &id, confirm).await,
             },
         },
         Command::Server { cmd }            => match cmd {
