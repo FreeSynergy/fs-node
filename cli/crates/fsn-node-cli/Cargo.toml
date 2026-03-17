@@ -10,15 +10,16 @@ name = "fsn"
 path = "src/main.rs"
 
 [dependencies]
-fsn-node-core      = { workspace = true }
-fsn-db        = { workspace = true }
-fsn-deploy    = { workspace = true }
-fsn-dns       = { workspace = true }
-fsn-host      = { workspace = true }
-fsn-container = { workspace = true }
-fsn-store     = { workspace = true }
-fsn-i18n      = { workspace = true }
-fsn-s3        = { workspace = true }
+fsn-node-core  = { workspace = true }
+fsn-db         = { workspace = true }
+fsn-deploy     = { workspace = true }
+fsn-dns        = { workspace = true }
+fsn-host       = { workspace = true }
+fsn-container  = { workspace = true }
+fsn-conductor  = { workspace = true }
+fsn-store      = { workspace = true }
+fsn-i18n       = { workspace = true }
+fsn-s3         = { workspace = true }
 clap        = { workspace = true }
 tokio       = { workspace = true }
 anyhow      = { workspace = true }

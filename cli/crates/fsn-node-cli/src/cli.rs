@@ -116,7 +116,7 @@ pub enum Command {
     /// Open the terminal UI dashboard
     Tui,
 
-    /// Container management (start/stop/restart/logs/list)
+    /// Compose YAML → Quadlet pipeline (analyze, install, start/stop/restart/logs)
     Conductor {
         #[command(subcommand)]
         cmd: ConductorCommand,
@@ -279,38 +279,73 @@ pub enum StorageSyncCommand {
 
 #[derive(Subcommand)]
 pub enum ConductorCommand {
-    /// List all containers and their state
-    List {
-        /// Include stopped containers
-        #[arg(short, long)]
-        all: bool,
+    /// Parse + analyze a compose YAML file and show a variable report
+    Analyze {
+        /// Path to docker-compose.yml or Podman compose file
+        file: std::path::PathBuf,
+
+        /// Override instance name (default: first service name in compose file)
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Do not contact the store for enrichment
+        #[arg(long)]
+        offline: bool,
     },
-    /// Start a container
+
+    /// Install a compose YAML file as a Quadlet-managed service
+    Install {
+        /// Path to docker-compose.yml or Podman compose file
+        file: std::path::PathBuf,
+
+        /// Override instance name (default: first service name in compose file)
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Validate and show what would be written — do not write files
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Store API base URL for enrichment (e.g. http://localhost:8080)
+        #[arg(long)]
+        store_url: Option<String>,
+    },
+
+    /// Start a conductor-managed service instance via systemctl
     Start {
-        /// Container name
+        /// Instance name (e.g. "kanidm")
         service: String,
     },
-    /// Stop a container
+
+    /// Stop a conductor-managed service instance via systemctl
     Stop {
-        /// Container name
+        /// Instance name
         service: String,
     },
-    /// Restart a container
+
+    /// Restart a conductor-managed service instance via systemctl
     Restart {
-        /// Container name
+        /// Instance name
         service: String,
     },
-    /// Show container logs
+
+    /// Show recent logs for a conductor-managed service (via journalctl)
     Logs {
-        /// Container name
+        /// Instance name
         service: String,
-        /// Follow log output (poll every second)
-        #[arg(short, long)]
-        follow: bool,
-        /// Number of lines to show
+        /// Number of log lines to show
         #[arg(short, long, default_value = "50")]
-        tail: u64,
+        lines: usize,
     },
+
+    /// Show systemctl status of a conductor-managed service
+    Status {
+        /// Instance name
+        service: String,
+    },
+
+    /// List all conductor-managed systemd services
+    List,
 }
 
 #[derive(Subcommand)]
@@ -459,15 +494,17 @@ pub async fn run() -> Result<()> {
         Command::Serve { port, bind }      => commands::serve::run(&root, cli.project.as_deref(), &bind, port).await,
         Command::Init                      => commands::init::run(&root).await,
         Command::Tui                       => commands::tui::run(&root).await,
-        Command::Conductor { cmd }         => {
-            let c = commands::conductor::Conductor::new()?;
-            match cmd {
-                ConductorCommand::List { all }                    => c.list(all).await,
-                ConductorCommand::Start { service }               => c.start(&service).await,
-                ConductorCommand::Stop { service }                => c.stop(&service).await,
-                ConductorCommand::Restart { service }             => c.restart(&service).await,
-                ConductorCommand::Logs { service, follow, tail }  => c.logs(&service, follow, tail).await,
-            }
+        Command::Conductor { cmd } => match cmd {
+            ConductorCommand::Analyze { file, name, offline } =>
+                commands::conductor::analyze(&file, name.as_deref(), offline).await,
+            ConductorCommand::Install { file, name, dry_run, store_url } =>
+                commands::conductor::install(&file, name.as_deref(), dry_run, store_url.as_deref()).await,
+            ConductorCommand::Start   { service } => commands::conductor::start(&service).await,
+            ConductorCommand::Stop    { service } => commands::conductor::stop(&service).await,
+            ConductorCommand::Restart { service } => commands::conductor::restart(&service).await,
+            ConductorCommand::Logs    { service, lines } => commands::conductor::logs(&service, lines).await,
+            ConductorCommand::Status  { service } => commands::conductor::status(&service).await,
+            ConductorCommand::List              => commands::conductor::list().await,
         },
         Command::Store { cmd }             => match cmd {
             StoreCommand::Search { query }  => commands::store::search(&query).await,

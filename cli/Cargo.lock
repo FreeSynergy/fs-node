@@ -1592,6 +1592,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "fsn-conductor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "fsn-container",
+ "indexmap 2.13.0",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "fsn-container"
 version = "0.1.0"
 dependencies = [
@@ -1724,6 +1741,7 @@ dependencies = [
  "axum",
  "chrono",
  "clap",
+ "fsn-conductor",
  "fsn-container",
  "fsn-db",
  "fsn-deploy",
