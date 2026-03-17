@@ -1,0 +1,43 @@
+[package]
+name        = "fsn-s3"
+description = "FreeSynergy.Node – embedded S3-compatible storage server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+# Enables the opendal-SFTP replication backend
+backend-sftp    = ["opendal/services-sftp"]
+# Enables the opendal-S3 replication backend (Hetzner Storagebox, etc.)
+backend-hetzner = ["opendal/services-s3"]
+
+[dependencies]
+# S3-API server (AWS S3-compatible)
+s3s    = "0.13"
+s3s-fs = "0.13"
+
+# Pluggable storage backend for replication / sync
+opendal = { version = "0.51", features = ["services-fs"] }
+
+# Async runtime
+tokio  = { workspace = true }
+
+# HTTP (serve the s3s service)
+hyper      = { version = "1", features = ["server", "http1", "http2"] }
+hyper-util = { version = "0.1", features = ["tokio", "server"] }
+
+# Serialization
+serde      = { workspace = true }
+serde_json = { workspace = true }
+toml       = { workspace = true }
+
+# Error handling
+anyhow    = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Misc
+chrono = { workspace = true }

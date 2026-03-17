@@ -12,6 +12,7 @@ pub mod restart;
 pub mod serve;
 pub mod server_setup;
 pub mod status;
+pub mod storage;
 pub mod store;
 pub mod sync;
 pub mod tui;

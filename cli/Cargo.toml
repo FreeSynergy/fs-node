@@ -7,6 +7,7 @@ members = [
     "crates/fsn-wizard",
     "crates/fsn-node-cli",
     "crates/fsn-installer",
+    "crates/fsn-s3",
 ]
 resolver = "2"
 
@@ -19,20 +20,25 @@ repository  = "https://github.com/FreeSynergy/Node"
 
 # ── Shared dependency versions ────────────────────────────────────────────────
 [workspace.dependencies]
-# FreeSynergy.Lib — shared libraries
-fsn-types          = { path = "../../FreeSynergy.Lib/fsn-types" }
-fsn-error          = { path = "../../FreeSynergy.Lib/fsn-error" }
-fsn-config         = { path = "../../FreeSynergy.Lib/fsn-config" }
-fsn-i18n           = { path = "../../FreeSynergy.Lib/fsn-i18n" }
-fsn-theme          = { path = "../../FreeSynergy.Lib/fsn-theme" }
-fsn-help           = { path = "../../FreeSynergy.Lib/fsn-help" }
-fsn-health         = { path = "../../FreeSynergy.Lib/fsn-health" }
-fsn-plugin-sdk     = { path = "../../FreeSynergy.Lib/fsn-plugin-sdk" }
-fsn-plugin-runtime = { path = "../../FreeSynergy.Lib/fsn-plugin-runtime", features = ["wasm"] }
-fsn-container      = { path = "../../FreeSynergy.Lib/fsn-container" }
-fsn-template       = { path = "../../FreeSynergy.Lib/fsn-template" }
-fsn-db             = { path = "../../FreeSynergy.Lib/fsn-db", features = ["sqlite"] }
-fsn-store          = { path = "../../FreeSynergy.Lib/fsn-store" }
+# FreeSynergy.Lib (core)
+fsn-types    = { path = "../../FreeSynergy.Lib/fsn-types" }
+fsn-error    = { path = "../../FreeSynergy.Lib/fsn-error" }
+fsn-config   = { path = "../../FreeSynergy.Lib/fsn-config" }
+fsn-health   = { path = "../../FreeSynergy.Lib/fsn-health" }
+fsn-template = { path = "../../FreeSynergy.Lib/fsn-template" }
+fsn-db       = { path = "../../FreeSynergy.Lib/fsn-db", features = ["sqlite"] }
+fsn-crypto   = { path = "../../FreeSynergy.Lib/fsn-crypto" }
+
+# FreeSynergy.Lib.UI
+fsn-i18n  = { path = "../../FreeSynergy.Lib.UI/fsn-i18n" }
+fsn-theme = { path = "../../FreeSynergy.Lib.UI/fsn-theme" }
+fsn-help  = { path = "../../FreeSynergy.Lib.UI/fsn-help" }
+
+# FreeSynergy.Lib.Ext
+fsn-plugin-sdk     = { path = "../../FreeSynergy.Lib.Ext/fsn-plugin-sdk" }
+fsn-plugin-runtime = { path = "../../FreeSynergy.Lib.Ext/fsn-plugin-runtime" }
+fsn-container      = { path = "../../FreeSynergy.Lib.Ext/fsn-container" }
+fsn-store          = { path = "../../FreeSynergy.Lib.Ext/fsn-store" }
 
 # Internal crates
 fsn-node-core = { path = "crates/fsn-node-core" }
@@ -40,6 +46,7 @@ fsn-deploy  = { path = "crates/fsn-deploy" }
 fsn-dns     = { path = "crates/fsn-dns" }
 fsn-host    = { path = "crates/fsn-host" }
 fsn-wizard  = { path = "crates/fsn-wizard" }
+fsn-s3      = { path = "crates/fsn-s3" }
 
 # Serialization
 serde          = { version = "1",    features = ["derive"] }
@@ -91,6 +98,11 @@ russh-keys     = { version = "0.45" }
 # HTTP server (fsn serve — REST API for Desktop)
 axum           = { version = "0.8", features = ["json", "http1", "tokio"] }
 tower-http     = { version = "0.6", features = ["cors"] }
+
+# S3 server (fsn-s3)
+hyper          = { version = "1", features = ["server", "http1", "http2"] }
+hyper-util     = { version = "0.1", features = ["tokio", "server"] }
+opendal        = { version = "0.51", features = ["services-fs"] }
 
 # WebSocket (Desktop Live-Updates, fsn serve)
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }

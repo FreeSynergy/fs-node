@@ -161,6 +161,120 @@ pub enum Command {
         /// Service instance name (as declared in the project config)
         service: String,
     },
+
+    /// Manage the embedded S3 storage server
+    Storage {
+        #[command(subcommand)]
+        cmd: StorageCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum StorageCommand {
+    /// Show bucket status (sizes, object counts)
+    Status,
+
+    /// Initialize bucket directory structure
+    Init,
+
+    /// Manage the local node's public profile
+    Profile {
+        #[command(subcommand)]
+        cmd: ProfileCommand,
+    },
+
+    /// Sync data with a remote node (federation)
+    Sync {
+        #[command(subcommand)]
+        cmd: StorageSyncCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ProfileCommand {
+    /// Show the current local profile
+    Show,
+
+    /// Set profile display name and metadata
+    Set {
+        /// Display name
+        #[arg(long)]
+        name: String,
+
+        /// Short description of this node
+        #[arg(long)]
+        description: Option<String>,
+
+        /// Public URL where this node is reachable
+        #[arg(long)]
+        public_url: Option<String>,
+    },
+
+    /// Upload an avatar image (png / jpg / webp)
+    Avatar {
+        /// Path to the image file
+        file: std::path::PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum StorageSyncCommand {
+    /// Pull a bucket from a remote node
+    Pull {
+        /// S3 endpoint of the remote node (e.g. http://peer.example:9000)
+        #[arg(long)]
+        remote_url: String,
+
+        /// Bucket name (profiles, backups, media, packages, shared)
+        #[arg(long)]
+        bucket: String,
+
+        /// S3 access key for the remote node
+        #[arg(long)]
+        access_key: String,
+
+        /// S3 secret key for the remote node
+        #[arg(long)]
+        secret_key: String,
+    },
+
+    /// Push a local bucket to a remote node
+    Push {
+        /// S3 endpoint of the remote node
+        #[arg(long)]
+        remote_url: String,
+
+        /// Bucket name
+        #[arg(long)]
+        bucket: String,
+
+        /// S3 access key for the remote node
+        #[arg(long)]
+        access_key: String,
+
+        /// S3 secret key for the remote node
+        #[arg(long)]
+        secret_key: String,
+    },
+
+    /// Fetch a remote node's public profile
+    FetchProfile {
+        /// S3 endpoint of the remote node
+        #[arg(long)]
+        remote_url: String,
+
+        /// Node ID to fetch
+        #[arg(long)]
+        node_id: String,
+
+        /// S3 access key (leave empty for public read)
+        #[arg(long, default_value = "")]
+        access_key: String,
+
+        /// S3 secret key (leave empty for public read)
+        #[arg(long, default_value = "")]
+        secret_key: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -396,6 +510,12 @@ pub async fn run() -> Result<()> {
         },
         Command::Deps { service } => {
             commands::deps::run(&root, cli.project.as_deref(), &service).await
+        },
+        Command::Storage { cmd } => match cmd {
+            StorageCommand::Status => commands::storage::status(&root).await,
+            StorageCommand::Init   => commands::storage::init(&root).await,
+            StorageCommand::Profile { cmd } => commands::storage::profile(&root, cmd).await,
+            StorageCommand::Sync { cmd }    => commands::storage::sync(&root, cmd).await,
         },
     }
 }

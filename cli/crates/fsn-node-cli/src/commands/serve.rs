@@ -1,13 +1,18 @@
-// `fsn serve` — embedded HTTP server exposing the store knowledge API.
+// `fsn serve` — embedded HTTP server + S3 storage server.
 //
-// Routes (all under /api/store/know/):
+// HTTP routes (all under /api/store/know/):
 //   GET  /api/store/know/catalog          → full catalog as JSON
 //   GET  /api/store/know/search?q=...     → filtered catalog
 //   GET  /api/store/know/package/:id      → single package details
 //   GET  /api/store/know/installed        → installed packages from DB
 //   GET  /api/store/know/i18n             → available language packs
 //
-// The Desktop (fsd) connects to this API to render the Store UI.
+// S3 server (default port 9000):
+//   Standard AWS S3 API, backed by the local filesystem.
+//   Buckets: profiles (public), backups, media, packages, shared.
+//
+// The Desktop (fsd) connects to the HTTP API to render the Store UI.
+// Remote nodes connect to the S3 port for federation.
 
 use std::path::Path;
 
@@ -21,6 +26,7 @@ use axum::{
 };
 use fsn_db::InstalledPackageRepo;
 use fsn_node_core::store::StoreEntry;
+use fsn_s3::{S3Server, StorageConfig};
 use fsn_store::StoreClient;
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
@@ -53,9 +59,23 @@ struct InstalledRow {
 
 // ── run ───────────────────────────────────────────────────────────────────────
 
-pub async fn run(_root: &Path, _project: Option<&Path>, bind: &str, port: u16) -> Result<()> {
+pub async fn run(root: &Path, _project: Option<&Path>, bind: &str, port: u16) -> Result<()> {
     let addr = format!("{bind}:{port}");
 
+    // ── S3 server ─────────────────────────────────────────────────────────────
+    let s3_config = StorageConfig {
+        enabled:    true,
+        port:       9000,
+        bind:       "127.0.0.1".to_owned(),
+        data_root:  root.join("storage"),
+        access_key: "fsn_local".to_owned(),
+        secret_key: "changeme_secret_key".to_owned(),
+        sync:       None,
+    };
+    let s3 = S3Server::new(s3_config);
+    let _s3_handle = s3.start().await?;
+
+    // ── HTTP store API ────────────────────────────────────────────────────────
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -72,7 +92,8 @@ pub async fn run(_root: &Path, _project: Option<&Path>, bind: &str, port: u16) -
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     info!("fsn store API listening on http://{addr}");
-    println!("Store API running at http://{addr}/api/store/know/");
+    println!("Store API : http://{addr}/api/store/know/");
+    println!("S3 API    : http://127.0.0.1:9000");
     println!("Press Ctrl+C to stop.");
 
     axum::serve(listener, app).await?;
