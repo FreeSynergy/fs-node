@@ -30,6 +30,7 @@ fsn-health   = { path = "../../FreeSynergy.Lib/fsn-health" }
 fsn-template = { path = "../../FreeSynergy.Lib/fsn-template" }
 fsn-db       = { path = "../../FreeSynergy.Lib/fsn-db", features = ["sqlite"] }
 fsn-crypto   = { path = "../../FreeSynergy.Lib/fsn-crypto" }
+fsn-bus      = { path = "../../FreeSynergy.Lib/fsn-bus" }
 
 # FreeSynergy.Lib.UI
 fsn-i18n  = { path = "../../FreeSynergy.Lib.UI/fsn-i18n" }
@@ -90,6 +91,7 @@ chrono         = { version = "0.4", features = ["serde"] }
 walkdir        = { version = "2" }
 async-trait    = { version = "0.1" }
 libc           = { version = "0.2" }
+uuid           = { version = "1", features = ["v4", "serde"] }
 
 # Random (crypto-safe RNG)
 rand           = { version = "0.8" }

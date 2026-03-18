@@ -167,6 +167,12 @@ pub enum Command {
         #[command(subcommand)]
         cmd: StorageCommand,
     },
+
+    /// Message bus daemon and event routing
+    Bus {
+        #[command(subcommand)]
+        cmd: BusCommand,
+    },
 }
 
 #[derive(Subcommand)]
@@ -459,6 +465,36 @@ pub enum ServerCommand {
 }
 
 #[derive(Subcommand)]
+pub enum BusCommand {
+    /// Start the bus REST + WebSocket server
+    Serve {
+        /// Port to listen on
+        #[arg(long, default_value = "8081")]
+        port: u16,
+        /// Bind address
+        #[arg(long, default_value = "127.0.0.1")]
+        bind: String,
+        /// Path to routing config TOML (optional)
+        #[arg(long)]
+        config: Option<String>,
+    },
+    /// Show current bus status (subscriptions + standing orders)
+    Status,
+    /// Publish a single event to the running bus
+    Publish {
+        /// Event topic (e.g. "deploy.started")
+        #[arg(long)]
+        topic: String,
+        /// Source role or service name
+        #[arg(long, default_value = "cli")]
+        source: String,
+        /// JSON payload (optional)
+        #[arg(long)]
+        payload: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum ConfigCommand {
     /// Show the merged resolved config (module defaults + project.yml)
     Show,
@@ -553,6 +589,14 @@ pub async fn run() -> Result<()> {
             StorageCommand::Init   => commands::storage::init(&root).await,
             StorageCommand::Profile { cmd } => commands::storage::profile(&root, cmd).await,
             StorageCommand::Sync { cmd }    => commands::storage::sync(&root, cmd).await,
+        },
+        Command::Bus { cmd } => match cmd {
+            BusCommand::Serve { port, bind, config } =>
+                commands::bus::serve(&bind, port, config.as_deref()).await,
+            BusCommand::Status =>
+                commands::bus::status().await,
+            BusCommand::Publish { topic, source, payload } =>
+                commands::bus::publish_event(&topic, &source, payload.as_deref()).await,
         },
     }
 }
