@@ -1,12 +1,12 @@
-// `fsn tui` — launches FreeSynergy.Desktop (fsd / fsd-conductor).
+// `fsn tui` — launches FreeSynergy.Desktop (fsd / fsd-container-app).
 //
 // Search order:
-//   1. `fsd-conductor` in PATH  — standalone conductor binary (if built separately)
-//   2. `fsd` in PATH            — full Desktop shell (includes conductor as a window)
+//   1. `fsd-container-app` in PATH  — standalone container app manager binary (if built separately)
+//   2. `fsd` in PATH            — full Desktop shell (includes container app manager as a window)
 //   3. Well-known build locations for both binaries
 //
-// fsd-conductor is the container management app (service list, logs, health status).
-// fsd is the full Desktop shell that hosts conductor and other apps.
+// fsd-container-app is the container management app (service list, logs, health status).
+// fsd is the full Desktop shell that hosts container app manager and other apps.
 
 use std::path::Path;
 use anyhow::{bail, Result};
@@ -23,7 +23,7 @@ pub async fn run(_root: &Path) -> Result<()> {
         }
         Ok(())
     } else {
-        eprintln!("FreeSynergy.Desktop (fsd / fsd-conductor) not found in PATH.");
+        eprintln!("FreeSynergy.Desktop (fsd / fsd-container-app) not found in PATH.");
         eprintln!("Build it with:");
         eprintln!("  cd /home/kal/Server/FreeSynergy.Desktop");
         eprintln!("  cargo build -p fsd-app --release");
@@ -34,12 +34,12 @@ pub async fn run(_root: &Path) -> Result<()> {
 
 /// Find the best available Desktop binary.
 ///
-/// Prefers `fsd-conductor` (standalone conductor mode) over the full `fsd`
+/// Prefers `fsd-container-app` (standalone container app manager mode) over the full `fsd`
 /// shell, so that `fsn tui` opens container management directly.
-/// Falls back to `fsd` if conductor is not separately installed.
+/// Falls back to `fsd` if container app manager is not separately installed.
 fn which_desktop_bin() -> Option<std::path::PathBuf> {
-    // Check PATH for both candidates (conductor first)
-    for name in &["fsd-conductor", "fsd"] {
+    // Check PATH for both candidates (container app manager first)
+    for name in &["fsd-container-app", "fsd"] {
         if let Ok(out) = std::process::Command::new("which").arg(name).output() {
             if out.status.success() {
                 let p = std::path::PathBuf::from(String::from_utf8_lossy(&out.stdout).trim());
@@ -54,8 +54,8 @@ fn which_desktop_bin() -> Option<std::path::PathBuf> {
     let home = std::env::var("HOME").unwrap_or_default();
     let base = format!("{home}/Server/FreeSynergy.Desktop/target");
     let candidates = [
-        format!("{base}/release/fsd-conductor"),
-        format!("{base}/debug/fsd-conductor"),
+        format!("{base}/release/fsd-container-app"),
+        format!("{base}/debug/fsd-container-app"),
         format!("{base}/release/fsd"),
         format!("{base}/debug/fsd"),
     ];

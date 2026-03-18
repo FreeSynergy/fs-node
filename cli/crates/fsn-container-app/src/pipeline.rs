@@ -1,6 +1,6 @@
-// Conductor pipeline — parse → analyze → validate → convert → install.
+// Container App Manager pipeline — parse → analyze → validate → convert → install.
 //
-// Ties together all conductor modules into a single end-to-end workflow.
+// Ties together all container app manager modules into a single end-to-end workflow.
 
 use std::path::Path;
 
@@ -136,7 +136,7 @@ pub async fn install(
         .map_err(|e| anyhow::anyhow!("daemon-reload failed: {e}"))?;
 
     println!("\nInstalled {} service(s) for instance '{prefix}'.", services.len());
-    println!("Start with: fsn conductor start {prefix}");
+    println!("Start with: fsn container-app start {prefix}");
 
     Ok(services)
 }

@@ -1,4 +1,4 @@
-//! FreeSynergy Conductor — compose YAML → Podman Quadlet pipeline.
+//! FreeSynergy Container App Manager — compose YAML → Podman Quadlet pipeline.
 //!
 //! # Pipeline
 //!

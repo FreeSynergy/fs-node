@@ -34,7 +34,7 @@ fn convert_service(
     let image = svc.image.clone().unwrap_or_else(|| format!("{name}:latest"));
 
     let mut config = ServiceConfig::new(&instance_name, image);
-    config.description = Some(format!("Conductor-managed service: {instance_name}"));
+    config.description = Some(format!("Container App Manager-managed service: {instance_name}"));
 
     // Environment
     for env in &svc.environment {

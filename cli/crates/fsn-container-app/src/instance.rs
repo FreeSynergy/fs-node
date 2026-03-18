@@ -14,7 +14,7 @@ use crate::compose::ComposeFile;
 
 // ── InstanceName ──────────────────────────────────────────────────────────────
 
-/// A validated instance name for a conductor-managed compose stack.
+/// A validated instance name for a container-app-managed compose stack.
 #[derive(Debug, Clone)]
 pub struct InstanceName(String);
 

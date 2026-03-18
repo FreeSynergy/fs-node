@@ -1603,10 +1603,12 @@ dependencies = [
  "clap",
  "fsn-crypto",
  "fsn-types",
+ "reqwest",
  "serde",
  "serde_json",
  "serde_yaml",
  "thiserror 2.0.18",
+ "tokio",
  "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
@@ -1629,7 +1631,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "fsn-conductor"
+name = "fsn-container"
+version = "0.1.0"
+dependencies = [
+ "fsn-error 0.1.0",
+ "serde",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fsn-container-app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1639,16 +1651,6 @@ dependencies = [
  "serde",
  "serde_yaml",
  "tempfile",
- "tracing",
-]
-
-[[package]]
-name = "fsn-container"
-version = "0.1.0"
-dependencies = [
- "fsn-error 0.1.0",
- "serde",
- "tokio",
  "tracing",
 ]
 
@@ -1779,8 +1781,8 @@ dependencies = [
  "chrono",
  "clap",
  "fsn-bus",
- "fsn-conductor",
  "fsn-container",
+ "fsn-container-app",
  "fsn-db",
  "fsn-deploy",
  "fsn-dns",

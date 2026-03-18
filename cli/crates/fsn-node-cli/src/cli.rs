@@ -117,9 +117,9 @@ pub enum Command {
     Tui,
 
     /// Compose YAML → Quadlet pipeline (analyze, install, start/stop/restart/logs)
-    Conductor {
+    ContainerApp {
         #[command(subcommand)]
-        cmd: ConductorCommand,
+        cmd: ContainerAppCommand,
     },
 
     /// Module store (search/info/install/update)
@@ -284,7 +284,7 @@ pub enum StorageSyncCommand {
 }
 
 #[derive(Subcommand)]
-pub enum ConductorCommand {
+pub enum ContainerAppCommand {
     /// Parse + analyze a compose YAML file and show a variable report
     Analyze {
         /// Path to docker-compose.yml or Podman compose file
@@ -317,25 +317,25 @@ pub enum ConductorCommand {
         store_url: Option<String>,
     },
 
-    /// Start a conductor-managed service instance via systemctl
+    /// Start a container-app-managed service instance via systemctl
     Start {
         /// Instance name (e.g. "kanidm")
         service: String,
     },
 
-    /// Stop a conductor-managed service instance via systemctl
+    /// Stop a container-app-managed service instance via systemctl
     Stop {
         /// Instance name
         service: String,
     },
 
-    /// Restart a conductor-managed service instance via systemctl
+    /// Restart a container-app-managed service instance via systemctl
     Restart {
         /// Instance name
         service: String,
     },
 
-    /// Show recent logs for a conductor-managed service (via journalctl)
+    /// Show recent logs for a container-app-managed service (via journalctl)
     Logs {
         /// Instance name
         service: String,
@@ -344,13 +344,13 @@ pub enum ConductorCommand {
         lines: usize,
     },
 
-    /// Show systemctl status of a conductor-managed service
+    /// Show systemctl status of a container-app-managed service
     Status {
         /// Instance name
         service: String,
     },
 
-    /// List all conductor-managed systemd services
+    /// List all container-app-managed systemd services
     List,
 }
 
@@ -530,17 +530,17 @@ pub async fn run() -> Result<()> {
         Command::Serve { port, bind }      => commands::serve::run(&root, cli.project.as_deref(), &bind, port).await,
         Command::Init                      => commands::init::run(&root).await,
         Command::Tui                       => commands::tui::run(&root).await,
-        Command::Conductor { cmd } => match cmd {
-            ConductorCommand::Analyze { file, name, offline } =>
-                commands::conductor::analyze(&file, name.as_deref(), offline).await,
-            ConductorCommand::Install { file, name, dry_run, store_url } =>
-                commands::conductor::install(&file, name.as_deref(), dry_run, store_url.as_deref()).await,
-            ConductorCommand::Start   { service } => commands::conductor::start(&service).await,
-            ConductorCommand::Stop    { service } => commands::conductor::stop(&service).await,
-            ConductorCommand::Restart { service } => commands::conductor::restart(&service).await,
-            ConductorCommand::Logs    { service, lines } => commands::conductor::logs(&service, lines).await,
-            ConductorCommand::Status  { service } => commands::conductor::status(&service).await,
-            ConductorCommand::List              => commands::conductor::list().await,
+        Command::ContainerApp { cmd } => match cmd {
+            ContainerAppCommand::Analyze { file, name, offline } =>
+                commands::container_app::analyze(&file, name.as_deref(), offline).await,
+            ContainerAppCommand::Install { file, name, dry_run, store_url } =>
+                commands::container_app::install(&file, name.as_deref(), dry_run, store_url.as_deref()).await,
+            ContainerAppCommand::Start   { service } => commands::container_app::start(&service).await,
+            ContainerAppCommand::Stop    { service } => commands::container_app::stop(&service).await,
+            ContainerAppCommand::Restart { service } => commands::container_app::restart(&service).await,
+            ContainerAppCommand::Logs    { service, lines } => commands::container_app::logs(&service, lines).await,
+            ContainerAppCommand::Status  { service } => commands::container_app::status(&service).await,
+            ContainerAppCommand::List              => commands::container_app::list().await,
         },
         Command::Store { cmd }             => match cmd {
             StoreCommand::Search { query }  => commands::store::search(&query).await,

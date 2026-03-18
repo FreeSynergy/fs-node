@@ -1,4 +1,4 @@
-// `fsn conductor` — compose YAML → Quadlet pipeline + service management.
+// `fsn container-app` — compose YAML → Quadlet pipeline + service management.
 //
 // All container lifecycle operations go through systemctl --user and journalctl.
 // No podman socket, no bollard. Quadlet files are written to
@@ -13,7 +13,7 @@ use fsn_container::{QuadletManager, SystemctlManager};
 
 /// Parse + analyze a compose file and print a variable report.
 pub async fn analyze(path: &Path, name: Option<&str>, _offline: bool) -> Result<()> {
-    let result = fsn_conductor::analyze(path, name)?;
+    let result = fsn_container_app::analyze(path, name)?;
     result.print_report();
     Ok(())
 }
@@ -27,13 +27,13 @@ pub async fn install(
     dry_run:   bool,
     store_url: Option<&str>,
 ) -> Result<()> {
-    fsn_conductor::install(path, name, dry_run, store_url).await?;
+    fsn_container_app::install(path, name, dry_run, store_url).await?;
     Ok(())
 }
 
 // ── Service management ────────────────────────────────────────────────────────
 
-/// Start a conductor-managed service.
+/// Start a container-app-managed service.
 pub async fn start(service: &str) -> Result<()> {
     let mgr = SystemctlManager::user();
     mgr.start(&unit(service)).await
@@ -42,7 +42,7 @@ pub async fn start(service: &str) -> Result<()> {
     Ok(())
 }
 
-/// Stop a conductor-managed service.
+/// Stop a container-app-managed service.
 pub async fn stop(service: &str) -> Result<()> {
     let mgr = SystemctlManager::user();
     mgr.stop(&unit(service)).await
@@ -51,7 +51,7 @@ pub async fn stop(service: &str) -> Result<()> {
     Ok(())
 }
 
-/// Restart a conductor-managed service.
+/// Restart a container-app-managed service.
 pub async fn restart(service: &str) -> Result<()> {
     let mgr = SystemctlManager::user();
     mgr.restart(&unit(service)).await
@@ -71,7 +71,7 @@ pub async fn logs(service: &str, lines: usize) -> Result<()> {
     Ok(())
 }
 
-/// Show systemctl status of a conductor-managed service.
+/// Show systemctl status of a container-app-managed service.
 pub async fn status(service: &str) -> Result<()> {
     let mgr = SystemctlManager::user();
     let status = mgr.service_status(&unit(service)).await
@@ -98,7 +98,7 @@ pub async fn list() -> Result<()> {
         .collect();
 
     if units.is_empty() {
-        println!("No conductor-managed services found.");
+        println!("No container-app-managed services found.");
         return Ok(());
     }
 

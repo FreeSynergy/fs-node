@@ -1,11 +1,11 @@
 // Store client — optionally enrich analysis with data from the FSN store.
 //
 // The store integration is OPTIONAL: if the store is unreachable (offline or
-// not running) the conductor continues without it.
+// not running) the container app manager continues without it.
 //
-// Contract: store data SUPPLEMENTS the conductor's own analysis — it never
-// overwrites values the conductor already determined. If there is a conflict
-// the user is informed and the conductor's value takes precedence.
+// Contract: store data SUPPLEMENTS the container app manager's own analysis — it never
+// overwrites values the container app manager already determined. If there is a conflict
+// the user is informed and the container app manager's value takes precedence.
 
 use serde::{Deserialize, Serialize};
 
@@ -101,7 +101,7 @@ fn apply_enrichment(vars: Vec<AnalyzedVar>, meta: &StorePackageMeta) -> Vec<Enri
             let store_var = meta.vars.iter().find(|sv| sv.name == v.name);
             let mut enriched = EnrichedVar::from_analyzed(v);
             if let Some(sv) = store_var {
-                // Only fill gaps — never overwrite conductor's own analysis
+                // Only fill gaps — never overwrite container app manager's own analysis
                 enriched.description = sv.description.clone();
                 enriched.example     = sv.example.clone();
                 enriched.required    = sv.required;

@@ -8,7 +8,7 @@ members = [
     "crates/fsn-node-cli",
     "crates/fsn-installer",
     "crates/fsn-s3",
-    "crates/fsn-conductor",
+    "crates/fsn-container-app",
     "crates/fsn-builder",
 ]
 resolver = "2"
@@ -50,7 +50,7 @@ fsn-dns       = { path = "crates/fsn-dns" }
 fsn-host      = { path = "crates/fsn-host" }
 fsn-wizard    = { path = "crates/fsn-wizard" }
 fsn-s3        = { path = "crates/fsn-s3" }
-fsn-conductor = { path = "crates/fsn-conductor" }
+fsn-container-app = { path = "crates/fsn-container-app" }
 
 # Serialization
 serde          = { version = "1",    features = ["derive"] }

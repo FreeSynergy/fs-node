@@ -1,6 +1,6 @@
 [package]
-name        = "fsn-conductor"
-description = "FreeSynergy.Node – Conductor: compose YAML → Quadlet pipeline"
+name        = "fsn-container-app"
+description = "FreeSynergy.Node – Container App Manager: compose YAML → Quadlet pipeline"
 version.workspace    = true
 edition.workspace    = true
 license.workspace    = true

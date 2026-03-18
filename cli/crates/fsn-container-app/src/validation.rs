@@ -113,7 +113,7 @@ fn check_images(compose: &ComposeFile, issues: &mut Vec<ValidationIssue>) {
         if svc.image.is_none() {
             issues.push(ValidationIssue::error(
                 Some(name),
-                "No image specified (build: is not supported by conductor)",
+                "No image specified (build: is not supported by the container app manager)",
             ));
         }
     }
@@ -125,7 +125,7 @@ fn check_healthchecks(compose: &ComposeFile, issues: &mut Vec<ValidationIssue>) 
             None => {
                 issues.push(ValidationIssue::warning(
                     Some(name),
-                    "No healthcheck defined — conductor cannot monitor service health",
+                    "No healthcheck defined — container app manager cannot monitor service health",
                 ));
             }
             Some(hc) if hc.test.is_empty() => {
