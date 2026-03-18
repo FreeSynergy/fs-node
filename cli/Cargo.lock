@@ -1338,6 +1338,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
  "pkcs8",
+ "serde",
  "signature",
 ]
 
@@ -1592,6 +1593,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "fsn-builder"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "fsn-crypto",
+ "fsn-types",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror 2.0.18",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "fsn-conductor"
 version = "0.1.0"
 dependencies = [
@@ -1613,6 +1631,18 @@ dependencies = [
  "serde",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "fsn-crypto"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "fsn-error 0.1.0",
+ "hex",
+ "rand 0.8.5",
+ "serde",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -1846,6 +1876,14 @@ dependencies = [
  "serde",
  "serde_json",
  "tera",
+]
+
+[[package]]
+name = "fsn-types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

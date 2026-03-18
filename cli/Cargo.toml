@@ -9,6 +9,7 @@ members = [
     "crates/fsn-installer",
     "crates/fsn-s3",
     "crates/fsn-conductor",
+    "crates/fsn-builder",
 ]
 resolver = "2"
 
