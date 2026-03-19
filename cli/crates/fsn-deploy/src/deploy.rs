@@ -21,12 +21,20 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use chrono::Utc;
+use fsn_inventory::{
+    Inventory, InstalledResource, ServiceInstance as InvServiceInstance,
+    ResourceStatus, ServiceStatus,
+};
+use fsn_inventory::models::ReleaseChannel;
 use fsn_node_core::{
     config::{ProjectConfig, VaultConfig, service::ServiceType},
     state::desired::{DesiredState, ServiceInstance},
 };
+use fsn_types::{ResourceType, Role, ValidationStatus};
 use fsn_container::SystemctlManager;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 use crate::generate::{env as gen_env, kdl as gen_kdl, quadlet as gen_quadlet};
 use crate::health;
@@ -59,18 +67,23 @@ pub struct DeployOpts {
 
     /// When set, deploy to this remote host via SSH instead of running locally.
     pub remote_host: Option<fsn_host::RemoteHost>,
+
+    /// Path to the local inventory SQLite database.
+    /// When set, deploy/undeploy operations are recorded in the Inventory.
+    pub inventory_path: Option<PathBuf>,
 }
 
 impl DeployOpts {
     pub fn default_for_user() -> Self {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
         Self {
-            quadlet_dir:    PathBuf::from(&home).join(".config/containers/systemd"),
-            state_dir:      PathBuf::from(&home).join(".local/share/fsn/deployed"),
-            dry_run:        false,
-            health_timeout: Duration::from_secs(120),
-            store_root:     None,
-            remote_host:    None,
+            quadlet_dir:     PathBuf::from(&home).join(".config/containers/systemd"),
+            state_dir:       PathBuf::from(&home).join(".local/share/fsn/deployed"),
+            dry_run:         false,
+            health_timeout:  Duration::from_secs(120),
+            store_root:      None,
+            remote_host:     None,
+            inventory_path:  Some(PathBuf::from(&home).join(".local/share/fsn/fsn-inventory.db")),
         }
     }
 }
@@ -95,6 +108,9 @@ pub async fn deploy_all(
     std::fs::create_dir_all(&opts.state_dir)?;
 
     let network_name = project_network_name(&desired.project_name);
+
+    // Open inventory once (non-fatal if unavailable)
+    let inventory = open_inventory(opts).await;
 
     // ── Phase 1: Write the project .network Quadlet ───────────────────────────
     let net_content = gen_quadlet::generate_network(&network_name, &desired.project_name);
@@ -128,14 +144,34 @@ pub async fn deploy_all(
         // during daemon-reload — calling enable separately is not needed and
         // will fail with "unit is transient or generated". Best-effort only.
         let _ = systemd.enable(&unit).await;
-        systemd.start(&unit).await
-            .map_err(anyhow::Error::from)
-            .with_context(|| format!("starting {unit}"))?;
 
-        health::wait_for_ready(instance, opts.health_timeout).await
-            .with_context(|| format!("health check for {}", instance.name))?;
+        let start_result = systemd.start(&unit).await
+            .map_err(anyhow::Error::from)
+            .with_context(|| format!("starting {unit}"));
+
+        if let Err(e) = &start_result {
+            if let Some(inv) = &inventory {
+                record_service_error(inv, instance, &network_name, &format!("{e:#}")).await;
+            }
+            return Err(start_result.unwrap_err());
+        }
+
+        let health_result = health::wait_for_ready(instance, opts.health_timeout).await
+            .with_context(|| format!("health check for {}", instance.name));
+
+        if let Err(e) = &health_result {
+            if let Some(inv) = &inventory {
+                record_service_error(inv, instance, &network_name, &format!("{e:#}")).await;
+            }
+            return Err(health_result.unwrap_err());
+        }
 
         write_version_marker(instance, opts)?;
+
+        // Register in Inventory after successful start
+        if let Some(inv) = &inventory {
+            record_service_installed(inv, instance, &network_name, data_root).await;
+        }
 
         // Post-deploy hook (idempotent: creates data dirs, renders configs, inits admin)
         let hook_ctx = HookContext {
@@ -239,8 +275,114 @@ pub async fn undeploy_instance(name: &str, opts: &DeployOpts) -> Result<()> {
     systemd.daemon_reload().await
         .map_err(anyhow::Error::from)
         .with_context(|| "systemd daemon-reload failed")?;
+
+    // Mark Stopped in Inventory (non-fatal)
+    if let Some(inv) = open_inventory(opts).await {
+        if let Err(e) = inv.set_resource_status(name, &ResourceStatus::Stopped).await {
+            warn!("inventory set_resource_status({name}, Stopped) failed: {e:#}");
+        }
+        if let Err(e) = inv.set_service_status_by_name(name, &ServiceStatus::Stopped).await {
+            warn!("inventory set_service_status({name}, Stopped) failed: {e:#}");
+        }
+    }
+
     info!("Removed {}", name);
     Ok(())
+}
+
+// ── Inventory helpers ─────────────────────────────────────────────────────────
+
+/// Open the inventory database if `opts.inventory_path` is set.
+/// Errors are non-fatal: a warning is emitted and `None` is returned.
+async fn open_inventory(opts: &DeployOpts) -> Option<Inventory> {
+    let path = opts.inventory_path.as_ref()?;
+    // Ensure parent directory exists so SQLite can create the file.
+    if let Some(parent) = path.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            warn!("Cannot create inventory dir {}: {e}", parent.display());
+            return None;
+        }
+    }
+    match Inventory::open(&path.to_string_lossy()).await {
+        Ok(inv) => Some(inv),
+        Err(e)  => { warn!("Cannot open inventory {}: {e}", path.display()); None }
+    }
+}
+
+/// Record a successful service install/start in the Inventory.
+async fn record_service_installed(
+    inv:          &Inventory,
+    instance:     &ServiceInstance,
+    network_name: &str,
+    data_root:    &Path,
+) {
+    let resource = InstalledResource {
+        id:            instance.name.clone(),
+        resource_type: ResourceType::ContainerApp,
+        version:       instance.version.clone(),
+        channel:       ReleaseChannel::Stable,
+        installed_at:  Utc::now().to_rfc3339(),
+        status:        ResourceStatus::Active,
+        config_path:   String::new(),
+        data_path:     data_root.join(&instance.name).to_string_lossy().into_owned(),
+        validation:    ValidationStatus::Incomplete,
+    };
+    if let Err(e) = inv.upsert_resource(&resource).await {
+        warn!("inventory upsert_resource({}) failed: {e:#}", instance.name);
+    }
+
+    let roles: Vec<fsn_types::Role> = instance
+        .service_types
+        .iter()
+        .filter(|t| !t.is_internal())
+        .map(|t| Role::new(t.to_string()))
+        .collect();
+
+    let svc = InvServiceInstance {
+        id:             Uuid::new_v4().to_string(),
+        resource_id:    instance.name.clone(),
+        instance_name:  instance.name.clone(),
+        roles_provided: roles,
+        roles_required: vec![],
+        bridges:        vec![],
+        variables:      vec![],
+        network:        network_name.to_owned(),
+        status:         fsn_inventory::ServiceStatus::Running,
+        port:           Some(instance.class.meta.port),
+        s3_paths:       vec![],
+    };
+    if let Err(e) = inv.upsert_service(&svc).await {
+        warn!("inventory upsert_service({}) failed: {e:#}", instance.name);
+    }
+}
+
+/// Record a service start/health error in the Inventory.
+async fn record_service_error(
+    inv:          &Inventory,
+    instance:     &ServiceInstance,
+    network_name: &str,
+    error_msg:    &str,
+) {
+    if let Err(e) = inv.set_resource_status(&instance.name, &ResourceStatus::Error(error_msg.to_owned())).await {
+        warn!("inventory set_resource_status({}, Error) failed: {e:#}", instance.name);
+    }
+    // upsert so it appears in the inventory even if install step wasn't reached
+    let svc = InvServiceInstance {
+        id:             Uuid::new_v4().to_string(),
+        resource_id:    instance.name.clone(),
+        instance_name:  instance.name.clone(),
+        roles_provided: vec![],
+        roles_required: vec![],
+        bridges:        vec![],
+        variables:      vec![],
+        network:        network_name.to_owned(),
+        status:         fsn_inventory::ServiceStatus::Error(error_msg.to_owned()),
+        port:           None,
+        s3_paths:       vec![],
+    };
+    if let Err(e) = inv.upsert_service(&svc).await {
+        warn!("inventory upsert_service({}) failed: {e:#}", instance.name);
+    }
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────

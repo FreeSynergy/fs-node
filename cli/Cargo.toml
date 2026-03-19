@@ -23,14 +23,15 @@ repository  = "https://github.com/FreeSynergy/Node"
 # ── Shared dependency versions ────────────────────────────────────────────────
 [workspace.dependencies]
 # FreeSynergy.Lib (core)
-fsn-types    = { path = "../../FreeSynergy.Lib/fsn-types" }
-fsn-error    = { path = "../../FreeSynergy.Lib/fsn-error" }
-fsn-config   = { path = "../../FreeSynergy.Lib/fsn-config" }
-fsn-health   = { path = "../../FreeSynergy.Lib/fsn-health" }
-fsn-template = { path = "../../FreeSynergy.Lib/fsn-template" }
-fsn-db       = { path = "../../FreeSynergy.Lib/fsn-db", features = ["sqlite"] }
-fsn-crypto   = { path = "../../FreeSynergy.Lib/fsn-crypto" }
-fsn-bus      = { path = "../../FreeSynergy.Lib/fsn-bus" }
+fsn-types     = { path = "../../FreeSynergy.Lib/fsn-types" }
+fsn-error     = { path = "../../FreeSynergy.Lib/fsn-error" }
+fsn-config    = { path = "../../FreeSynergy.Lib/fsn-config" }
+fsn-health    = { path = "../../FreeSynergy.Lib/fsn-health" }
+fsn-template  = { path = "../../FreeSynergy.Lib/fsn-template" }
+fsn-db        = { path = "../../FreeSynergy.Lib/fsn-db", features = ["sqlite"] }
+fsn-crypto    = { path = "../../FreeSynergy.Lib/fsn-crypto" }
+fsn-bus       = { path = "../../FreeSynergy.Lib/fsn-bus" }
+fsn-inventory = { path = "../../FreeSynergy.Lib/fsn-inventory" }
 
 # FreeSynergy.Lib.UI
 fsn-i18n  = { path = "../../FreeSynergy.Lib.UI/fsn-i18n" }

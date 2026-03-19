@@ -10,7 +10,9 @@ wasm = ["fsn-plugin-runtime/wasm"]
 
 [dependencies]
 fsn-store          = { workspace = true }
-fsn-node-core           = { workspace = true }
+fsn-inventory      = { workspace = true }
+fsn-types          = { workspace = true }
+fsn-node-core      = { workspace = true }
 fsn-plugin-runtime = { workspace = true }
 fsn-plugin-sdk     = { workspace = true }
 fsn-template       = { workspace = true }
@@ -25,7 +27,8 @@ tokio              = { workspace = true }
 reqwest            = { workspace = true }
 tracing            = { workspace = true }
 chrono             = { workspace = true }
-fsn-host = { workspace = true }
+uuid               = { workspace = true }
+fsn-host           = { workspace = true }
 
 [dev-dependencies]
 rstest   = { workspace = true }

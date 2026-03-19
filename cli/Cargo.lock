@@ -1685,11 +1685,13 @@ dependencies = [
  "chrono",
  "fsn-container",
  "fsn-host",
+ "fsn-inventory",
  "fsn-node-core",
  "fsn-plugin-runtime",
  "fsn-plugin-sdk",
  "fsn-store",
  "fsn-template",
+ "fsn-types",
  "indexmap 2.13.0",
  "insta",
  "reqwest",
@@ -1701,6 +1703,7 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -1770,6 +1773,21 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "fsn-inventory"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "fsn-error 0.1.0",
+ "fsn-types",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]
