@@ -1,4 +1,4 @@
-//! `fsn-builder analyze` — Docker Compose → ContainerAppResource.
+//! `fsn-builder analyze` — Docker Compose → ContainerResource.
 //!
 //! # What it does
 //!
@@ -7,12 +7,12 @@
 //! 3. Infers roles provided by the main service from the image name.
 //! 4. Analyzes all environment variables: type, role, confidence, auto-source.
 //! 5. Auto-generates network names and suggests S3 backup paths for volumes.
-//! 6. Outputs a `ContainerAppResource` as TOML or JSON.
+//! 6. Outputs a `ContainerResource` as TOML or JSON.
 
 use anyhow::{bail, Context, Result};
 use fsn_types::resources::{
-    container_app::{
-        AutoSource, ContainerAppResource, ContainerService, ContainerVariable,
+    container::{
+        AutoSource, ContainerResource, ContainerService, ContainerVariable,
         NetworkDef, RoleDep, VolumeDef, VarType,
     },
     meta::{ResourceMeta, ResourceType, Role, ValidationStatus},
@@ -60,7 +60,7 @@ pub fn run(path: &Path, format: &str) -> Result<()> {
 
 // ── Analysis pipeline ─────────────────────────────────────────────────────────
 
-pub fn analyze_compose(yaml: &str, source_path: &Path) -> Result<ContainerAppResource> {
+pub fn analyze_compose(yaml: &str, source_path: &Path) -> Result<ContainerResource> {
     let compose: ComposeFile = serde_yaml::from_str(yaml)
         .context("Failed to parse Docker Compose YAML")?;
 
@@ -146,14 +146,14 @@ pub fn analyze_compose(yaml: &str, source_path: &Path) -> Result<ContainerAppRes
         license: "MIT".into(),
         icon: std::path::PathBuf::from("icon.svg"),
         tags: roles_provided.iter().map(|r| r.as_str().to_owned()).collect(),
-        resource_type: ResourceType::ContainerApp,
+        resource_type: ResourceType::Container,
         dependencies: vec![],
         signature: None,
         status: ValidationStatus::Incomplete,
         source: None,
     };
 
-    Ok(ContainerAppResource {
+    Ok(ContainerResource {
         meta,
         compose_yaml: yaml.to_owned(),
         services,
@@ -443,7 +443,7 @@ volumes:
     #[test]
     fn analyze_forgejo_compose() {
         let result = analyze_compose(SAMPLE_COMPOSE, std::path::Path::new("compose.yml")).unwrap();
-        assert_eq!(result.meta.resource_type, ResourceType::ContainerApp);
+        assert_eq!(result.meta.resource_type, ResourceType::Container);
         assert!(!result.services.is_empty());
         let main = result.services.iter().find(|s| s.is_main).unwrap();
         assert_eq!(main.name, "forgejo");

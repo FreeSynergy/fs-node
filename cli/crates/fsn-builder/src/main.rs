@@ -3,7 +3,7 @@
 //! # Commands
 //!
 //! ```text
-//! fsn-builder analyze  <compose.yml>    — Docker Compose → ContainerAppResource
+//! fsn-builder analyze  <compose.yml>    — Docker Compose → ContainerResource
 //! fsn-builder validate <package-dir>    — validate a resource package
 //! fsn-builder publish  <package-dir>    — sign + git-commit + push to Store
 //! ```
@@ -31,7 +31,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Analyze a Docker Compose file and output a ContainerAppResource.
+    /// Analyze a Docker Compose file and output a ContainerResource.
     Analyze {
         /// Path to the Docker Compose YAML file.
         #[arg(value_name = "COMPOSE_FILE")]

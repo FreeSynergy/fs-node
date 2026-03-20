@@ -1,5 +1,5 @@
 [package]
-name        = "fsn-container-app"
+name        = "fsn-container"
 description = "FreeSynergy.Node – Container App Manager: compose YAML → Quadlet pipeline"
 version.workspace    = true
 edition.workspace    = true

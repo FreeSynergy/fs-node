@@ -5,7 +5,7 @@
 
 use anyhow::{bail, Context, Result};
 use fsn_types::resources::{
-    container_app::ContainerAppResource,
+    container::ContainerResource,
     meta::ValidationStatus,
     validator::Validate,
 };
@@ -31,14 +31,14 @@ pub fn run(path: &Path) -> Result<()> {
         .unwrap_or("unknown");
 
     match resource_type {
-        "container_app" => {
-            let mut resource: ContainerAppResource = toml::from_str(&raw)
-                .with_context(|| "Failed to parse resource.toml as ContainerAppResource")?;
+        "container" => {
+            let mut resource: ContainerResource = toml::from_str(&raw)
+                .with_context(|| "Failed to parse resource.toml as ContainerResource")?;
             resource.validate();
             print_status(&resource.meta.id, &resource.meta.status);
         }
         other => {
-            bail!("Unsupported resource type '{other}'. Only container_app is supported by this validator.");
+            bail!("Unsupported resource type '{other}'. Only container is supported by this validator.");
         }
     }
 

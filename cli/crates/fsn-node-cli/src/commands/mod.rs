@@ -1,6 +1,6 @@
 pub mod bus;
 pub mod clean;
-pub mod container_app;
+pub mod container;
 pub mod config;
 pub mod deploy;
 pub mod deps;

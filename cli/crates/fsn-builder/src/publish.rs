@@ -10,7 +10,7 @@
 
 use anyhow::{bail, Context, Result};
 use fsn_types::resources::{
-    container_app::ContainerAppResource,
+    container::ContainerResource,
     meta::ValidationStatus,
     validator::Validate,
 };
@@ -26,8 +26,8 @@ pub fn run(path: &Path, store_remote: &str) -> Result<()> {
         .with_context(|| format!("Cannot read {}", toml_path.display()))?;
 
     // Parse + validate
-    let mut resource: ContainerAppResource = toml::from_str(&raw)
-        .with_context(|| "Failed to parse resource.toml as ContainerAppResource")?;
+    let mut resource: ContainerResource = toml::from_str(&raw)
+        .with_context(|| "Failed to parse resource.toml as ContainerResource")?;
     resource.validate();
 
     if resource.meta.status != ValidationStatus::Ok {

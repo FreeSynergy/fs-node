@@ -16,7 +16,7 @@ fsn-deploy     = { workspace = true }
 fsn-dns        = { workspace = true }
 fsn-host       = { workspace = true }
 fsn-container  = { workspace = true }
-fsn-container-app  = { workspace = true }
+fsn-container  = { workspace = true }
 fsn-store      = { workspace = true }
 fsn-i18n       = { workspace = true }
 fsn-s3         = { workspace = true }

@@ -117,9 +117,9 @@ pub enum Command {
     Tui,
 
     /// Compose YAML → Quadlet pipeline (analyze, install, start/stop/restart/logs)
-    ContainerApp {
+    Container {
         #[command(subcommand)]
-        cmd: ContainerAppCommand,
+        cmd: ContainerCommand,
     },
 
     /// Module store (search/info/install/update)
@@ -284,7 +284,7 @@ pub enum StorageSyncCommand {
 }
 
 #[derive(Subcommand)]
-pub enum ContainerAppCommand {
+pub enum ContainerCommand {
     /// Parse + analyze a compose YAML file and show a variable report
     Analyze {
         /// Path to docker-compose.yml or Podman compose file
@@ -530,17 +530,17 @@ pub async fn run() -> Result<()> {
         Command::Serve { port, bind }      => commands::serve::run(&root, cli.project.as_deref(), &bind, port).await,
         Command::Init                      => commands::init::run(&root).await,
         Command::Tui                       => commands::tui::run(&root).await,
-        Command::ContainerApp { cmd } => match cmd {
-            ContainerAppCommand::Analyze { file, name, offline } =>
-                commands::container_app::analyze(&file, name.as_deref(), offline).await,
-            ContainerAppCommand::Install { file, name, dry_run, store_url } =>
-                commands::container_app::install(&file, name.as_deref(), dry_run, store_url.as_deref()).await,
-            ContainerAppCommand::Start   { service } => commands::container_app::start(&service).await,
-            ContainerAppCommand::Stop    { service } => commands::container_app::stop(&service).await,
-            ContainerAppCommand::Restart { service } => commands::container_app::restart(&service).await,
-            ContainerAppCommand::Logs    { service, lines } => commands::container_app::logs(&service, lines).await,
-            ContainerAppCommand::Status  { service } => commands::container_app::status(&service).await,
-            ContainerAppCommand::List              => commands::container_app::list().await,
+        Command::Container { cmd } => match cmd {
+            ContainerCommand::Analyze { file, name, offline } =>
+                commands::container::analyze(&file, name.as_deref(), offline).await,
+            ContainerCommand::Install { file, name, dry_run, store_url } =>
+                commands::container::install(&file, name.as_deref(), dry_run, store_url.as_deref()).await,
+            ContainerCommand::Start   { service } => commands::container::start(&service).await,
+            ContainerCommand::Stop    { service } => commands::container::stop(&service).await,
+            ContainerCommand::Restart { service } => commands::container::restart(&service).await,
+            ContainerCommand::Logs    { service, lines } => commands::container::logs(&service, lines).await,
+            ContainerCommand::Status  { service } => commands::container::status(&service).await,
+            ContainerCommand::List              => commands::container::list().await,
         },
         Command::Store { cmd }             => match cmd {
             StoreCommand::Search { query }  => commands::store::search(&query).await,

@@ -13,7 +13,7 @@ use fsn_container::{QuadletManager, SystemctlManager};
 
 /// Parse + analyze a compose file and print a variable report.
 pub async fn analyze(path: &Path, name: Option<&str>, _offline: bool) -> Result<()> {
-    let result = fsn_container_app::analyze(path, name)?;
+    let result = fsn_container::analyze(path, name)?;
     result.print_report();
     Ok(())
 }
@@ -27,7 +27,7 @@ pub async fn install(
     dry_run:   bool,
     store_url: Option<&str>,
 ) -> Result<()> {
-    fsn_container_app::install(path, name, dry_run, store_url).await?;
+    fsn_container::install(path, name, dry_run, store_url).await?;
     Ok(())
 }
 

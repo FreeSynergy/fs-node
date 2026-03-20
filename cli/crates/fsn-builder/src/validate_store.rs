@@ -87,7 +87,7 @@ fn validate_entry(entry: &PackageEntry, store_dir: &Path, issues: &mut Issues) {
                 issues.warn("no [distribution] URLs — binary download will not be possible");
             }
         }
-        "container_app" | "" => {
+        "container" | "" => {
             if let Some(path) = &entry.path {
                 let manifest_path = store_dir.join(path).join("manifest.toml");
                 let legacy_toml = store_dir.join(path);

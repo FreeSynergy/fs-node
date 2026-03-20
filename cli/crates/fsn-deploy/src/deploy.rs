@@ -318,7 +318,7 @@ async fn record_service_installed(
 ) {
     let resource = InstalledResource {
         id:            instance.name.clone(),
-        resource_type: ResourceType::ContainerApp,
+        resource_type: ResourceType::Container,
         version:       instance.version.clone(),
         channel:       ReleaseChannel::Stable,
         installed_at:  Utc::now().to_rfc3339(),
