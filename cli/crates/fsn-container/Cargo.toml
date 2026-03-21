@@ -7,7 +7,7 @@ license.workspace    = true
 
 [dependencies]
 # Lib.Ext fsn-container: low-level container abstraction (ServiceConfig, QuadletManager, …)
-fsn-container-ext = { path = "../../../../FreeSynergy.Libs.Ext/fsn-container", package = "fsn-container" }
+fsn-container-ext = { path = "../../../../fs-libs/fsn-container", package = "fsn-container" }
 serde         = { workspace = true }
 serde_yaml    = { workspace = true }
 indexmap      = { workspace = true }

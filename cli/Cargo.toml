@@ -22,27 +22,23 @@ repository  = "https://github.com/FreeSynergy/Node"
 
 # ── Shared dependency versions ────────────────────────────────────────────────
 [workspace.dependencies]
-# FreeSynergy.Lib (core)
-fsn-types     = { path = "../../FreeSynergy.Lib/fsn-types" }
-fsn-error     = { path = "../../FreeSynergy.Lib/fsn-error" }
-fsn-config    = { path = "../../FreeSynergy.Lib/fsn-config" }
-fsn-health    = { path = "../../FreeSynergy.Lib/fsn-health" }
-fsn-template  = { path = "../../FreeSynergy.Lib/fsn-template" }
-fsn-db        = { path = "../../FreeSynergy.Lib/fsn-db", features = ["sqlite"] }
-fsn-crypto    = { path = "../../FreeSynergy.Lib/fsn-crypto" }
-fsn-bus       = { path = "../../FreeSynergy.Lib/fsn-bus" }
-fsn-inventory = { path = "../../FreeSynergy.Lib/fsn-inventory" }
-fsn-sysinfo   = { path = "../../FreeSynergy.Lib/fsn-sysinfo" }
-
-# FreeSynergy.Libs.UI
-fsn-i18n  = { path = "../../FreeSynergy.Libs.UI/fsn-i18n" }
-fsn-theme = { path = "../../FreeSynergy.Libs.UI/fsn-theme" }
-fsn-help  = { path = "../../FreeSynergy.Libs.UI/fsn-help" }
-
-# FreeSynergy.Libs.Ext
-fsn-plugin-sdk     = { path = "../../FreeSynergy.Libs.Ext/fsn-plugin-sdk" }
-fsn-plugin-runtime = { path = "../../FreeSynergy.Libs.Ext/fsn-plugin-runtime" }
-fsn-store          = { path = "../../FreeSynergy.Libs.Ext/fsn-store" }
+# fs-libs — shared libraries monorepo
+fsn-types     = { path = "../../fs-libs/fsn-types" }
+fsn-error     = { path = "../../fs-libs/fsn-error" }
+fsn-config    = { path = "../../fs-libs/fsn-config" }
+fsn-health    = { path = "../../fs-libs/fsn-health" }
+fsn-template  = { path = "../../fs-libs/fsn-template" }
+fsn-db        = { path = "../../fs-libs/fsn-db", features = ["sqlite"] }
+fsn-crypto    = { path = "../../fs-libs/fsn-crypto" }
+fsn-bus       = { path = "../../fs-libs/fsn-bus" }
+fsn-inventory = { path = "../../fs-libs/fsn-inventory" }
+fsn-sysinfo   = { path = "../../fs-libs/fsn-sysinfo" }
+fsn-i18n      = { path = "../../fs-libs/fsn-i18n" }
+fsn-theme     = { path = "../../fs-libs/fsn-theme" }
+fsn-help      = { path = "../../fs-libs/fsn-help" }
+fsn-plugin-sdk     = { path = "../../fs-libs/fsn-plugin-sdk" }
+fsn-plugin-runtime = { path = "../../fs-libs/fsn-plugin-runtime" }
+fsn-store          = { path = "../../fs-libs/fsn-store" }
 
 # Internal crates
 fsn-node-core = { path = "crates/fsn-node-core" }

@@ -37,7 +37,7 @@ tower-http     = { workspace = true }
 serde_json     = { workspace = true }
 reqwest        = { workspace = true }
 uuid           = { workspace = true }
-fsn-pkg        = { path = "../../../../FreeSynergy.Libs.Ext/fsn-pkg" }
+fsn-pkg        = { path = "../../../../fs-libs/fsn-pkg" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
