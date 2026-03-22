@@ -2,6 +2,7 @@ pub mod bus;
 pub mod clean;
 pub mod container;
 pub mod config;
+pub mod install_root;
 pub mod deploy;
 pub mod deps;
 pub mod export_import;

@@ -2,13 +2,19 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use fs_node_core::config::find_project;
-use crate::cli::ConfigCommand;
+use crate::cli::{ConfigCommand, InstallRootCommand};
+use crate::commands::install_root;
 
 pub async fn run(root: &Path, project: Option<&Path>, cmd: ConfigCommand) -> Result<()> {
     match cmd {
         ConfigCommand::Show     => run_show(root, project).await,
         ConfigCommand::Edit     => run_edit(root, project).await,
         ConfigCommand::Validate => run_validate(root, project).await,
+        ConfigCommand::InstallRoot { cmd } => match cmd {
+            InstallRootCommand::Show                  => install_root::show().await,
+            InstallRootCommand::Set { base, path }    => install_root::set(&base, path).await,
+            InstallRootCommand::Migrate { base, path }=> install_root::migrate(&base, path).await,
+        },
     }
 }
 

@@ -49,11 +49,19 @@ pub enum Command {
         service: Option<String>,
     },
 
-    /// Pull new images and redeploy modules where version changed
+    /// Update an installed package or redeploy a container service
     Update {
-        /// Update only this service instance
+        /// Package name to update (e.g. "kanidm")
+        package: Option<String>,
+        /// Redeploy only this container service instance
         #[arg(long)]
         service: Option<String>,
+        /// Update all installed packages
+        #[arg(long)]
+        all: bool,
+        /// Preview without applying changes
+        #[arg(long)]
+        dry_run: bool,
     },
 
     /// Restart services
@@ -63,12 +71,16 @@ pub enum Command {
         service: Option<String>,
     },
 
-    /// Remove services and all their data permanently
+    /// Remove an installed package or permanently remove a container service
     Remove {
-        /// Remove only this service instance
+        /// Package name to remove (e.g. "kanidm")
+        package: Option<String>,
+        /// Remove only this deployed container service instance (stops + deletes)
         #[arg(long)]
         service: Option<String>,
-
+        /// Keep data directories; only remove binaries and config files
+        #[arg(long)]
+        keep_data: bool,
         /// Skip the confirmation prompt
         #[arg(long)]
         confirm: bool,
@@ -134,10 +146,19 @@ pub enum Command {
         cmd: ServerCommand,
     },
 
-    /// Install a package from the store into the current project
+    /// Install a package from the store or a local path
     Install {
-        /// Package ID (e.g. "git/forgejo")
-        package: String,
+        /// Package ID to install (e.g. "iam/kanidm") — omit when using --list
+        package: Option<String>,
+        /// Install from a local path instead of the store
+        #[arg(long, value_name = "PATH")]
+        from: Option<std::path::PathBuf>,
+        /// List all installed packages
+        #[arg(long)]
+        list: bool,
+        /// Check prerequisites only, do not install
+        #[arg(long)]
+        check: bool,
         /// Preview without applying changes
         #[arg(long)]
         dry_run: bool,
@@ -539,6 +560,38 @@ pub enum ConfigCommand {
 
     /// Validate config files and check constraints
     Validate,
+
+    /// Manage installation base paths (show, set, migrate)
+    InstallRoot {
+        #[command(subcommand)]
+        cmd: InstallRootCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum InstallRootCommand {
+    /// Show all current installation base paths
+    Show,
+
+    /// Change a base path (does NOT move existing files)
+    ///
+    /// Available bases: system, config, font, icon, cursor
+    Set {
+        /// Which base to change (system | config | font | icon | cursor)
+        base: String,
+        /// New absolute path
+        path: std::path::PathBuf,
+    },
+
+    /// Change a base path AND move all existing installed files there
+    ///
+    /// Uses rename (mv) or copy+delete for cross-filesystem moves.
+    Migrate {
+        /// Which base to change (system | config | font | icon | cursor)
+        base: String,
+        /// New absolute path
+        path: std::path::PathBuf,
+    },
 }
 
 /// Parse args and dispatch to the right command handler.
@@ -554,9 +607,11 @@ pub async fn run() -> Result<()> {
     match cli.command {
         Command::Deploy { service, host }    => commands::deploy::run(&root, cli.project.as_deref(), service.as_deref(), host.as_deref()).await,
         Command::Undeploy { service }      => commands::undeploy::run(&root, cli.project.as_deref(), service.as_deref()).await,
-        Command::Update { service }        => commands::update::run(&root, cli.project.as_deref(), service.as_deref()).await,
+        Command::Update { package, service, all, dry_run } =>
+            commands::update::run(&root, cli.project.as_deref(), package.as_deref(), service.as_deref(), all, dry_run).await,
         Command::Restart { service }       => commands::restart::run(&root, cli.project.as_deref(), service.as_deref()).await,
-        Command::Remove { service, confirm } => commands::remove::run(&root, cli.project.as_deref(), service.as_deref(), confirm).await,
+        Command::Remove { package, service, keep_data, confirm } =>
+            commands::remove::run(&root, cli.project.as_deref(), package.as_deref(), service.as_deref(), keep_data, confirm).await,
         Command::Clean                     => commands::clean::run(&root, cli.project.as_deref()).await,
         Command::Sync                      => commands::sync::run(&root, cli.project.as_deref()).await,
         Command::Status                    => commands::status::run(&root, cli.project.as_deref()).await,
@@ -607,9 +662,15 @@ pub async fn run() -> Result<()> {
         Command::Server { cmd }            => match cmd {
             ServerCommand::Setup           => commands::server_setup::run(&root).await,
         },
-        Command::Install { package, dry_run } => {
-            commands::install::run(&root, &package, dry_run).await
-        },
+        Command::Install { package, from, list, check, dry_run } =>
+            commands::install::run(
+                &root,
+                package.as_deref(),
+                from.as_deref(),
+                list,
+                check,
+                dry_run,
+            ).await,
         Command::Export { output } => {
             commands::export_import::export(&root, cli.project.as_deref(), &output).await
         },
