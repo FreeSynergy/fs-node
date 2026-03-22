@@ -16,14 +16,12 @@ use anyhow::{bail, Context, Result};
 
 use fs_node_core::{
     config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig},
-    config::service::ServiceType,
-    resource::ProjectResource,
     state::desired::{DesiredState, ServiceInstance},
 };
 
 // collect_proxy_services is pub for use in hooks and deploy pipelines.
 
-use crate::template::TemplateContext;
+use crate::template::{CrossVars, ModuleVars, PluginVars, TemplateContext};
 
 /// Build the desired state from the three config layers.
 ///
@@ -39,7 +37,7 @@ pub fn resolve_desired(
 ) -> Result<DesiredState> {
     // Pre-compute cross-service vars from all service entries.
     // Done once before resolution so every service can reference sibling services.
-    let cross_vars = collect_cross_service_vars(project);
+    let cross_vars = project.cross_service_vars();
 
     // Compute project_root: parent of data_root (e.g. "projects/fs-net/")
     // so {{ project_root }}/data/{{ instance_name }} expands correctly.
@@ -92,40 +90,6 @@ pub fn resolve_desired(
     })
 }
 
-/// Pre-compute cross-service variables from the project load entries.
-///
-/// Derived from instance names + project domain before ServiceClass loading,
-/// so no chicken-and-egg problem. Each service can reference sibling services
-/// via `{{ mail_host }}`, `{{ iam_url }}`, etc. in its Jinja2 environment block.
-///
-/// Uses `ServiceType::from_class_prefix()` + `ServiceType::exported_contract()`
-/// as the single source of truth for the prefix mapping — no local match block.
-pub fn collect_cross_service_vars(project: &ProjectConfig) -> HashMap<String, String> {
-    let mut vars = HashMap::new();
-
-    // Project-level vars
-    vars.insert("PROJECT_NAME".into(),   project.project.meta.name.clone());
-    vars.insert("PROJECT_DOMAIN".into(), project.project.domain.clone());
-    if let Some(email) = project.contact_email() {
-        vars.insert("PROJECT_EMAIL".into(), email.to_string());
-    }
-
-    // Cross-service vars (MAIL_HOST, IAM_URL, GIT_DOMAIN, etc.)
-    for (instance_name, entry) in &project.load.services {
-        let class_prefix = entry.service_class.split('/').next().unwrap_or("");
-        let Some(stype)    = ServiceType::from_class_prefix(class_prefix) else { continue };
-        let Some(contract) = stype.exported_contract()                    else { continue };
-
-        let subdomain = entry.subdomain.as_deref().unwrap_or(instance_name.as_str());
-        let domain    = format!("{}.{}", subdomain, project.project.domain);
-        let port      = entry.port.unwrap_or(0);
-
-        vars.extend(contract.resolve(instance_name, &domain, port));
-    }
-
-    vars
-}
-
 /// Resolve a single module instance (and its sub-modules recursively).
 fn resolve_instance(
     name: &str,
@@ -158,11 +122,11 @@ fn resolve_instance(
 
     // Collect plugin vars for proxy modules (dns_provider, acme_email, acme_ca_url, …).
     // For all other module types this is an empty map.
-    let plugin_vars = if class_key.starts_with("proxy/") {
-        collect_plugin_vars(host, registry)
+    let plugin_vars = PluginVars(if class_key.starts_with("proxy/") {
+        host.plugin_vars(registry)
     } else {
         HashMap::new()
-    };
+    });
 
     // Collect proxy service specs for proxy modules.
     // Proxy templates iterate over `proxy_services` to generate per-service routing config.
@@ -181,8 +145,8 @@ fn resolve_instance(
         parent_instance_name: parent_name.unwrap_or(name),
         project_root,
         vault,
-        cross_vars: cross_vars.clone(),
-        module_vars,
+        cross_vars: CrossVars(cross_vars.clone()),
+        module_vars: ModuleVars(module_vars),
         plugin_vars,
         proxy_services,
     };
@@ -324,37 +288,6 @@ pub fn collect_proxy_services(
     }
 
     specs
-}
-
-/// Collect expanded plugin vars for a proxy module instance.
-///
-/// Reads the first proxy entry in host.proxy, loads the referenced DNS and ACME
-/// plugins from the registry, and merges their vars into a flat map.
-/// The ACME email is injected from ProxyPlugins.acme_email → host.acme.email → "".
-fn collect_plugin_vars(host: &HostConfig, registry: &ServiceRegistry) -> HashMap<String, String> {
-    let mut vars: HashMap<String, String> = HashMap::new();
-
-    // Use the first proxy entry (per RULES.md: per_host = 1, so there is exactly one)
-    let Some((_, proxy)) = host.proxy.iter().next() else { return vars };
-    let plugins = &proxy.load.plugins;
-
-    // Load DNS plugin vars
-    if let Some(dns_plugin) = registry.get_plugin("dns", &plugins.dns) {
-        vars.extend(dns_plugin.vars.clone());
-    }
-
-    // Load ACME plugin vars
-    if let Some(acme_plugin) = registry.get_plugin("acme", &plugins.acme) {
-        vars.extend(acme_plugin.vars.clone());
-    }
-
-    // ACME email: proxy override → host-level default → empty string
-    let acme_email = plugins.acme_email.as_deref()
-        .or_else(|| host.acme.as_ref().map(|a| a.email.as_str()))
-        .unwrap_or_default();
-    vars.insert("acme_email".into(), acme_email.to_string());
-
-    vars
 }
 
 /// Pre-compute the [vars] block from a module class.

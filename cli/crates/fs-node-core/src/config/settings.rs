@@ -10,7 +10,44 @@ use serde::{Deserialize, Serialize};
 
 use fs_error::FsyError;
 
+// ── ServiceRoleMap ────────────────────────────────────────────────────────────
 
+/// Maps service role IDs to the assigned container/service name.
+///
+/// Example: `"auth" → "kanidm"`, `"mail" → "stalwart"`, `"proxy" → "zentinel"`.
+///
+/// Carries its own assignment/lookup behavior instead of exposing raw map operations.
+/// Serializes transparently so the TOML format is unchanged.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ServiceRoleMap(HashMap<String, String>);
+
+impl ServiceRoleMap {
+    /// Returns the service name assigned to `role_id`, if any.
+    pub fn get(&self, role_id: &str) -> Option<&str> {
+        self.0.get(role_id).map(String::as_str)
+    }
+
+    /// Assign `service_name` to `role_id`.
+    pub fn assign(&mut self, role_id: impl Into<String>, service_name: impl Into<String>) {
+        self.0.insert(role_id.into(), service_name.into());
+    }
+
+    /// Remove the assignment for `role_id`.
+    pub fn unassign(&mut self, role_id: &str) {
+        self.0.remove(role_id);
+    }
+
+    /// Iterate over all `(role_id, service_name)` assignments.
+    pub fn all(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.0.iter().map(|(k, v)| (k.as_str(), v.as_str()))
+    }
+
+    /// Returns `true` if no roles are assigned.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
 
 // ── AppSettings ───────────────────────────────────────────────────────────────
 
@@ -32,15 +69,15 @@ pub struct AppSettings {
     #[serde(default)]
     pub installed_modules: Vec<String>,
 
-    /// Service role assignments — maps role ID → container/service name.
-    /// Example: { "auth" = "kanidm", "mail" = "stalwart", "proxy" = "zentinel" }
+    /// Service role assignments (role ID → container/service name).
+    /// Example: `{ "auth" = "kanidm", "mail" = "stalwart", "proxy" = "zentinel" }`
     #[serde(default)]
-    pub service_roles: HashMap<String, String>,
+    pub service_roles: ServiceRoleMap,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
-        Self { stores: default_stores(), preferred_lang: None, installed_modules: Vec::new(), service_roles: HashMap::new() }
+        Self { stores: default_stores(), preferred_lang: None, installed_modules: Vec::new(), service_roles: ServiceRoleMap::default() }
     }
 }
 

@@ -6,13 +6,15 @@ use fs_error::FsyError;
 //   {name}.{host}.toml      → remote host deployment
 //   {name}.federation.toml  → federation config
 
+use std::collections::HashMap;
+
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use toml::Value;
 
 use crate::config::meta::ResourceMeta;
-
+use crate::config::service::ServiceType;
 use crate::resource::{ProjectResource, Resource, ServiceResource};
 
 /// Root structure of a project config file.
@@ -301,6 +303,40 @@ impl ProjectResource for ProjectConfig {
     }
     fn languages(&self) -> &[String] { &self.project.languages }
     fn install_dir(&self) -> Option<&str> { self.project.install_dir.as_deref() }
+}
+
+impl ProjectConfig {
+    /// Pre-compute cross-service variables from the project's service entries.
+    ///
+    /// Produces `PROJECT_NAME`, `PROJECT_DOMAIN`, `PROJECT_EMAIL` plus per-service
+    /// vars like `MAIL_HOST`, `IAM_URL`, `GIT_DOMAIN`, etc., derived from instance
+    /// names and the project domain.
+    ///
+    /// Uses `ServiceType::from_class_prefix()` + `ServiceType::exported_contract()`
+    /// as the single source of truth — no local match block.
+    pub fn cross_service_vars(&self) -> HashMap<String, String> {
+        let mut vars = HashMap::new();
+
+        vars.insert("PROJECT_NAME".into(),   self.project.meta.name.clone());
+        vars.insert("PROJECT_DOMAIN".into(), self.project.domain.clone());
+        if let Some(email) = self.contact_email() {
+            vars.insert("PROJECT_EMAIL".into(), email.to_string());
+        }
+
+        for (instance_name, entry) in &self.load.services {
+            let class_prefix = entry.service_class.split('/').next().unwrap_or("");
+            let Some(stype)    = ServiceType::from_class_prefix(class_prefix) else { continue };
+            let Some(contract) = stype.exported_contract()                    else { continue };
+
+            let subdomain = entry.subdomain.as_deref().unwrap_or(instance_name.as_str());
+            let domain    = format!("{}.{}", subdomain, self.project.domain);
+            let port      = entry.port.unwrap_or(0);
+
+            vars.extend(contract.resolve(instance_name, &domain, port));
+        }
+
+        vars
+    }
 }
 
 #[cfg(test)]

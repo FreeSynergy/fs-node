@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use tracing::debug;
 
 use super::HookContext;
-use crate::template::TemplateContext;
+use crate::template::{CrossVars, ModuleVars, PluginVars, TemplateContext};
 
 /// Ensure the instance data directory exists.
 pub fn ensure_data_dir(ctx: &HookContext<'_>) -> Result<()> {
@@ -42,9 +42,9 @@ pub fn render_template(ctx: &HookContext<'_>, template_name: &str) -> Result<Str
         parent_instance_name:   &ctx.instance.name,
         project_root:           &project_root_str,
         vault:                  ctx.vault,
-        cross_vars:             crate::resolve::collect_cross_service_vars(ctx.project),
-        module_vars:            std::collections::HashMap::new(),
-        plugin_vars:            std::collections::HashMap::new(),
+        cross_vars:             CrossVars(ctx.project.cross_service_vars()),
+        module_vars:            ModuleVars::default(),
+        plugin_vars:            PluginVars::default(),
         proxy_services:         Vec::new(),
     };
 

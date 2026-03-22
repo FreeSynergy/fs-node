@@ -8,12 +8,14 @@ use fs_error::FsyError;
 //   - DNS/ACME at host level = default for all services on that host
 //   - Proxy-level DNS/ACME overrides the host default
 
+use std::collections::HashMap;
+
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::config::meta::ResourceMeta;
-
+use crate::config::registry::ServiceRegistry;
 use crate::resource::{HostResource, Resource};
 
 /// Root structure of a host config file.
@@ -149,6 +151,34 @@ impl HostConfig {
     /// Load a host config from a TOML file.
     pub fn load(path: &Path) -> Result<Self, FsyError> {
         crate::config::load_toml_validated(path, crate::config::validate::TomlKind::Host)
+    }
+
+    /// Collect expanded plugin variables for a proxy module instance on this host.
+    ///
+    /// Reads the first proxy entry's DNS and ACME plugin references, loads the
+    /// matching plugin configs from `registry`, and merges their vars into a flat map.
+    /// The ACME email is resolved from proxy override → host default → empty string.
+    ///
+    /// Returns an empty map when no proxy is configured on this host.
+    pub fn plugin_vars(&self, registry: &ServiceRegistry) -> HashMap<String, String> {
+        let mut vars: HashMap<String, String> = HashMap::new();
+
+        let Some((_, proxy)) = self.proxy.iter().next() else { return vars };
+        let plugins = &proxy.load.plugins;
+
+        if let Some(dns_plugin) = registry.get_plugin("dns", &plugins.dns) {
+            vars.extend(dns_plugin.vars.clone());
+        }
+        if let Some(acme_plugin) = registry.get_plugin("acme", &plugins.acme) {
+            vars.extend(acme_plugin.vars.clone());
+        }
+
+        let acme_email = plugins.acme_email.as_deref()
+            .or_else(|| self.acme.as_ref().map(|a| a.email.as_str()))
+            .unwrap_or_default();
+        vars.insert("acme_email".into(), acme_email.to_string());
+
+        vars
     }
 }
 
