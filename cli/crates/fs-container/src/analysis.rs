@@ -3,6 +3,7 @@
 // Uses keyword matching on the variable name (uppercase).
 // Returns probability estimates, never hard guarantees.
 
+use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::compose::EnvVar;
@@ -22,6 +23,46 @@ pub enum VarType {
     String,
 }
 
+impl VarType {
+    /// Infer the variable type from an uppercase variable name.
+    pub fn infer_from(upper: &str) -> (VarType, u8) {
+        // Connection strings — check before URL to avoid false URL matches
+        if has_any(upper, &["_DB", "_DATABASE", "_DSN", "_JDBC"]) {
+            return (VarType::ConnectionString, 85);
+        }
+        if has_any(upper, &["_PASSWORD", "_PASSWD", "_PASS", "_SECRET", "_KEY", "_TOKEN", "_API_KEY", "_APIKEY"]) {
+            return (VarType::Secret, 90);
+        }
+        if has_any(upper, &["_URL", "_URI", "_ENDPOINT", "_BASEURL", "_BASE_URL"]) {
+            return (VarType::Url, 90);
+        }
+        if has_any(upper, &["_HOST", "_HOSTNAME", "_ADDR", "_ADDRESS", "_SERVER"]) {
+            return (VarType::Hostname, 90);
+        }
+        if upper.ends_with("_PORT") || upper == "PORT" {
+            return (VarType::Port, 95);
+        }
+        if has_any(upper, &["_EMAIL", "_MAIL_FROM", "_MAILFROM", "_FROM_EMAIL", "_FROM_ADDRESS"]) {
+            return (VarType::Email, 85);
+        }
+        (VarType::String, 50)
+    }
+}
+
+impl fmt::Display for VarType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            VarType::Hostname         => "hostname",
+            VarType::Url              => "url",
+            VarType::Port             => "port",
+            VarType::Secret           => "secret",
+            VarType::Email            => "email",
+            VarType::ConnectionString => "connection-string",
+            VarType::String           => "string",
+        })
+    }
+}
+
 /// Semantic role of a variable (which external service it relates to).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -34,6 +75,72 @@ pub enum VarRole {
     Generic,
 }
 
+impl VarRole {
+    /// Infer the semantic role from an uppercase variable name.
+    pub fn infer_from(upper: &str) -> (VarRole, u8) {
+        if has_any(upper, &["POSTGRES", "PGSQL", "PG_"]) {
+            return (VarRole::Database { kind: DbKind::Postgres }, 90);
+        }
+        if has_any(upper, &["MARIADB"]) {
+            return (VarRole::Database { kind: DbKind::Mariadb }, 90);
+        }
+        if has_any(upper, &["MYSQL"]) {
+            return (VarRole::Database { kind: DbKind::Mysql }, 85);
+        }
+        if has_any(upper, &["MONGO", "MONGODB"]) {
+            return (VarRole::Database { kind: DbKind::Mongodb }, 85);
+        }
+        if has_any(upper, &["DRAGONFLY"]) {
+            return (VarRole::Cache { kind: CacheKind::Dragonfly }, 90);
+        }
+        if has_any(upper, &["REDIS"]) {
+            return (VarRole::Cache { kind: CacheKind::Redis }, 90);
+        }
+        if has_any(upper, &["MEMCACHE", "MEMCACHED"]) {
+            return (VarRole::Cache { kind: CacheKind::Memcached }, 85);
+        }
+        if has_any(upper, &["VALKEY"]) {
+            return (VarRole::Cache { kind: CacheKind::Valkey }, 90);
+        }
+        if has_any(upper, &["KEYDB"]) {
+            return (VarRole::Cache { kind: CacheKind::Keydb }, 85);
+        }
+        if has_any(upper, &["SMTP", "MAIL", "MAILER"]) {
+            let kind = if has_any(upper, &["FROM", "SENDER", "OUT"]) {
+                SmtpKind::Sender
+            } else if has_any(upper, &["TO", "RECIPIENT", "IN"]) {
+                SmtpKind::Receiver
+            } else {
+                SmtpKind::Generic
+            };
+            return (VarRole::Smtp { kind }, 80);
+        }
+        if has_any(upper, &["LDAP"]) {
+            return (VarRole::Iam { kind: IamKind::Ldap }, 90);
+        }
+        if has_any(upper, &["OAUTH", "OIDC", "SSO", "AUTH_"]) {
+            return (VarRole::Iam { kind: IamKind::OidcProvider }, 75);
+        }
+        if has_any(upper, &["S3_", "_S3", "MINIO", "STORAGE_", "_STORAGE", "BUCKET"]) {
+            return (VarRole::Storage { kind: StorageKind::S3 }, 80);
+        }
+        (VarRole::Generic, 50)
+    }
+}
+
+impl fmt::Display for VarRole {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VarRole::Database { kind } => write!(f, "database.{kind}"),
+            VarRole::Cache    { kind } => write!(f, "cache.{kind}"),
+            VarRole::Smtp     { kind } => write!(f, "smtp.{kind}"),
+            VarRole::Iam      { kind } => write!(f, "iam.{kind}"),
+            VarRole::Storage  { kind } => write!(f, "storage.{kind}"),
+            VarRole::Generic           => f.write_str("generic"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum DbKind {
@@ -42,6 +149,18 @@ pub enum DbKind {
     Mariadb,
     Mongodb,
     Generic,
+}
+
+impl fmt::Display for DbKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            DbKind::Postgres => "postgres",
+            DbKind::Mysql    => "mysql",
+            DbKind::Mariadb  => "mariadb",
+            DbKind::Mongodb  => "mongodb",
+            DbKind::Generic  => "generic",
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,12 +174,35 @@ pub enum CacheKind {
     Generic,
 }
 
+impl fmt::Display for CacheKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            CacheKind::Redis      => "redis",
+            CacheKind::Dragonfly  => "dragonfly",
+            CacheKind::Memcached  => "memcached",
+            CacheKind::Valkey     => "valkey",
+            CacheKind::Keydb      => "keydb",
+            CacheKind::Generic    => "generic",
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SmtpKind {
     Sender,
     Receiver,
     Generic,
+}
+
+impl fmt::Display for SmtpKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            SmtpKind::Sender   => "sender",
+            SmtpKind::Receiver => "receiver",
+            SmtpKind::Generic  => "generic",
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,11 +213,30 @@ pub enum IamKind {
     Generic,
 }
 
+impl fmt::Display for IamKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            IamKind::OidcProvider => "oidc-provider",
+            IamKind::Ldap         => "ldap",
+            IamKind::Generic      => "generic",
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum StorageKind {
     S3,
     Generic,
+}
+
+impl fmt::Display for StorageKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            StorageKind::S3      => "s3",
+            StorageKind::Generic => "generic",
+        })
+    }
 }
 
 // ── AnalyzedVar ───────────────────────────────────────────────────────────────
@@ -94,23 +255,10 @@ pub struct AnalyzedVar {
 impl AnalyzedVar {
     /// Display string for reporting.
     pub fn summary(&self) -> String {
-        let type_str = format!("{:?}", self.var_type).to_lowercase();
-        let role_str = self.role_label();
         format!(
             "{:<40} → type: {:<18} role: {:<22} ({}%)",
-            self.name, type_str, role_str, self.confidence
+            self.name, self.var_type, self.role, self.confidence
         )
-    }
-
-    fn role_label(&self) -> String {
-        match &self.role {
-            VarRole::Database { kind } => format!("database.{}", format!("{:?}", kind).to_lowercase()),
-            VarRole::Cache    { kind } => format!("cache.{}",    format!("{:?}", kind).to_lowercase()),
-            VarRole::Smtp     { kind } => format!("smtp.{}",     format!("{:?}", kind).to_lowercase()),
-            VarRole::Iam      { kind } => format!("iam.{}",      format!("{:?}", kind).to_lowercase()),
-            VarRole::Storage  { kind } => format!("storage.{}",  format!("{:?}", kind).to_lowercase()),
-            VarRole::Generic           => "generic".to_string(),
-        }
     }
 }
 
@@ -124,8 +272,8 @@ pub fn analyze_vars(vars: &[EnvVar]) -> Vec<AnalyzedVar> {
 /// Infer type, role and confidence for a single env var.
 pub fn analyze_var(var: &EnvVar) -> AnalyzedVar {
     let upper = var.name.to_uppercase();
-    let (var_type, type_confidence) = infer_type(&upper);
-    let (role, role_confidence)     = infer_role(&upper);
+    let (var_type, type_confidence) = VarType::infer_from(&upper);
+    let (role, role_confidence)     = VarRole::infer_from(&upper);
 
     // Blend confidences: both must be high for overall high confidence.
     let confidence = ((type_confidence as u16 + role_confidence as u16) / 2) as u8;
@@ -137,93 +285,6 @@ pub fn analyze_var(var: &EnvVar) -> AnalyzedVar {
         role,
         confidence,
     }
-}
-
-// ── Type inference ────────────────────────────────────────────────────────────
-
-fn infer_type(upper: &str) -> (VarType, u8) {
-    // Connection strings — check before URL to avoid false URL matches
-    if has_any(upper, &["_DB", "_DATABASE", "_DSN", "_JDBC"]) {
-        return (VarType::ConnectionString, 85);
-    }
-    // Secrets
-    if has_any(upper, &["_PASSWORD", "_PASSWD", "_PASS", "_SECRET", "_KEY", "_TOKEN", "_API_KEY", "_APIKEY"]) {
-        return (VarType::Secret, 90);
-    }
-    // URLs
-    if has_any(upper, &["_URL", "_URI", "_ENDPOINT", "_BASEURL", "_BASE_URL"]) {
-        return (VarType::Url, 90);
-    }
-    // Hostnames
-    if has_any(upper, &["_HOST", "_HOSTNAME", "_ADDR", "_ADDRESS", "_SERVER"]) {
-        return (VarType::Hostname, 90);
-    }
-    // Ports
-    if upper.ends_with("_PORT") || upper == "PORT" {
-        return (VarType::Port, 95);
-    }
-    // Email
-    if has_any(upper, &["_EMAIL", "_MAIL_FROM", "_MAILFROM", "_FROM_EMAIL", "_FROM_ADDRESS"]) {
-        return (VarType::Email, 85);
-    }
-    (VarType::String, 50)
-}
-
-// ── Role inference ────────────────────────────────────────────────────────────
-
-fn infer_role(upper: &str) -> (VarRole, u8) {
-    // Database roles
-    if has_any(upper, &["POSTGRES", "PGSQL", "PG_"]) {
-        return (VarRole::Database { kind: DbKind::Postgres }, 90);
-    }
-    if has_any(upper, &["MARIADB"]) {
-        return (VarRole::Database { kind: DbKind::Mariadb }, 90);
-    }
-    if has_any(upper, &["MYSQL"]) {
-        return (VarRole::Database { kind: DbKind::Mysql }, 85);
-    }
-    if has_any(upper, &["MONGO", "MONGODB"]) {
-        return (VarRole::Database { kind: DbKind::Mongodb }, 85);
-    }
-    // Cache roles
-    if has_any(upper, &["DRAGONFLY"]) {
-        return (VarRole::Cache { kind: CacheKind::Dragonfly }, 90);
-    }
-    if has_any(upper, &["REDIS"]) {
-        return (VarRole::Cache { kind: CacheKind::Redis }, 90);
-    }
-    if has_any(upper, &["MEMCACHE", "MEMCACHED"]) {
-        return (VarRole::Cache { kind: CacheKind::Memcached }, 85);
-    }
-    if has_any(upper, &["VALKEY"]) {
-        return (VarRole::Cache { kind: CacheKind::Valkey }, 90);
-    }
-    if has_any(upper, &["KEYDB"]) {
-        return (VarRole::Cache { kind: CacheKind::Keydb }, 85);
-    }
-    // SMTP roles
-    if has_any(upper, &["SMTP", "MAIL", "MAILER"]) {
-        let kind = if has_any(upper, &["FROM", "SENDER", "OUT"]) {
-            SmtpKind::Sender
-        } else if has_any(upper, &["TO", "RECIPIENT", "IN"]) {
-            SmtpKind::Receiver
-        } else {
-            SmtpKind::Generic
-        };
-        return (VarRole::Smtp { kind }, 80);
-    }
-    // IAM roles
-    if has_any(upper, &["LDAP"]) {
-        return (VarRole::Iam { kind: IamKind::Ldap }, 90);
-    }
-    if has_any(upper, &["OAUTH", "OIDC", "SSO", "AUTH_"]) {
-        return (VarRole::Iam { kind: IamKind::OidcProvider }, 75);
-    }
-    // Storage roles
-    if has_any(upper, &["S3_", "_S3", "MINIO", "STORAGE_", "_STORAGE", "BUCKET"]) {
-        return (VarRole::Storage { kind: StorageKind::S3 }, 80);
-    }
-    (VarRole::Generic, 50)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
