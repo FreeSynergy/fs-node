@@ -17,8 +17,8 @@ use super::{common, HookContext};
 
 pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
     let data_dir = ctx.instance_data_dir();
-    let name     = &ctx.instance.name;
-    let domain   = &ctx.project.project.domain;
+    let name = &ctx.instance.name;
+    let domain = &ctx.project.project.domain;
 
     common::create_dir(&data_dir.join("data"), 0o755)?;
 

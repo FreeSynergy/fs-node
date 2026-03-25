@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
@@ -38,13 +38,13 @@ impl VaultConfig {
     /// Tries vault.age first (needs passphrase), falls back to vault.toml (dev).
     /// Returns empty vault if neither exists.
     pub fn load(vault_dir: &Path, passphrase: Option<&str>) -> Result<Self> {
-        let age_path  = vault_dir.join("vault.age");
+        let age_path = vault_dir.join("vault.age");
         let toml_path = vault_dir.join("vault.toml");
 
         if age_path.exists() {
             let pass = passphrase.context(
                 "vault.age found but no passphrase provided – \
-                 set FS_VAULT_PASS or pass --vault-pass"
+                 set FS_VAULT_PASS or pass --vault-pass",
             )?;
             Self::load_encrypted(&age_path, pass)
         } else if toml_path.exists() {
@@ -56,17 +56,17 @@ impl VaultConfig {
 
     /// Load plaintext vault.toml (development only – no passphrase).
     pub fn load_plaintext(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .with_context(|| format!("reading {}", path.display()))?;
-        let raw: RawVault = toml::from_str(&content)
-            .with_context(|| format!("parsing {}", path.display()))?;
+        let content =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        let raw: RawVault =
+            toml::from_str(&content).with_context(|| format!("parsing {}", path.display()))?;
         Ok(Self::from_raw(raw))
     }
 
     /// Decrypt vault.age and return VaultConfig.
     pub fn load_encrypted(path: &Path, passphrase: &str) -> Result<Self> {
-        let ciphertext = std::fs::read(path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let ciphertext =
+            std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
         let plaintext = decrypt_age(&ciphertext, passphrase)
             .with_context(|| format!("decrypting {}", path.display()))?;
         let raw: RawVault = toml::from_str(&String::from_utf8(plaintext)?)
@@ -78,13 +78,12 @@ impl VaultConfig {
 
     /// Encrypt vault contents and write vault.age.
     pub fn save_encrypted(&self, path: &Path, passphrase: &str) -> Result<()> {
-        let toml_str  = toml::to_string(&self.to_raw())?;
+        let toml_str = toml::to_string(&self.to_raw())?;
         let ciphertext = encrypt_age(toml_str.as_bytes(), passphrase)?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(path, &ciphertext)
-            .with_context(|| format!("writing {}", path.display()))
+        std::fs::write(path, &ciphertext).with_context(|| format!("writing {}", path.display()))
     }
 
     /// Write plaintext vault.toml (dev/init use only).
@@ -93,8 +92,7 @@ impl VaultConfig {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(path, toml_str)
-            .with_context(|| format!("writing {}", path.display()))
+        std::fs::write(path, toml_str).with_context(|| format!("writing {}", path.display()))
     }
 
     // ── Mutation ──────────────────────────────────────────────────────────────
@@ -102,7 +100,10 @@ impl VaultConfig {
     /// Insert or overwrite a vault key (must have `vault_` prefix).
     pub fn set(&mut self, key: impl Into<String>, value: impl Into<String>) {
         let k = key.into();
-        debug_assert!(k.starts_with("vault_"), "vault key must start with vault_: {k}");
+        debug_assert!(
+            k.starts_with("vault_"),
+            "vault key must start with vault_: {k}"
+        );
         self.values.insert(k, SecretString::from(value.into()));
     }
 
@@ -133,7 +134,9 @@ impl VaultConfig {
 
     fn from_raw(raw: RawVault) -> Self {
         Self {
-            values: raw.0.into_iter()
+            values: raw
+                .0
+                .into_iter()
                 .map(|(k, v)| (k, SecretString::from(v)))
                 .collect(),
         }
@@ -141,7 +144,8 @@ impl VaultConfig {
 
     fn to_raw(&self) -> RawVault {
         RawVault(
-            self.values.iter()
+            self.values
+                .iter()
                 .map(|(k, v)| (k.clone(), v.expose_secret().to_owned()))
                 .collect(),
         )
@@ -161,12 +165,12 @@ impl Serialize for VaultConfig {
 fn encrypt_age(plaintext: &[u8], passphrase: &str) -> Result<Vec<u8>> {
     use age::armor::{ArmoredWriter, Format};
 
-    let pass = age::secrecy::SecretString::new(passphrase.to_owned());
+    let pass = age::secrecy::SecretString::new(passphrase.to_owned().into_boxed_str());
     let encryptor = age::Encryptor::with_user_passphrase(pass);
 
     let mut output = Vec::new();
     {
-        let armor   = ArmoredWriter::wrap_output(&mut output, Format::AsciiArmor)?;
+        let armor = ArmoredWriter::wrap_output(&mut output, Format::AsciiArmor)?;
         let mut writer = encryptor.wrap_output(armor)?;
         writer.write_all(plaintext)?;
         let armor = writer.finish()?;
@@ -178,15 +182,12 @@ fn encrypt_age(plaintext: &[u8], passphrase: &str) -> Result<Vec<u8>> {
 fn decrypt_age(ciphertext: &[u8], passphrase: &str) -> Result<Vec<u8>> {
     use age::armor::ArmoredReader;
 
-    let pass    = age::secrecy::SecretString::new(passphrase.to_owned());
+    let pass = age::secrecy::SecretString::new(passphrase.to_owned().into_boxed_str());
     let armored = ArmoredReader::new(ciphertext);
+    let decryptor = age::Decryptor::new(armored)?;
+    let identity = age::scrypt::Identity::new(pass);
 
-    let decryptor = match age::Decryptor::new(armored)? {
-        age::Decryptor::Passphrase(d) => d,
-        _ => bail!("vault.age was not encrypted with a passphrase"),
-    };
-
-    let mut reader   = decryptor.decrypt(&pass, None)?;
+    let mut reader = decryptor.decrypt(std::iter::once(&identity as &dyn age::Identity))?;
     let mut plaintext = Vec::new();
     reader.read_to_end(&mut plaintext)?;
     Ok(plaintext)

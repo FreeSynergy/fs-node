@@ -104,13 +104,13 @@ pub fn generate(svc: &ComposeService, hint: &ServiceTypeHint) -> ModuleToml {
 
 fn guess_health_path(class: &str) -> Option<String> {
     match class.split('/').next().unwrap_or("") {
-        "proxy"      => Some("/health".to_owned()),
-        "mail"       => None,
-        "git"        => Some("/health".to_owned()),
-        "wiki"       => Some("/healthcheck".to_owned()),
-        "iam"        => Some("/status".to_owned()),
-        "chat"       => Some("/health".to_owned()),
+        "proxy" => Some("/health".to_owned()),
+        "mail" => None,
+        "git" => Some("/health".to_owned()),
+        "wiki" => Some("/healthcheck".to_owned()),
+        "iam" => Some("/status".to_owned()),
+        "chat" => Some("/health".to_owned()),
         "monitoring" => Some("/-/health".to_owned()),
-        _            => Some("/health".to_owned()),
+        _ => Some("/health".to_owned()),
     }
 }

@@ -1,13 +1,13 @@
 pub mod bus;
 pub mod clean;
-pub mod container;
 pub mod config;
-pub mod install_root;
+pub mod container;
 pub mod deploy;
 pub mod deps;
 pub mod export_import;
 pub mod init;
 pub mod install;
+pub mod install_root;
 pub mod logs;
 pub mod remove;
 pub mod restart;

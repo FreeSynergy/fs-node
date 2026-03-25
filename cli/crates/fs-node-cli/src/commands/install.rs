@@ -20,11 +20,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use fs_db::InstalledPackageRepo;
-use fs_node_core::store::StoreEntry;
+use fs_node_core::store::{Catalog, NodeStoreClient, StoreEntry};
 use fs_pkg::{InstallPaths, InstallerRegistry};
-use fs_store::StoreClient;
-use fs_types::{OsFamily, RequiredFeature, ResourceMeta, ResourceType, ValidationStatus, platform_filter_from_tags};
 use fs_sysinfo::{OsType, SysInfoCache};
+use fs_types::{
+    platform_filter_from_tags, FsTag, OsFamily, RequiredFeature, ResourceMeta, ResourceType,
+    SemVer, ValidationStatus,
+};
 
 // ── run ───────────────────────────────────────────────────────────────────────
 
@@ -47,7 +49,8 @@ pub async fn run(
     // --from <path>: install from local path
     if let Some(src_path) = from {
         let name = package.unwrap_or_else(|| {
-            src_path.file_name()
+            src_path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown")
         });
@@ -75,7 +78,10 @@ async fn cmd_list() -> Result<()> {
         return Ok(());
     };
     let repo = InstalledPackageRepo::new(conn.inner());
-    let packages = repo.list_all().await.context("reading installed packages")?;
+    let packages = repo
+        .list_all()
+        .await
+        .context("reading installed packages")?;
 
     let active: Vec<_> = packages.iter().filter(|p| p.active).collect();
 
@@ -85,7 +91,7 @@ async fn cmd_list() -> Result<()> {
         return Ok(());
     }
 
-    println!("{:<28} {:<10} {:<8} {}", "PACKAGE", "VERSION", "CHANNEL", "TYPE");
+    println!("{:<28} {:<10} {:<8} TYPE", "PACKAGE", "VERSION", "CHANNEL");
     println!("{}", "─".repeat(60));
     for pkg in &active {
         println!(
@@ -102,20 +108,24 @@ async fn cmd_list() -> Result<()> {
 /// Install a package from the store catalog.
 async fn cmd_install_from_store(name: &str, check_only: bool, dry_run: bool) -> Result<()> {
     // 1. Fetch catalog.
-    let mut client = StoreClient::node_store();
-    let catalog: fs_store::Catalog<StoreEntry> = client
+    let mut client = NodeStoreClient::node_store();
+    let catalog: Catalog<StoreEntry> = client
         .fetch_catalog("node", false)
         .await
         .context("fetching store catalog")?;
 
     // 2. Find entry.
-    let entry = catalog.packages.iter()
+    let entry = catalog
+        .packages
+        .iter()
         .find(|e| e.id == name)
-        .ok_or_else(|| anyhow::anyhow!(
-            "Package '{}' not found in store catalog.\n\
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Package '{}' not found in store catalog.\n\
              Run `fsn store search` to browse available packages.",
-            name
-        ))?;
+                name
+            )
+        })?;
 
     // 3. Platform check.
     check_platform_requirements(entry)?;
@@ -124,14 +134,15 @@ async fn cmd_install_from_store(name: &str, check_only: bool, dry_run: bool) -> 
     let meta = store_entry_to_meta(entry, ResourceType::Container);
 
     // 5. Prerequisites via InstallerRegistry.
-    let paths    = InstallPaths::load();
+    let paths = InstallPaths::load();
     let registry = InstallerRegistry::new();
 
     if let Err(e) = registry.check_prerequisites(meta.resource_type, &meta) {
         anyhow::bail!(
             "Prerequisites not met for '{}':\n  {}\n\
              Fix the issue above and try again.",
-            name, e
+            name,
+            e
         );
     }
 
@@ -151,7 +162,10 @@ async fn cmd_install_from_store(name: &str, check_only: bool, dry_run: bool) -> 
         let repo = InstalledPackageRepo::new(conn.inner());
         if let Ok(Some(existing)) = repo.find_active(name).await {
             if existing.version == entry.version {
-                println!("'{}' is already installed at version {}.", name, entry.version);
+                println!(
+                    "'{}' is already installed at version {}.",
+                    name, entry.version
+                );
                 println!("Run `fsn update` to check for newer versions.");
                 return Ok(());
             }
@@ -170,20 +184,25 @@ async fn cmd_install_from_store(name: &str, check_only: bool, dry_run: bool) -> 
         if let Some(conn) = crate::db::get_conn() {
             let repo = InstalledPackageRepo::new(conn.inner());
             // Deactivate any previous version.
-            for old in repo.list_all().await.unwrap_or_default()
+            for old in repo
+                .list_all()
+                .await
+                .unwrap_or_default()
                 .iter()
                 .filter(|p| p.package_id == name && p.active)
             {
                 let _ = repo.set_active(old.id, false).await;
             }
-            let _ = repo.insert(
-                name,
-                &entry.version,
-                "stable",
-                meta.resource_type.label(),
-                None,
-                true,
-            ).await;
+            let _ = repo
+                .insert(
+                    name,
+                    &entry.version,
+                    "stable",
+                    meta.resource_type.label(),
+                    None,
+                    true,
+                )
+                .await;
         }
     }
 
@@ -210,17 +229,18 @@ async fn cmd_install_local(name: &str, src: &Path, check_only: bool, dry_run: bo
     let rt = detect_resource_type(src);
     let meta = build_local_meta(name, rt, src);
 
-    let paths    = InstallPaths::load();
+    let paths = InstallPaths::load();
     let registry = InstallerRegistry::new();
 
     if let Err(e) = registry.check_prerequisites(rt, &meta) {
-        anyhow::bail!(
-            "Prerequisites not met:\n  {e}\nFix the issue above and try again."
-        );
+        anyhow::bail!("Prerequisites not met:\n  {e}\nFix the issue above and try again.");
     }
 
     if check_only {
-        println!("Prerequisites satisfied for '{name}' (type: {}).", rt.label());
+        println!(
+            "Prerequisites satisfied for '{name}' (type: {}).",
+            rt.label()
+        );
         let install_path = paths.install_path_for(rt, name);
         if !install_path.is_empty() {
             println!("Would install to: {install_path}");
@@ -237,13 +257,18 @@ async fn cmd_install_local(name: &str, src: &Path, check_only: bool, dry_run: bo
     if !dry_run {
         if let Some(conn) = crate::db::get_conn() {
             let repo = InstalledPackageRepo::new(conn.inner());
-            for old in repo.list_all().await.unwrap_or_default()
+            for old in repo
+                .list_all()
+                .await
+                .unwrap_or_default()
                 .iter()
                 .filter(|p| p.package_id == name && p.active)
             {
                 let _ = repo.set_active(old.id, false).await;
             }
-            let _ = repo.insert(name, "local", "local", rt.label(), None, true).await;
+            let _ = repo
+                .insert(name, "local", "local", rt.label(), None, true)
+                .await;
         }
     }
 
@@ -257,40 +282,54 @@ async fn cmd_install_local(name: &str, src: &Path, check_only: bool, dry_run: bo
 /// Uses `resource_type` (caller determines from context).
 fn store_entry_to_meta(entry: &StoreEntry, resource_type: ResourceType) -> ResourceMeta {
     ResourceMeta {
-        id:            entry.id.clone(),
-        name:          entry.name.clone(),
-        description:   entry.description.clone(),
-        version:       entry.version.clone(),
-        author:        entry.author.clone().unwrap_or_default(),
-        license:       entry.license.clone().unwrap_or_default(),
-        icon:          PathBuf::new(),
-        tags:          entry.tags.clone(),
+        id: entry.id.clone(),
+        name: entry.name.clone(),
+        summary: entry.description.clone(),
+        description: entry.description.clone(),
+        description_file: PathBuf::new(),
+        version: entry.version.parse::<SemVer>().unwrap_or(SemVer {
+            major: 0,
+            minor: 0,
+            patch: 1,
+            pre: None,
+        }),
+        author: entry.author.clone().unwrap_or_default(),
+        license: entry.license.clone().unwrap_or_default(),
+        icon: PathBuf::new(),
+        tags: entry.tags.iter().map(|t| FsTag::new(t.as_str())).collect(),
         resource_type,
-        dependencies:  Vec::new(),
-        signature:     None,
-        status:        ValidationStatus::Incomplete,
-        source:        None,
-        platform:      None,
+        dependencies: Vec::new(),
+        signature: None,
+        status: ValidationStatus::Incomplete,
+        source: None,
+        platform: None,
     }
 }
 
 /// Build a minimal `ResourceMeta` for a local package install.
 fn build_local_meta(name: &str, resource_type: ResourceType, _src: &Path) -> ResourceMeta {
     ResourceMeta {
-        id:            name.to_owned(),
-        name:          name.to_owned(),
-        description:   String::new(),
-        version:       "local".to_owned(),
-        author:        String::new(),
-        license:       String::new(),
-        icon:          PathBuf::new(),
-        tags:          Vec::new(),
+        id: name.to_owned(),
+        name: name.to_owned(),
+        summary: String::new(),
+        description: String::new(),
+        description_file: PathBuf::new(),
+        version: SemVer {
+            major: 0,
+            minor: 0,
+            patch: 1,
+            pre: None,
+        },
+        author: String::new(),
+        license: String::new(),
+        icon: PathBuf::new(),
+        tags: Vec::new(),
         resource_type,
-        dependencies:  Vec::new(),
-        signature:     None,
-        status:        ValidationStatus::Incomplete,
-        source:        None,
-        platform:      None,
+        dependencies: Vec::new(),
+        signature: None,
+        status: ValidationStatus::Incomplete,
+        source: None,
+        platform: None,
     }
 }
 
@@ -306,24 +345,24 @@ fn detect_resource_type(src: &Path) -> ResourceType {
 
     if let Ok(content) = std::fs::read_to_string(&type_file) {
         match content.trim() {
-            "app"              => ResourceType::App,
-            "container"        => ResourceType::Container,
-            "widget"           => ResourceType::Widget,
-            "bot"              => ResourceType::Bot,
-            "bridge"           => ResourceType::Bridge,
-            "bundle"           => ResourceType::Bundle,
-            "task"             => ResourceType::Task,
-            "language"         => ResourceType::Language,
-            "color_scheme"     => ResourceType::ColorScheme,
-            "style"            => ResourceType::Style,
-            "font_set"         => ResourceType::FontSet,
-            "cursor_set"       => ResourceType::CursorSet,
-            "icon_set"         => ResourceType::IconSet,
-            "button_style"     => ResourceType::ButtonStyle,
-            "window_chrome"    => ResourceType::WindowChrome,
-            "animation_set"    => ResourceType::AnimationSet,
+            "app" => ResourceType::App,
+            "container" => ResourceType::Container,
+            "widget" => ResourceType::Widget,
+            "bot" => ResourceType::Bot,
+            "bridge" => ResourceType::Bridge,
+            "bundle" => ResourceType::Bundle,
+            "task" => ResourceType::Task,
+            "language" => ResourceType::Language,
+            "color_scheme" => ResourceType::ColorScheme,
+            "style" => ResourceType::Style,
+            "font_set" => ResourceType::FontSet,
+            "cursor_set" => ResourceType::CursorSet,
+            "icon_set" => ResourceType::IconSet,
+            "button_style" => ResourceType::ButtonStyle,
+            "window_chrome" => ResourceType::WindowChrome,
+            "animation_set" => ResourceType::AnimationSet,
             "messenger_adapter" => ResourceType::MessengerAdapter,
-            _                  => ResourceType::App,
+            _ => ResourceType::App,
         }
     } else {
         ResourceType::App
@@ -332,7 +371,8 @@ fn detect_resource_type(src: &Path) -> ResourceType {
 
 /// Check whether the host satisfies the package's `platform:*` and `requires:*` tags.
 fn check_platform_requirements(entry: &StoreEntry) -> Result<()> {
-    let Some(filter) = platform_filter_from_tags(&entry.tags) else {
+    let ftags: Vec<FsTag> = entry.tags.iter().map(|t| FsTag::new(t.as_str())).collect();
+    let Some(filter) = platform_filter_from_tags(&ftags) else {
         return Ok(());
     };
 
@@ -340,13 +380,14 @@ fn check_platform_requirements(entry: &StoreEntry) -> Result<()> {
     let (os_info, features) = cache.get_or_detect();
 
     let current_os = match os_info.os_type {
-        OsType::Linux   => OsFamily::Linux,
-        OsType::MacOs   => OsFamily::MacOs,
+        OsType::Linux => OsFamily::Linux,
+        OsType::MacOs => OsFamily::MacOs,
         OsType::Windows => OsFamily::Windows,
         OsType::Unknown => OsFamily::Any,
     };
 
-    let available: Vec<RequiredFeature> = features.available
+    let available: Vec<RequiredFeature> = features
+        .available
         .iter()
         .filter_map(|f| RequiredFeature::from_tag(f.label()))
         .collect();
@@ -359,6 +400,10 @@ fn check_platform_requirements(entry: &StoreEntry) -> Result<()> {
     anyhow::bail!(
         "Package '{}' cannot be installed on this system.\n  Unmet requirements:\n{}",
         entry.id,
-        unmet.iter().map(|u| format!("    • {u}")).collect::<Vec<_>>().join("\n"),
+        unmet
+            .iter()
+            .map(|u| format!("    • {u}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
     );
 }

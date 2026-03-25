@@ -27,7 +27,9 @@ pub struct S3Server {
 
 impl S3Server {
     pub fn new(config: StorageConfig) -> Self {
-        Self { config: Arc::new(config) }
+        Self {
+            config: Arc::new(config),
+        }
     }
 
     /// Ensure bucket directories exist and start the S3 server in a background task.
@@ -53,6 +55,7 @@ impl S3Server {
 
 // ── inner server loop ─────────────────────────────────────────────────────────
 
+#[allow(clippy::cognitive_complexity)]
 async fn serve(config: Arc<StorageConfig>) -> Result<()> {
     let root = config.buckets_root();
 
@@ -61,10 +64,8 @@ async fn serve(config: Arc<StorageConfig>) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("failed to open S3 filesystem backend: {e:?}"))?;
 
     // Auth: single access-key / secret-key pair
-    let auth = s3s::auth::SimpleAuth::from_single(
-        config.access_key.as_str(),
-        config.secret_key.as_str(),
-    );
+    let auth =
+        s3s::auth::SimpleAuth::from_single(config.access_key.as_str(), config.secret_key.as_str());
 
     // Build the s3s service
     let mut builder = s3s::service::S3ServiceBuilder::new(fs);

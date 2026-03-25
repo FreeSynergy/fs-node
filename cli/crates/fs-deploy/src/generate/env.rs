@@ -32,15 +32,15 @@ pub fn env_path(instance_name: &str) -> std::path::PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-    use indexmap::IndexMap;
     use fs_node_core::{
         config::service::{
-            Constraints, ContainerDef, ServiceClass, ServiceContract,
-            ServiceLoad, ServiceMeta, ServiceSetup, ServiceType,
+            Constraints, ContainerDef, ServiceClass, ServiceContract, ServiceLoad, ServiceMeta,
+            ServiceSetup, ServiceType,
         },
         state::desired::ServiceInstance,
     };
+    use indexmap::IndexMap;
+    use std::collections::HashMap;
 
     fn make_instance(name: &str, class_key: &str, env: HashMap<String, String>) -> ServiceInstance {
         ServiceInstance {
@@ -64,8 +64,8 @@ mod tests {
                     health_port: None,
                     health_scheme: None,
                     capabilities: vec![],
-                roles: Default::default(),
-                ui: Default::default(),
+                    roles: Default::default(),
+                    ui: Default::default(),
                 },
                 vars: IndexMap::default(),
                 load: ServiceLoad::default(),
@@ -124,7 +124,8 @@ mod tests {
     fn env_file_is_empty_for_no_env_vars() {
         let out = generate(&make_instance("forgejo", "git/forgejo", HashMap::new())).unwrap();
         // Header exists but no KEY=VALUE lines beyond it
-        let non_comment_lines: Vec<_> = out.lines()
+        let non_comment_lines: Vec<_> = out
+            .lines()
             .filter(|l| !l.starts_with('#') && !l.is_empty())
             .collect();
         assert!(non_comment_lines.is_empty());

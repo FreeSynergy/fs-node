@@ -40,9 +40,7 @@ fn check_per_host(desired: &DesiredState) -> Result<()> {
 }
 
 /// Returns (class_key, instance_name, per_host_limit) for every instance.
-fn collect_all_instances(
-    desired: &DesiredState,
-) -> Vec<(String, String, Option<u32>)> {
+fn collect_all_instances(desired: &DesiredState) -> Vec<(String, String, Option<u32>)> {
     let mut out = Vec::new();
     for m in &desired.services {
         push_instance(m, &mut out);

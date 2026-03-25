@@ -11,7 +11,9 @@ pub struct TimezoneInput {
 
 impl Default for TimezoneInput {
     fn default() -> Self {
-        Self { tz: "UTC".to_string() }
+        Self {
+            tz: "UTC".to_string(),
+        }
     }
 }
 

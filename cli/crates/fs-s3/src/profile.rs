@@ -20,29 +20,29 @@ use crate::config::StorageConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeProfile {
-    pub node_id:      String,
+    pub node_id: String,
     pub display_name: String,
     #[serde(default)]
-    pub description:  Option<String>,
+    pub description: Option<String>,
     #[serde(default)]
-    pub avatar_hash:  Option<String>,
+    pub avatar_hash: Option<String>,
     #[serde(default)]
-    pub public_url:   Option<String>,
-    pub created_at:   i64,
-    pub updated_at:   i64,
+    pub public_url: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 impl NodeProfile {
     pub fn new(node_id: impl Into<String>, display_name: impl Into<String>) -> Self {
         let now = Utc::now().timestamp();
         Self {
-            node_id:      node_id.into(),
+            node_id: node_id.into(),
             display_name: display_name.into(),
-            description:  None,
-            avatar_hash:  None,
-            public_url:   None,
-            created_at:   now,
-            updated_at:   now,
+            description: None,
+            avatar_hash: None,
+            public_url: None,
+            created_at: now,
+            updated_at: now,
         }
     }
 }
@@ -63,12 +63,14 @@ impl ProfileStore {
 
     pub async fn put_profile(&self, profile: &NodeProfile) -> Result<()> {
         let dir = self.profile_dir(&profile.node_id);
-        tokio::fs::create_dir_all(&dir).await
+        tokio::fs::create_dir_all(&dir)
+            .await
             .with_context(|| format!("create profile dir {}", dir.display()))?;
 
         let json = serde_json::to_vec_pretty(profile)?;
         let dest = dir.join("profile.json");
-        tokio::fs::write(&dest, &json).await
+        tokio::fs::write(&dest, &json)
+            .await
             .with_context(|| format!("write {}", dest.display()))?;
 
         tracing::debug!("profile written: {}", profile.node_id);
@@ -76,12 +78,7 @@ impl ProfileStore {
     }
 
     /// Store an avatar image; returns the SHA-256 hex of the data.
-    pub async fn put_avatar(
-        &self,
-        node_id: &str,
-        data: &[u8],
-        extension: &str,
-    ) -> Result<String> {
+    pub async fn put_avatar(&self, node_id: &str, data: &[u8], extension: &str) -> Result<String> {
         let dir = self.profile_dir(node_id);
         tokio::fs::create_dir_all(&dir).await?;
 
@@ -91,10 +88,14 @@ impl ProfileStore {
         let hash = sha256_hex(data);
         let filename = format!("avatar.{extension}");
         let dest = dir.join(&filename);
-        tokio::fs::write(&dest, data).await
+        tokio::fs::write(&dest, data)
+            .await
             .with_context(|| format!("write avatar {}", dest.display()))?;
 
-        tracing::debug!("avatar stored for {node_id}: {filename} ({} bytes)", data.len());
+        tracing::debug!(
+            "avatar stored for {node_id}: {filename} ({} bytes)",
+            data.len()
+        );
         Ok(hash)
     }
 
@@ -102,7 +103,8 @@ impl ProfileStore {
 
     pub async fn get_profile(&self, node_id: &str) -> Result<NodeProfile> {
         let path = self.profile_dir(node_id).join("profile.json");
-        let data = tokio::fs::read(&path).await
+        let data = tokio::fs::read(&path)
+            .await
             .with_context(|| format!("read profile {}", path.display()))?;
         serde_json::from_slice(&data).context("invalid profile.json")
     }
@@ -144,7 +146,8 @@ impl ProfileStore {
     pub async fn delete_profile(&self, node_id: &str) -> Result<()> {
         let dir = self.profile_dir(node_id);
         if dir.exists() {
-            tokio::fs::remove_dir_all(&dir).await
+            tokio::fs::remove_dir_all(&dir)
+                .await
                 .with_context(|| format!("remove profile dir {}", dir.display()))?;
         }
         Ok(())
@@ -156,7 +159,13 @@ impl ProfileStore {
         // Sanitize: only allow alphanumeric, dash, underscore, dot
         let safe: String = node_id
             .chars()
-            .map(|c| if c.is_alphanumeric() || matches!(c, '-' | '_' | '.') { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || matches!(c, '-' | '_' | '.') {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         self.profiles_root.join(safe)
     }

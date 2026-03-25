@@ -10,10 +10,9 @@
 // Every top-level managed object implements at least `Resource`:
 //   Project, Host, Service (instance), ServiceClass, Bot
 
+use fs_error::FsyError;
 use std::collections::HashMap;
 use std::fmt;
-use fs_error::FsyError;
-
 
 // ── Lifecycle phase ───────────────────────────────────────────────────────────
 
@@ -37,11 +36,11 @@ pub enum ResourcePhase {
 impl fmt::Display for ResourcePhase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ResourcePhase::Unknown  => write!(f, "unknown"),
-            ResourcePhase::Pending  => write!(f, "pending"),
-            ResourcePhase::Ready    => write!(f, "ready"),
+            ResourcePhase::Unknown => write!(f, "unknown"),
+            ResourcePhase::Pending => write!(f, "pending"),
+            ResourcePhase::Ready => write!(f, "ready"),
             ResourcePhase::Degraded => write!(f, "degraded"),
-            ResourcePhase::Failed   => write!(f, "failed"),
+            ResourcePhase::Failed => write!(f, "failed"),
         }
     }
 }
@@ -69,13 +68,19 @@ pub trait Resource: fmt::Debug {
 
     /// Human-readable display name (may contain spaces and mixed case).
     /// Defaults to [`id()`](Resource::id) when not overridden.
-    fn display_name(&self) -> &str { self.id() }
+    fn display_name(&self) -> &str {
+        self.id()
+    }
 
     /// Optional one-line description of what this resource does.
-    fn description(&self) -> Option<&str> { None }
+    fn description(&self) -> Option<&str> {
+        None
+    }
 
     /// Free-form tags for filtering and grouping (e.g. `["production", "eu-west"]`).
-    fn tags(&self) -> &[String] { &[] }
+    fn tags(&self) -> &[String] {
+        &[]
+    }
 
     /// Validate all structural invariants.
     ///
@@ -88,7 +93,9 @@ pub trait Resource: fmt::Debug {
     /// Requires a live runtime query (Podman / Ansible). Returns
     /// [`ResourcePhase::Unknown`] by default until an external reconciler observes
     /// the actual state.
-    fn phase(&self) -> ResourcePhase { ResourcePhase::Unknown }
+    fn phase(&self) -> ResourcePhase {
+        ResourcePhase::Unknown
+    }
 }
 
 // ── Type-specific sub-traits ──────────────────────────────────────────────────

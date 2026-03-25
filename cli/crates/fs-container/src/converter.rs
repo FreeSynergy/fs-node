@@ -17,26 +17,30 @@ impl ComposeConverter {
     ///
     /// `instance_prefix` is prepended to every service name when it differs from
     /// the bare service name (multi-service compose files get namespaced).
-    pub fn convert(&self, compose: &ComposeFile, instance_prefix: &str) -> Vec<ServiceConfig> {
+    pub fn convert(compose: &ComposeFile, instance_prefix: &str) -> Vec<ServiceConfig> {
         compose
             .services
             .iter()
-            .map(|(name, svc)| self.convert_service(name, svc, instance_prefix, compose))
+            .map(|(name, svc)| Self::convert_service(name, svc, instance_prefix, compose))
             .collect()
     }
 
     fn convert_service(
-        &self,
         name: &str,
         svc: &ComposeService,
         instance_prefix: &str,
         compose: &ComposeFile,
     ) -> ServiceConfig {
         let instance_name = Self::instance_name(name, instance_prefix);
-        let image = svc.image.clone().unwrap_or_else(|| format!("{name}:latest"));
+        let image = svc
+            .image
+            .clone()
+            .unwrap_or_else(|| format!("{name}:latest"));
 
         let mut config = ServiceConfig::new(&instance_name, image);
-        config.description = Some(format!("Container App Manager-managed service: {instance_name}"));
+        config.description = Some(format!(
+            "Container App Manager-managed service: {instance_name}"
+        ));
 
         // Environment
         for env in &svc.environment {
@@ -50,10 +54,14 @@ impl ComposeConverter {
         config.volumes = svc.volumes.iter().map(|s| Self::parse_volume(s)).collect();
 
         // Ports
-        config.ports = svc.ports.iter().filter_map(|s| Self::parse_port(s)).collect();
+        config.ports = svc
+            .ports
+            .iter()
+            .filter_map(|s| Self::parse_port(s))
+            .collect();
 
         // Network — use first declared network; fall back to compose file default or "fsn"
-        config.network = self.pick_network(svc, compose);
+        config.network = Self::pick_network(svc, compose);
 
         // Healthcheck
         if let Some(hc) = &svc.healthcheck {
@@ -62,9 +70,9 @@ impl ComposeConverter {
                 let test = Self::strip_cmd_prefix(&hc.test);
                 config.healthcheck = Some(HealthCheck {
                     test,
-                    interval:     hc.interval.clone().unwrap_or_else(|| "30s".to_string()),
-                    timeout:      hc.timeout.clone().unwrap_or_else(|| "10s".to_string()),
-                    retries:      hc.retries.unwrap_or(3),
+                    interval: hc.interval.clone().unwrap_or_else(|| "30s".to_string()),
+                    timeout: hc.timeout.clone().unwrap_or_else(|| "10s".to_string()),
+                    retries: hc.retries.unwrap_or(3),
                     start_period: hc.start_period.clone().unwrap_or_else(|| "5s".to_string()),
                 });
             }
@@ -114,21 +122,28 @@ impl ComposeConverter {
         // Strip protocol suffix: "8080:80/tcp" → "8080:80", proto = "tcp"
         let (mapping, proto) = match s.rsplit_once('/') {
             Some((m, p)) => (m, p.to_string()),
-            None         => (s, "tcp".to_string()),
+            None => (s, "tcp".to_string()),
         };
 
         let (host_str, container_str) = mapping.split_once(':')?;
 
-        let host_port:      u16 = host_str.trim().parse().ok()?;
+        let host_port: u16 = host_str.trim().parse().ok()?;
         let container_port: u16 = container_str.trim().parse().ok()?;
 
-        Some(PortBinding { host_port, container_port, protocol: proto })
+        Some(PortBinding {
+            host_port,
+            container_port,
+            protocol: proto,
+        })
     }
 
     /// Choose the primary network for a service.
     /// Prefers the first network in the service's list; falls back to "fsn".
-    fn pick_network(&self, svc: &ComposeService, _compose: &ComposeFile) -> String {
-        svc.networks.first().cloned().unwrap_or_else(|| "fsn".to_string())
+    fn pick_network(svc: &ComposeService, _compose: &ComposeFile) -> String {
+        svc.networks
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "fsn".to_string())
     }
 
     /// Strip Docker `CMD` / `CMD-SHELL` prefix from healthcheck test arrays.
@@ -143,7 +158,7 @@ impl ComposeConverter {
 // ── Public shim ───────────────────────────────────────────────────────────────
 
 pub fn convert(compose: &ComposeFile, instance_prefix: &str) -> Vec<ServiceConfig> {
-    ComposeConverter.convert(compose, instance_prefix)
+    ComposeConverter::convert(compose, instance_prefix)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -206,7 +221,10 @@ networks:
         let f = parse_str(COMPOSE).unwrap();
         let configs = convert(&f, "");
         let app = configs.iter().find(|c| c.name == "app").unwrap();
-        assert!(app.ports.iter().any(|p| p.host_port == 8080 && p.container_port == 8080));
+        assert!(app
+            .ports
+            .iter()
+            .any(|p| p.host_port == 8080 && p.container_port == 8080));
     }
 
     #[test]

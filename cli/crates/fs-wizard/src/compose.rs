@@ -29,10 +29,7 @@ impl ComposeInput {
         match self {
             Self::Text(s) => Ok(s.clone()),
             Self::File(p) => std::fs::read_to_string(p).map_err(|e| {
-                fs_error::FsyError::internal(format!(
-                    "wizard: cannot read {}: {e}",
-                    p.display()
-                ))
+                fs_error::FsyError::internal(format!("wizard: cannot read {}: {e}", p.display()))
             }),
         }
     }
@@ -81,9 +78,8 @@ pub struct ComposeService {
 impl ComposeService {
     /// Parse a `ComposeFile` from raw YAML and return all services.
     pub fn parse_all(yaml: &str) -> Result<Vec<Self>, fs_error::FsyError> {
-        let compose: ComposeFile = serde_yaml::from_str(yaml).map_err(|e| {
-            fs_error::FsyError::parse(format!("wizard: invalid compose YAML: {e}"))
-        })?;
+        let compose: ComposeFile = serde_yml::from_str(yaml)
+            .map_err(|e| fs_error::FsyError::parse(format!("wizard: invalid compose YAML: {e}")))?;
 
         let mut services = Vec::new();
         for (name, def) in compose.services {
@@ -95,11 +91,17 @@ impl ComposeService {
     fn from_def(name: String, def: ComposeServiceDef) -> Self {
         let image = def.image.unwrap_or_default();
 
-        let ports = def.ports.unwrap_or_default().iter()
+        let ports = def
+            .ports
+            .unwrap_or_default()
+            .iter()
             .filter_map(|v| v.as_str().map(str::to_owned))
             .collect();
 
-        let volumes = def.volumes.unwrap_or_default().iter()
+        let volumes = def
+            .volumes
+            .unwrap_or_default()
+            .iter()
             .filter_map(|v| v.as_str().map(str::to_owned))
             .collect();
 
@@ -122,6 +124,14 @@ impl ComposeService {
         let has_healthcheck = def.healthcheck.is_some();
         let labels = def.labels.unwrap_or_default();
 
-        Self { name, image, ports, volumes, env, has_healthcheck, labels }
+        Self {
+            name,
+            image,
+            ports,
+            volumes,
+            env,
+            has_healthcheck,
+            labels,
+        }
     }
 }

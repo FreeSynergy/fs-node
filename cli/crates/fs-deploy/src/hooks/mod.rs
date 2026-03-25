@@ -38,7 +38,7 @@ pub struct HookContext<'a> {
     pub desired: &'a DesiredState,
 
     pub project: &'a ProjectConfig,
-    pub vault:   &'a VaultConfig,
+    pub vault: &'a VaultConfig,
 
     /// Root of all project data directories: `{fs_root}/projects/{project_slug}/data/`
     pub data_root: PathBuf,
@@ -60,7 +60,9 @@ impl<'a> HookContext<'a> {
         // class_key = "containers/forgejo"  →  resources/containers/forgejo/templates/
         let parts: Vec<&str> = self.instance.class_key.splitn(3, '/').collect();
         let mut p = self.fs_root.join("resources");
-        for part in parts { p = p.join(part); }
+        for part in parts {
+            p = p.join(part);
+        }
         p.join("templates")
     }
 
@@ -75,7 +77,9 @@ impl<'a> HookContext<'a> {
 
     pub fn mark_initialized(&self) -> Result<()> {
         let m = self.initialized_marker();
-        if let Some(p) = m.parent() { std::fs::create_dir_all(p)?; }
+        if let Some(p) = m.parent() {
+            std::fs::create_dir_all(p)?;
+        }
         std::fs::write(&m, "")?;
         Ok(())
     }
@@ -84,20 +88,25 @@ impl<'a> HookContext<'a> {
 // ── Hook registry ──────────────────────────────────────────────────────────────
 
 /// Async hook function pointer type.
-type HookFn = for<'a> fn(&'a HookContext<'a>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>>;
+type HookFn =
+    for<'a> fn(
+        &'a HookContext<'a>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>>;
 
 /// Static mapping from `class_key` to hook implementation.
 ///
 /// Entries are checked in order; the first matching key wins.
 /// If no key matches, `common::ensure_data_dir` is used as the default.
 static HOOK_REGISTRY: &[(&str, HookFn)] = &[
-    ("apps/kanidm",               |ctx| Box::pin(kanidm::run(ctx))),
-    ("apps/stalwart",             |ctx| Box::pin(stalwart::run(ctx))),
-    ("apps/tuwunel",              |ctx| Box::pin(tuwunel::run(ctx))),
-    ("containers/forgejo",        |ctx| Box::pin(forgejo::run(ctx))),
-    ("containers/cryptpad",       |ctx| Box::pin(cryptpad::run(ctx))),
-    ("containers/vikunja",        |ctx| Box::pin(vikunja::run(ctx))),
-    ("containers/openobserver",   |ctx| Box::pin(openobserver::run(ctx))),
+    ("apps/kanidm", |ctx| Box::pin(kanidm::run(ctx))),
+    ("apps/stalwart", |ctx| Box::pin(stalwart::run(ctx))),
+    ("apps/tuwunel", |ctx| Box::pin(tuwunel::run(ctx))),
+    ("containers/forgejo", |ctx| Box::pin(forgejo::run(ctx))),
+    ("containers/cryptpad", |ctx| Box::pin(cryptpad::run(ctx))),
+    ("containers/vikunja", |ctx| Box::pin(vikunja::run(ctx))),
+    ("containers/openobserver", |ctx| {
+        Box::pin(openobserver::run(ctx))
+    }),
 ];
 
 /// Dispatch post-deploy hook for the given instance (if one is registered).
@@ -109,6 +118,6 @@ pub async fn run_hook(ctx: &HookContext<'_>) -> Result<()> {
 
     match hook {
         Some(f) => f(ctx).await,
-        None    => common::ensure_data_dir(ctx),
+        None => common::ensure_data_dir(ctx),
     }
 }

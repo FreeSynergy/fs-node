@@ -17,13 +17,14 @@ use tracing::info;
 
 use super::{common, HookContext};
 
+#[allow(clippy::cognitive_complexity)]
 pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
     let data_dir = ctx.instance_data_dir();
-    let name     = &ctx.instance.name;
+    let name = &ctx.instance.name;
 
     // ── 1. Directories ────────────────────────────────────────────────────────
-    common::create_dir(&data_dir.join("data"),          0o755)?;
-    common::create_dir(&data_dir.join("data/backups"),  0o755)?;
+    common::create_dir(&data_dir.join("data"), 0o755)?;
+    common::create_dir(&data_dir.join("data/backups"), 0o755)?;
 
     // ── 2. Render server.toml ─────────────────────────────────────────────────
     let server_toml = data_dir.join("data/server.toml");
@@ -41,13 +42,31 @@ pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
     if !ctx.is_initialized() {
         info!("{}: recovering admin accounts…", name);
 
-        let admin_pw = common::podman_exec(name, &[
-            "kanidmd", "recover-account", "admin", "-c", "/data/server.toml",
-        ]).await.unwrap_or_else(|_| "(recovery failed – check kanidm logs)".into());
+        let admin_pw = common::podman_exec(
+            name,
+            &[
+                "kanidmd",
+                "recover-account",
+                "admin",
+                "-c",
+                "/data/server.toml",
+            ],
+        )
+        .await
+        .unwrap_or_else(|_| "(recovery failed – check kanidm logs)".into());
 
-        let idm_pw = common::podman_exec(name, &[
-            "kanidmd", "recover-account", "idm_admin", "-c", "/data/server.toml",
-        ]).await.unwrap_or_else(|_| "(recovery failed)".into());
+        let idm_pw = common::podman_exec(
+            name,
+            &[
+                "kanidmd",
+                "recover-account",
+                "idm_admin",
+                "-c",
+                "/data/server.toml",
+            ],
+        )
+        .await
+        .unwrap_or_else(|_| "(recovery failed)".into());
 
         let creds_path = data_dir.join("data/.admin-credentials");
         let content = format!(
@@ -57,11 +76,17 @@ pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
             admin_pw, idm_pw
         );
         std::fs::write(&creds_path, &content)?;
-        std::fs::set_permissions(&creds_path,
-            std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+        std::fs::set_permissions(
+            &creds_path,
+            std::os::unix::fs::PermissionsExt::from_mode(0o600),
+        )?;
 
         ctx.mark_initialized()?;
-        info!("{}: admin credentials saved to {}", name, creds_path.display());
+        info!(
+            "{}: admin credentials saved to {}",
+            name,
+            creds_path.display()
+        );
     }
 
     // ── 4. OAuth2 client registration (every deploy, idempotent) ─────────────
@@ -72,39 +97,69 @@ pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
 
 /// Register OAuth2 clients in Kanidm for every module that uses Kanidm OIDC.
 async fn register_oauth2_clients(ctx: &HookContext<'_>) -> Result<()> {
-    let name    = &ctx.instance.name;
+    let name = &ctx.instance.name;
     let _domain = &ctx.project.project.domain;
 
     // Collect all instances (and sub-modules) that load kanidm as a service
     let oidc_clients = collect_oidc_clients(ctx);
 
     for client in oidc_clients {
-        let client_id    = &client.name;
+        let client_id = &client.name;
         let display_name = &client.class.meta.name;
-        let origin       = format!("https://{}", client.service_domain);
+        let origin = format!("https://{}", client.service_domain);
 
         info!("{}: registering OAuth2 client '{}'…", name, client_id);
 
         // create (ignore "already exists")
-        let _ = common::podman_exec(name, &[
-            "kanidm", "system", "oauth2", "create",
-            client_id, display_name, &origin,
-            "--name", "idm_admin",
-        ]).await;
+        let _ = common::podman_exec(
+            name,
+            &[
+                "kanidm",
+                "system",
+                "oauth2",
+                "create",
+                client_id,
+                display_name,
+                &origin,
+                "--name",
+                "idm_admin",
+            ],
+        )
+        .await;
 
         // scope map
-        let _ = common::podman_exec(name, &[
-            "kanidm", "system", "oauth2", "update-scope-map",
-            client_id, "idm_all_accounts",
-            "openid", "email", "profile",
-            "--name", "idm_admin",
-        ]).await;
+        let _ = common::podman_exec(
+            name,
+            &[
+                "kanidm",
+                "system",
+                "oauth2",
+                "update-scope-map",
+                client_id,
+                "idm_all_accounts",
+                "openid",
+                "email",
+                "profile",
+                "--name",
+                "idm_admin",
+            ],
+        )
+        .await;
 
         // prefer short username (more user-friendly in apps)
-        let _ = common::podman_exec(name, &[
-            "kanidm", "system", "oauth2", "prefer-short-username",
-            client_id, "--name", "idm_admin",
-        ]).await;
+        let _ = common::podman_exec(
+            name,
+            &[
+                "kanidm",
+                "system",
+                "oauth2",
+                "prefer-short-username",
+                client_id,
+                "--name",
+                "idm_admin",
+            ],
+        )
+        .await;
     }
 
     Ok(())

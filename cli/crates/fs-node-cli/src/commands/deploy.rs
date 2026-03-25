@@ -3,43 +3,40 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use fs_node_core::{
-    config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig, resolve_plugins_dir,
-             find_project, find_host, find_host_by_name},
-};
 use fs_deploy::{
-    deploy::{DeployOpts, deploy_all},
+    deploy::{deploy_all, DeployOpts},
     diff::compute_diff,
     observe::observe,
     resolve::resolve_desired,
 };
+use fs_node_core::config::{
+    find_host, find_host_by_name, find_project, resolve_plugins_dir, HostConfig, ProjectConfig,
+    ServiceRegistry, VaultConfig,
+};
 use tracing::info;
 
 pub async fn run(
-    root:       &Path,
-    project:    Option<&Path>,
-    service:    Option<&str>,
+    root: &Path,
+    project: Option<&Path>,
+    service: Option<&str>,
     target_host: Option<&str>,
 ) -> Result<()> {
     // ── Load configs ──────────────────────────────────────────────────────────
-    let project_path = find_project(root, project)
-        .context("No project file found. Run `fsn init` first.")?;
+    let project_path =
+        find_project(root, project).context("No project file found. Run `fsn init` first.")?;
     let proj = ProjectConfig::load(&project_path)?;
 
-    let host_path = find_host(root)
-        .context("No host file found. Run `fsn init` first.")?;
+    let host_path = find_host(root).context("No host file found. Run `fsn init` first.")?;
     let host = HostConfig::load(&host_path)?;
 
     let vault_pass = std::env::var("FS_VAULT_PASS").ok();
-    let vault = VaultConfig::load(
-        project_path.parent().unwrap_or(root),
-        vault_pass.as_deref(),
-    )?;
+    let vault = VaultConfig::load(project_path.parent().unwrap_or(root), vault_pass.as_deref())?;
 
     let registry = ServiceRegistry::load(&resolve_plugins_dir(root))?;
 
     // ── Resolve desired state ─────────────────────────────────────────────────
-    let data_root = project_path.parent()
+    let data_root = project_path
+        .parent()
         .map(|p| p.join("data"))
         .unwrap_or_else(|| root.join("data"));
     let desired = resolve_desired(&proj, &host, &registry, &vault, Some(&data_root))
@@ -61,10 +58,15 @@ pub async fn run(
     // Filter to a single service if requested
     let deploy_desired = if let Some(svc) = service {
         use fs_node_core::state::DesiredState;
-        let services = desired.services.into_iter()
+        let services = desired
+            .services
+            .into_iter()
             .filter(|m| m.name == svc || m.sub_services.iter().any(|s| s.name == svc))
             .collect();
-        DesiredState { services, ..desired }
+        DesiredState {
+            services,
+            ..desired
+        }
     } else {
         desired
     };
@@ -73,19 +75,28 @@ pub async fn run(
     let mut opts = DeployOpts::default_for_user();
 
     if let Some(host_name) = target_host {
-        let remote = build_remote_host(root, host_name)
-            .with_context(|| format!("Host '{host_name}' not found. Check your *.host.toml files."))?;
+        let remote = build_remote_host(root, host_name).with_context(|| {
+            format!("Host '{host_name}' not found. Check your *.host.toml files.")
+        })?;
         opts.remote_host = Some(remote);
     }
 
-    deploy_all(&deploy_desired, &proj, &vault, &opts, root, &data_root).await
+    deploy_all(&deploy_desired, &proj, &vault, &opts, root, &data_root)
+        .await
         .context("Deploy failed")?;
 
-    crate::db::write_audit_entry(
-        &fs_node_core::audit::AuditEntry::new("system", "deploy", "project", &proj.project.meta.name),
-    ).await;
+    crate::db::write_audit_entry(&fs_node_core::audit::AuditEntry::new(
+        "system",
+        "deploy",
+        "project",
+        &proj.project.meta.name,
+    ))
+    .await;
 
-    println!("\n✓ Deploy complete ({} service(s))", deploy_desired.services.len());
+    println!(
+        "\n✓ Deploy complete ({} service(s))",
+        deploy_desired.services.len()
+    );
     Ok(())
 }
 
@@ -97,10 +108,10 @@ fn build_remote_host(root: &Path, host_name: &str) -> Option<fs_host::RemoteHost
     let cfg = HostConfig::load(&host_path).ok()?;
     let h = &cfg.host;
     Some(fs_host::RemoteHost {
-        name:         h.meta.name.clone(),
-        address:      h.addr().to_string(),
-        ssh_port:     h.ssh_port,
-        ssh_user:     h.ssh_user.clone(),
+        name: h.meta.name.clone(),
+        address: h.addr().to_string(),
+        ssh_port: h.ssh_port,
+        ssh_user: h.ssh_user.clone(),
         ssh_key_path: h.ssh_key_path.clone(),
     })
 }

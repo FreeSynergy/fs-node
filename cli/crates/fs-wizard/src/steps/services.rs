@@ -14,7 +14,10 @@ pub struct SelectedService {
 impl SelectedService {
     /// Create a new `SelectedService`.
     pub fn new(class: impl Into<String>, name: impl Into<String>) -> Self {
-        Self { class: class.into(), name: name.into() }
+        Self {
+            class: class.into(),
+            name: name.into(),
+        }
     }
 }
 
@@ -35,8 +38,8 @@ impl InstanceMode {
     pub fn label(&self) -> &str {
         match self {
             Self::Standalone => "Standalone",
-            Self::Worker     => "Worker (replicated)",
-            Self::Mirror     => "Mirror (read-replica)",
+            Self::Worker => "Worker (replicated)",
+            Self::Mirror => "Mirror (read-replica)",
         }
     }
 }
@@ -52,7 +55,10 @@ pub struct MultiInstanceConfig {
 
 impl Default for MultiInstanceConfig {
     fn default() -> Self {
-        Self { mode: InstanceMode::Standalone, replicas: 1 }
+        Self {
+            mode: InstanceMode::Standalone,
+            replicas: 1,
+        }
     }
 }
 

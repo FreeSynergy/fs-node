@@ -21,7 +21,7 @@ use crate::buckets::BucketKind;
 // ── FederatedS3Client ─────────────────────────────────────────────────────────
 
 pub struct FederatedS3Client {
-    endpoint:   String,
+    endpoint: String,
     #[allow(dead_code)]
     access_key: String,
     #[allow(dead_code)]
@@ -38,7 +38,7 @@ impl FederatedS3Client {
         secret_key: impl Into<String>,
     ) -> Self {
         Self {
-            endpoint:   endpoint.into(),
+            endpoint: endpoint.into(),
             access_key: access_key.into(),
             secret_key: secret_key.into(),
         }
@@ -52,31 +52,27 @@ impl FederatedS3Client {
     // ── profile pull ──────────────────────────────────────────────────────────
 
     /// Fetch a remote node's public profile JSON.
-    pub async fn fetch_profile(
-        &self,
-        remote_node_id: &str,
-    ) -> Result<crate::profile::NodeProfile> {
+    pub async fn fetch_profile(&self, remote_node_id: &str) -> Result<crate::profile::NodeProfile> {
         let op = self.operator(BucketKind::Profiles)?;
         let key = format!("{remote_node_id}/profile.json");
-        let data = op.read(&key).await
+        let data = op
+            .read(&key)
+            .await
             .with_context(|| format!("fetch profile {key} from {}", self.endpoint))?
             .to_bytes();
         serde_json::from_slice(&data).context("invalid remote profile.json")
     }
 
     /// Download the avatar for a remote node into `dest_path`.
-    pub async fn fetch_avatar(
-        &self,
-        remote_node_id: &str,
-        dest_path: &Path,
-    ) -> Result<()> {
+    pub async fn fetch_avatar(&self, remote_node_id: &str, dest_path: &Path) -> Result<()> {
         let op = self.operator(BucketKind::Profiles)?;
         for ext in ["png", "jpg", "jpeg", "webp"] {
             let key = format!("{remote_node_id}/avatar.{ext}");
             match op.read(&key).await {
                 Ok(buf) => {
                     let dest = dest_path.join(format!("avatar.{ext}"));
-                    tokio::fs::write(&dest, buf.to_bytes()).await
+                    tokio::fs::write(&dest, buf.to_bytes())
+                        .await
                         .with_context(|| format!("write {}", dest.display()))?;
                     tracing::debug!("fetched avatar {key} → {}", dest.display());
                     return Ok(());
@@ -84,27 +80,22 @@ impl FederatedS3Client {
                 Err(_) => continue,
             }
         }
-        anyhow::bail!("no avatar found for node {remote_node_id} at {}", self.endpoint)
+        anyhow::bail!(
+            "no avatar found for node {remote_node_id} at {}",
+            self.endpoint
+        )
     }
 
     // ── bucket sync ───────────────────────────────────────────────────────────
 
     /// Pull all objects from a remote bucket into a local directory.
-    pub async fn pull_bucket(
-        &self,
-        bucket: BucketKind,
-        local_dest: &Path,
-    ) -> Result<SyncStats> {
+    pub async fn pull_bucket(&self, bucket: BucketKind, local_dest: &Path) -> Result<SyncStats> {
         let op = self.operator(bucket)?;
         sync_remote_to_local(&op, "/", local_dest).await
     }
 
     /// Push all local files into a remote bucket.
-    pub async fn push_bucket(
-        &self,
-        bucket: BucketKind,
-        local_src: &Path,
-    ) -> Result<SyncStats> {
+    pub async fn push_bucket(&self, bucket: BucketKind, local_src: &Path) -> Result<SyncStats> {
         let op = self.operator(bucket)?;
         sync_local_to_remote(local_src, "/", &op).await
     }
@@ -124,6 +115,7 @@ impl FederatedS3Client {
     }
 
     #[cfg(not(feature = "backend-hetzner"))]
+    #[allow(clippy::unused_self)]
     fn build_operator(&self, _bucket: &str) -> Result<Operator> {
         // Without the backend-hetzner feature, fall back to a no-op local operator.
         // Network replication requires `--features backend-hetzner`.
@@ -142,12 +134,16 @@ async fn sync_remote_to_local(op: &Operator, prefix: &str, dest: &Path) -> Resul
     let mut stats = SyncStats::default();
     tokio::fs::create_dir_all(dest).await?;
 
-    let entries = op.list(prefix).await
+    let entries = op
+        .list(prefix)
+        .await
         .with_context(|| format!("list remote prefix {prefix}"))?;
 
     for entry in entries {
         if entry.metadata().is_file() {
-            let data = op.read(entry.path()).await
+            let data = op
+                .read(entry.path())
+                .await
                 .with_context(|| format!("read {}", entry.path()))?
                 .to_bytes();
             let local_path = dest.join(entry.name());
@@ -172,7 +168,8 @@ async fn sync_local_to_remote(src: &Path, prefix: &str, op: &Operator) -> Result
                 entry.file_name().to_string_lossy()
             );
             let len = data.len() as u64;
-            op.write(&key, data).await
+            op.write(&key, data)
+                .await
                 .with_context(|| format!("write {key}"))?;
             stats.files_uploaded += 1;
             stats.bytes_transferred += len;

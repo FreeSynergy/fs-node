@@ -1,27 +1,27 @@
-use std::path::Path;
 use anyhow::{Context, Result};
+use std::path::Path;
 
-use fs_node_core::config::find_project;
 use crate::cli::{ConfigCommand, InstallRootCommand};
 use crate::commands::install_root;
+use fs_node_core::config::find_project;
 
 pub async fn run(root: &Path, project: Option<&Path>, cmd: ConfigCommand) -> Result<()> {
     match cmd {
-        ConfigCommand::Show     => run_show(root, project).await,
-        ConfigCommand::Edit     => run_edit(root, project).await,
+        ConfigCommand::Show => run_show(root, project).await,
+        ConfigCommand::Edit => run_edit(root, project).await,
         ConfigCommand::Validate => run_validate(root, project).await,
         ConfigCommand::InstallRoot { cmd } => match cmd {
-            InstallRootCommand::Show                  => install_root::show().await,
-            InstallRootCommand::Set { base, path }    => install_root::set(&base, path).await,
-            InstallRootCommand::Migrate { base, path }=> install_root::migrate(&base, path).await,
+            InstallRootCommand::Show => install_root::show().await,
+            InstallRootCommand::Set { base, path } => install_root::set(&base, path).await,
+            InstallRootCommand::Migrate { base, path } => install_root::migrate(&base, path).await,
         },
     }
 }
 
 async fn run_show(root: &Path, project: Option<&Path>) -> Result<()> {
     let path = resolve_project(root, project)?;
-    let content = std::fs::read_to_string(&path)
-        .with_context(|| format!("Reading {}", path.display()))?;
+    let content =
+        std::fs::read_to_string(&path).with_context(|| format!("Reading {}", path.display()))?;
     println!("{}", content);
     Ok(())
 }
@@ -41,16 +41,19 @@ pub async fn run_edit(root: &Path, project: Option<&Path>) -> Result<()> {
 
 pub async fn run_validate(root: &Path, project: Option<&Path>) -> Result<()> {
     let path = resolve_project(root, project)?;
-    let content = std::fs::read_to_string(&path)
-        .with_context(|| format!("Reading {}", path.display()))?;
-    let _parsed: toml::Value = toml::from_str(&content)
-        .with_context(|| format!("Parsing {}", path.display()))?;
+    let content =
+        std::fs::read_to_string(&path).with_context(|| format!("Reading {}", path.display()))?;
+    let _parsed: toml::Value =
+        toml::from_str(&content).with_context(|| format!("Parsing {}", path.display()))?;
     println!("Config OK: {}", path.display());
     Ok(())
 }
 
 fn resolve_project(root: &Path, explicit: Option<&Path>) -> anyhow::Result<std::path::PathBuf> {
     find_project(root, explicit).with_context(|| {
-        format!("No *.project.toml found under {}", root.join("projects").display())
+        format!(
+            "No *.project.toml found under {}",
+            root.join("projects").display()
+        )
     })
 }

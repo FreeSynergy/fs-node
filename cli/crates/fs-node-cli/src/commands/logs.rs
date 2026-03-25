@@ -4,7 +4,12 @@ use tokio::process::Command;
 
 pub async fn run(service: &str, follow: bool) -> Result<()> {
     let mut cmd = Command::new("journalctl");
-    cmd.args(["--user", "-u", &format!("{}.service", service), "--no-pager"]);
+    cmd.args([
+        "--user",
+        "-u",
+        &format!("{}.service", service),
+        "--no-pager",
+    ]);
     if follow {
         cmd.arg("-f");
     }

@@ -10,16 +10,14 @@
 
 use anyhow::{bail, Context, Result};
 use fs_types::resources::{
-    container::ContainerResource,
-    meta::ValidationStatus,
-    validator::Validate,
+    container::ContainerResource, meta::ValidationStatus, validator::Validate,
 };
 use std::path::Path;
 
 // ── Publisher ─────────────────────────────────────────────────────────────────
 
 pub struct Publisher<'a> {
-    path:         &'a Path,
+    path: &'a Path,
     store_remote: &'a str,
 }
 
@@ -50,12 +48,12 @@ impl<'a> Publisher<'a> {
         }
 
         // Sign the resource content
-        let signature = self.sign_resource(&raw)?;
+        let signature = Self::sign_resource(&raw)?;
         resource.meta.signature = Some(signature);
 
         // Write the signed resource.toml back
-        let signed_toml = toml::to_string_pretty(&resource)
-            .context("Failed to serialize signed resource")?;
+        let signed_toml =
+            toml::to_string_pretty(&resource).context("Failed to serialize signed resource")?;
         std::fs::write(&toml_path, &signed_toml)
             .with_context(|| format!("Cannot write {}", toml_path.display()))?;
 
@@ -74,7 +72,7 @@ impl<'a> Publisher<'a> {
     ///
     /// Uses the node's Ed25519 signing key stored at `~/.config/fsn/signing.key`.
     /// If no key file exists, a new keypair is generated and saved.
-    fn sign_resource(&self, content: &str) -> Result<String> {
+    fn sign_resource(content: &str) -> Result<String> {
         use fs_crypto::signing::FsSigningKey;
 
         let key_path = Self::home_dir().join(".config/fsn/signing.key");

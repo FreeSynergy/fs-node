@@ -15,7 +15,9 @@ pub struct ConfigDiscovery<'a> {
 }
 
 impl<'a> ConfigDiscovery<'a> {
-    pub fn new(root: &'a Path) -> Self { Self { root } }
+    pub fn new(root: &'a Path) -> Self {
+        Self { root }
+    }
 
     /// Find the project config file.
     ///

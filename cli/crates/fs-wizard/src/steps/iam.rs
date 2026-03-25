@@ -23,12 +23,12 @@ impl IamChoice {
     /// Short display label used in menus and summaries.
     pub fn label(&self) -> &str {
         match self {
-            Self::Kanidm                => "Kanidm ⭐ (recommended)",
-            Self::Keycloak              => "Keycloak",
-            Self::Authentik             => "Authentik",
-            Self::Lldap                 => "LLDAP",
-            Self::External { .. }       => "External IdP",
-            Self::None                  => "No IAM",
+            Self::Kanidm => "Kanidm ⭐ (recommended)",
+            Self::Keycloak => "Keycloak",
+            Self::Authentik => "Authentik",
+            Self::Lldap => "LLDAP",
+            Self::External { .. } => "External IdP",
+            Self::None => "No IAM",
         }
     }
 
@@ -40,11 +40,11 @@ impl IamChoice {
     /// Returns the service class ID used in the store (if any).
     pub fn service_class(&self) -> Option<&'static str> {
         match self {
-            Self::Kanidm    => Some("iam/kanidm"),
-            Self::Keycloak  => Some("iam/keycloak"),
+            Self::Kanidm => Some("iam/kanidm"),
+            Self::Keycloak => Some("iam/keycloak"),
             Self::Authentik => Some("iam/authentik"),
-            Self::Lldap     => Some("iam/lldap"),
-            _               => None,
+            Self::Lldap => Some("iam/lldap"),
+            _ => None,
         }
     }
 }
@@ -58,7 +58,9 @@ pub struct IamInput {
 
 impl Default for IamInput {
     fn default() -> Self {
-        Self { choice: IamChoice::Kanidm }
+        Self {
+            choice: IamChoice::Kanidm,
+        }
     }
 }
 

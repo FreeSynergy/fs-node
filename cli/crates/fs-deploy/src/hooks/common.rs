@@ -1,7 +1,7 @@
 // Common hook helpers: directory creation, template rendering, podman exec.
 
-use std::path::Path;
 use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::debug;
@@ -23,8 +23,7 @@ impl HookHelpers {
 
     /// Create a directory, optionally setting permissions.
     pub fn create_dir(&self, path: &Path, mode: u32) -> Result<()> {
-        std::fs::create_dir_all(path)
-            .with_context(|| format!("creating {}", path.display()))?;
+        std::fs::create_dir_all(path).with_context(|| format!("creating {}", path.display()))?;
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
             .with_context(|| format!("chmod {:o} {}", mode, path.display()))
     }
@@ -36,21 +35,23 @@ impl HookHelpers {
         let source = std::fs::read_to_string(&tpl_path)
             .with_context(|| format!("reading template {}", tpl_path.display()))?;
 
-        let project_root_str = ctx.data_root.parent()
+        let project_root_str = ctx
+            .data_root
+            .parent()
             .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default();
         let tctx = TemplateContext {
-            project_name:           &ctx.project.project.meta.name,
-            project_domain:         &ctx.project.project.domain,
-            instance_name:          &ctx.instance.name,
-            service_domain:         &ctx.instance.service_domain,
-            parent_instance_name:   &ctx.instance.name,
-            project_root:           &project_root_str,
-            vault:                  ctx.vault,
-            cross_vars:             CrossVars(ctx.project.cross_service_vars()),
-            module_vars:            ModuleVars::default(),
-            plugin_vars:            PluginVars::default(),
-            proxy_services:         Vec::new(),
+            project_name: &ctx.project.project.meta.name,
+            project_domain: &ctx.project.project.domain,
+            instance_name: &ctx.instance.name,
+            service_domain: &ctx.instance.service_domain,
+            parent_instance_name: &ctx.instance.name,
+            project_root: &project_root_str,
+            vault: ctx.vault,
+            cross_vars: CrossVars(ctx.project.cross_service_vars()),
+            module_vars: ModuleVars::default(),
+            plugin_vars: PluginVars::default(),
+            proxy_services: Vec::new(),
         };
 
         crate::template::render(&source, &tctx)
@@ -60,19 +61,22 @@ impl HookHelpers {
     /// Write a rendered template to disk (only if content changed).
     pub fn write_template(
         &self,
-        ctx:           &HookContext<'_>,
+        ctx: &HookContext<'_>,
         template_name: &str,
-        dest:          &Path,
+        dest: &Path,
     ) -> Result<()> {
         let content = self.render_template(ctx, template_name)?;
         if dest.exists() {
             let existing = std::fs::read_to_string(dest)
                 .with_context(|| format!("reading existing {}", dest.display()))?;
-            if existing == content { return Ok(()); }
+            if existing == content {
+                return Ok(());
+            }
         }
-        if let Some(parent) = dest.parent() { std::fs::create_dir_all(parent)?; }
-        std::fs::write(dest, &content)
-            .with_context(|| format!("writing {}", dest.display()))
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(dest, &content).with_context(|| format!("writing {}", dest.display()))
     }
 
     /// Run `podman exec {container} {cmd...}` and return stdout.
@@ -98,7 +102,10 @@ impl HookHelpers {
             } else {
                 anyhow::bail!(
                     "podman exec {} {:?} failed ({}): {}",
-                    container, args, out.status, stderr.trim()
+                    container,
+                    args,
+                    out.status,
+                    stderr.trim()
                 )
             }
         }

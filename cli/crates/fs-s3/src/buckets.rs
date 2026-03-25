@@ -26,10 +26,10 @@ impl BucketKind {
     pub fn name(self) -> &'static str {
         match self {
             BucketKind::Profiles => "profiles",
-            BucketKind::Backups  => "backups",
-            BucketKind::Media    => "media",
+            BucketKind::Backups => "backups",
+            BucketKind::Media => "media",
             BucketKind::Packages => "packages",
-            BucketKind::Shared   => "shared",
+            BucketKind::Shared => "shared",
         }
     }
 
@@ -57,18 +57,24 @@ impl BucketKind {
 
 #[derive(Debug, Clone)]
 pub struct BucketInfo {
-    pub kind:        BucketKind,
-    pub path:        PathBuf,
-    pub is_public:   bool,
+    pub kind: BucketKind,
+    pub path: PathBuf,
+    pub is_public: bool,
     pub object_count: u64,
-    pub size_bytes:  u64,
+    pub size_bytes: u64,
 }
 
 impl BucketInfo {
     pub fn collect(kind: BucketKind, root: &Path) -> BucketInfo {
         let path = kind.path(root);
         let (object_count, size_bytes) = du(&path);
-        BucketInfo { kind, path, is_public: kind.is_public(), object_count, size_bytes }
+        BucketInfo {
+            kind,
+            path,
+            is_public: kind.is_public(),
+            object_count,
+            size_bytes,
+        }
     }
 }
 

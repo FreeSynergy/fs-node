@@ -43,7 +43,9 @@ pub struct CrossVars(pub HashMap<String, String>);
 
 impl InjectIntoContext for CrossVars {
     fn inject(&self, ctx: &mut LibCtx) -> Result<()> {
-        let lower: HashMap<String, String> = self.0.iter()
+        let lower: HashMap<String, String> = self
+            .0
+            .iter()
             .map(|(k, v)| (k.to_lowercase(), v.clone()))
             .collect();
         ctx.merge_str_map(&lower);
@@ -62,7 +64,8 @@ pub struct ModuleVars(pub HashMap<String, String>);
 
 impl InjectIntoContext for ModuleVars {
     fn inject(&self, ctx: &mut LibCtx) -> Result<()> {
-        ctx.set("module_vars", &self.0).map_err(|e| anyhow::anyhow!("{e}"))?;
+        ctx.set("module_vars", &self.0)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(())
     }
 }
@@ -146,12 +149,12 @@ impl<'a> FsTemplateContext<'a> {
     pub fn to_fsn(&self) -> Result<LibCtx> {
         let mut ctx = LibCtx::new();
 
-        ctx.set_str("project_name",         self.project_name);
-        ctx.set_str("project_domain",        self.project_domain);
-        ctx.set_str("instance_name",         self.instance_name);
-        ctx.set_str("service_domain",        self.service_domain);
-        ctx.set_str("parent_instance_name",  self.parent_instance_name);
-        ctx.set_str("project_root",          self.project_root);
+        ctx.set_str("project_name", self.project_name);
+        ctx.set_str("project_domain", self.project_domain);
+        ctx.set_str("instance_name", self.instance_name);
+        ctx.set_str("service_domain", self.service_domain);
+        ctx.set_str("parent_instance_name", self.parent_instance_name);
+        ctx.set_str("project_root", self.project_root);
 
         self.module_vars.inject(&mut ctx)?;
         self.cross_vars.inject(&mut ctx)?;
@@ -176,7 +179,8 @@ impl<'a> FsTemplateContext<'a> {
 pub fn render(template: &str, ctx: &FsTemplateContext) -> Result<String> {
     let engine = TemplateEngine::new();
     let lib_ctx = ctx.to_fsn()?;
-    engine.render_str(template, &lib_ctx)
+    engine
+        .render_str(template, &lib_ctx)
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
@@ -184,4 +188,3 @@ pub fn render(template: &str, ctx: &FsTemplateContext) -> Result<String> {
 pub fn render_file(template_content: &str, ctx: &FsTemplateContext) -> Result<String> {
     render(template_content, ctx)
 }
-

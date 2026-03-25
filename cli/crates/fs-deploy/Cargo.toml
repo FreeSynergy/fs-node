@@ -9,7 +9,6 @@ license.workspace    = true
 wasm = ["fs-plugin-runtime/wasm"]
 
 [dependencies]
-fs-store          = { workspace = true }
 fs-inventory      = { workspace = true }
 fs-types          = { workspace = true }
 fs-node-core      = { workspace = true }

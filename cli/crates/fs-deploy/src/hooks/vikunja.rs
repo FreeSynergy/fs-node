@@ -14,11 +14,11 @@ use super::{common, HookContext};
 
 pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
     let data_dir = ctx.instance_data_dir();
-    let name     = &ctx.instance.name;
+    let name = &ctx.instance.name;
 
     // Vikunja runs as UID 1000 inside the container.
     // Use world-writable + sticky so both host and container can write.
-    common::create_dir(&data_dir.join("data"),       0o755)?;
+    common::create_dir(&data_dir.join("data"), 0o755)?;
     common::create_dir(&data_dir.join("data/files"), 0o1777)?;
 
     if !ctx.is_initialized() {

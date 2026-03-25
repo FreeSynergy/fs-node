@@ -29,7 +29,10 @@ pub struct AnalyzeResult {
 impl AnalyzeResult {
     /// Print a human-readable analysis report to stdout.
     pub fn print_report(&self) {
-        println!("── Instance: {} ─────────────────────────────────────────────", self.instance);
+        println!(
+            "── Instance: {} ─────────────────────────────────────────────",
+            self.instance
+        );
         println!();
 
         // Services
@@ -46,7 +49,9 @@ impl AnalyzeResult {
 
         // Variable analysis per service
         for (svc, vars) in &self.vars_by_service {
-            if vars.is_empty() { continue; }
+            if vars.is_empty() {
+                continue;
+            }
             println!("Variables — {svc}:");
             for v in vars {
                 println!("  {}", v.summary());
@@ -67,8 +72,8 @@ pub fn analyze(path: &Path, instance_name: Option<&str>) -> Result<AnalyzeResult
     let compose = parse_file(path)?;
 
     let instance = match instance_name {
-        Some(n) => InstanceName::from_str(n)?,
-        None    => InstanceName::from_compose(&compose)?,
+        Some(n) => InstanceName::parse(n)?,
+        None => InstanceName::from_compose(&compose)?,
     };
 
     let validation = validate(&compose);
@@ -78,7 +83,12 @@ pub fn analyze(path: &Path, instance_name: Option<&str>) -> Result<AnalyzeResult
         vars_by_service.insert(name.clone(), analyze_vars(&svc.environment));
     }
 
-    Ok(AnalyzeResult { compose, instance, validation, vars_by_service })
+    Ok(AnalyzeResult {
+        compose,
+        instance,
+        validation,
+        vars_by_service,
+    })
 }
 
 /// Full install pipeline: parse → validate → convert → write quadlet files → daemon-reload.
@@ -105,7 +115,10 @@ pub async fn install(
     let services = convert(&result.compose, prefix);
 
     if dry_run {
-        println!("\n── Dry-run: would write {} quadlet file(s) ──────────────────", services.len());
+        println!(
+            "\n── Dry-run: would write {} quadlet file(s) ──────────────────",
+            services.len()
+        );
         for svc in &services {
             println!("  fs-{}.container", svc.name);
         }
@@ -126,16 +139,22 @@ pub async fn install(
     // Write quadlet files
     let mgr = QuadletManager::user_default();
     for svc in &services {
-        let path = mgr.create_quadlet(svc).await
+        let path = mgr
+            .create_quadlet(svc)
+            .await
             .map_err(|e| anyhow::anyhow!("failed to write quadlet for {}: {e}", svc.name))?;
         println!("  ✅ Written: {}", path.display());
     }
 
     // Reload systemd daemon
-    mgr.reload_daemon().await
+    mgr.reload_daemon()
+        .await
         .map_err(|e| anyhow::anyhow!("daemon-reload failed: {e}"))?;
 
-    println!("\nInstalled {} service(s) for instance '{prefix}'.", services.len());
+    println!(
+        "\nInstalled {} service(s) for instance '{prefix}'.",
+        services.len()
+    );
     println!("Start with: fsn container-app start {prefix}");
 
     Ok(services)

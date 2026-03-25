@@ -63,7 +63,11 @@ pub async fn run(root: &Path, project: Option<&Path>, service: &str) -> Result<(
         println!("{}", service);
         let last = deps.len().saturating_sub(1);
         for (i, (slot, instance)) in deps.iter().enumerate() {
-            let prefix = if i == last { "└── " } else { "├── " };
+            let prefix = if i == last {
+                "└── "
+            } else {
+                "├── "
+            };
             println!("{}{}  [{}]", prefix, instance, slot);
 
             // Second-level: if that dependency itself has further slot deps,
@@ -73,7 +77,11 @@ pub async fn run(root: &Path, project: Option<&Path>, service: &str) -> Result<(
                 let sub_last = sub_deps.len().saturating_sub(1);
                 let indent = if i == last { "    " } else { "│   " };
                 for (j, (sub_slot, sub_inst)) in sub_deps.iter().enumerate() {
-                    let sub_prefix = if j == sub_last { "└── " } else { "├── " };
+                    let sub_prefix = if j == sub_last {
+                        "└── "
+                    } else {
+                        "├── "
+                    };
                     println!("{}{}{}  [{}]", indent, sub_prefix, sub_inst, sub_slot);
                 }
             }

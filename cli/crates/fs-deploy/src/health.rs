@@ -8,19 +8,32 @@ use fs_node_core::state::{desired::ServiceInstance, HealthStatus};
 use tracing::debug;
 
 const _DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
-const POLL_INTERVAL:    Duration = Duration::from_secs(3);
+const POLL_INTERVAL: Duration = Duration::from_secs(3);
 
 /// Wait until the service is reachable and returns a successful HTTP response,
 /// or until `timeout` is exceeded.
+#[allow(clippy::cognitive_complexity)]
 pub async fn wait_for_ready(instance: &ServiceInstance, timeout: Duration) -> Result<()> {
     let Some(path) = &instance.class.meta.health_path else {
-        debug!("{}: no health_path configured, skipping health check", instance.name);
+        debug!(
+            "{}: no health_path configured, skipping health check",
+            instance.name
+        );
         return Ok(());
     };
 
-    let port   = instance.class.meta.health_port.unwrap_or(instance.class.meta.port);
-    let scheme = instance.class.meta.health_scheme.as_deref().unwrap_or("http");
-    let url    = format!("{}://localhost:{}{}", scheme, port, path);
+    let port = instance
+        .class
+        .meta
+        .health_port
+        .unwrap_or(instance.class.meta.port);
+    let scheme = instance
+        .class
+        .meta
+        .health_scheme
+        .as_deref()
+        .unwrap_or("http");
+    let url = format!("{}://localhost:{}{}", scheme, port, path);
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
@@ -37,7 +50,11 @@ pub async fn wait_for_ready(instance: &ServiceInstance, timeout: Duration) -> Re
                 return Ok(());
             }
             Ok(resp) => {
-                debug!("{}: health check returned {} – retrying…", instance.name, resp.status());
+                debug!(
+                    "{}: health check returned {} – retrying…",
+                    instance.name,
+                    resp.status()
+                );
             }
             Err(e) => {
                 debug!("{}: health check error: {} – retrying…", instance.name, e);
@@ -62,16 +79,25 @@ pub async fn check_once(instance: &ServiceInstance) -> HealthStatus {
     let Some(path) = &instance.class.meta.health_path else {
         return HealthStatus::Unknown;
     };
-    let port   = instance.class.meta.health_port.unwrap_or(instance.class.meta.port);
-    let scheme = instance.class.meta.health_scheme.as_deref().unwrap_or("http");
-    let url    = format!("{}://localhost:{}{}", scheme, port, path);
+    let port = instance
+        .class
+        .meta
+        .health_port
+        .unwrap_or(instance.class.meta.port);
+    let scheme = instance
+        .class
+        .meta
+        .health_scheme
+        .as_deref()
+        .unwrap_or("http");
+    let url = format!("{}://localhost:{}{}", scheme, port, path);
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .danger_accept_invalid_certs(true)
         .build()
     {
-        Ok(c)  => c,
+        Ok(c) => c,
         Err(_) => return HealthStatus::Unknown,
     };
 

@@ -19,7 +19,6 @@ use walkdir::WalkDir;
 use crate::config::plugin::PluginConfig;
 use crate::config::service::ServiceClass;
 
-
 /// In-memory index of all available resource classes and plugins.
 ///
 /// Class key  = "{kind}/{name}"              (e.g. "apps/zentinel", "containers/forgejo")
@@ -45,8 +44,8 @@ impl ServiceRegistry {
     ///   Depth 4: `resources/plugins/{plugin_type}/{name}.toml`    → key = `plugins/{plugin_type}/{name}`
     pub fn load(resources_dir: &Path) -> Result<Self, FsyError> {
         let mut registry = Self {
-            classes:      HashMap::new(),
-            plugins:      HashMap::new(),
+            classes: HashMap::new(),
+            plugins: HashMap::new(),
             resources_dir: resources_dir.to_path_buf(),
         };
 
@@ -83,32 +82,45 @@ impl ServiceRegistry {
             }
 
             // Compute depth relative to resources_dir to pick the right key format
-            let depth = path.components().count()
+            let depth = path
+                .components()
+                .count()
                 .saturating_sub(resources_dir.components().count());
 
             let class_key = if depth == 3 {
                 // resources/{kind}/{name}/{name}.toml  →  {kind}/{name}
                 let kind = path
-                    .parent().and_then(|p| p.parent())
-                    .and_then(|p| p.file_name()).and_then(|n| n.to_str())
+                    .parent()
+                    .and_then(|p| p.parent())
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
                     .unwrap_or_default();
                 format!("{kind}/{file_stem}")
             } else {
                 // resources/{kind}/{parent}/{name}/{name}.toml  →  {kind}/{parent}/{name}
                 let grandparent_dir = path
-                    .parent().and_then(|p| p.parent())
-                    .and_then(|p| p.file_name()).and_then(|n| n.to_str())
+                    .parent()
+                    .and_then(|p| p.parent())
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
                     .unwrap_or_default();
                 let kind = path
-                    .parent().and_then(|p| p.parent()).and_then(|p| p.parent())
-                    .and_then(|p| p.file_name()).and_then(|n| n.to_str())
+                    .parent()
+                    .and_then(|p| p.parent())
+                    .and_then(|p| p.parent())
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
                     .unwrap_or_default();
                 format!("{kind}/{grandparent_dir}/{file_stem}")
             };
 
             match Self::load_class(path) {
-                Ok(class) => { registry.classes.insert(class_key, class); }
-                Err(e)    => { eprintln!("Warning: skipping {}: {}", path.display(), e); }
+                Ok(class) => {
+                    registry.classes.insert(class_key, class);
+                }
+                Err(e) => {
+                    eprintln!("Warning: skipping {}: {}", path.display(), e);
+                }
             }
         }
 
@@ -127,15 +139,24 @@ impl ServiceRegistry {
                 }
 
                 // Key: "plugins/{plugin_type}/{name}"  e.g. "plugins/dns/hetzner"
-                let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+                let name = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or_default();
                 let plugin_type = path
-                    .parent().and_then(|p| p.file_name()).and_then(|n| n.to_str())
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
                     .unwrap_or_default();
                 let plugin_key = format!("plugins/{plugin_type}/{name}");
 
                 match Self::load_plugin(path) {
-                    Ok(plugin) => { registry.plugins.insert(plugin_key, plugin); }
-                    Err(e)     => { eprintln!("Warning: skipping plugin {}: {}", path.display(), e); }
+                    Ok(plugin) => {
+                        registry.plugins.insert(plugin_key, plugin);
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: skipping plugin {}: {}", path.display(), e);
+                    }
                 }
             }
         }
@@ -182,4 +203,3 @@ impl ServiceRegistry {
         &self.resources_dir
     }
 }
-

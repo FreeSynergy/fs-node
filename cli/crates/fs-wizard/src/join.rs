@@ -89,14 +89,18 @@ fn generate_uuid_v4() -> String {
 
     // Format as UUID v4 (version bits set to 4, variant bits to 10xx).
     let b0 = ((a >> 32) & 0xffff_ffff) as u32;
-    let b1 = ((a & 0xffff) as u16) | 0x0000; // time_mid
+    let b1 = (a & 0xffff) as u16; // time_mid
     let b2 = (((b >> 48) & 0x0fff) as u16) | 0x4000; // version 4
     let b3 = (((b >> 32) & 0x3fff) as u16) | 0x8000; // variant 10xx
     let b4 = c ^ d;
 
     format!(
         "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
-        b0, b1, b2, b3, b4 & 0x0000_ffff_ffff_ffff
+        b0,
+        b1,
+        b2,
+        b3,
+        b4 & 0x0000_ffff_ffff_ffff
     )
 }
 

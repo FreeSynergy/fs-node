@@ -48,9 +48,15 @@ impl StorageConfig {
 
 // ── defaults ──────────────────────────────────────────────────────────────────
 
-fn default_true() -> bool { true }
-fn default_s3_port() -> u16 { 9000 }
-fn default_bind() -> String { "127.0.0.1".to_owned() }
+fn default_true() -> bool {
+    true
+}
+fn default_s3_port() -> u16 {
+    9000
+}
+fn default_bind() -> String {
+    "127.0.0.1".to_owned()
+}
 
 // ── sync / replication ────────────────────────────────────────────────────────
 
@@ -73,21 +79,23 @@ pub enum SyncBackendKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SftpConfig {
-    pub host:     String,
+    pub host: String,
     #[serde(default = "default_sftp_port")]
-    pub port:     u16,
-    pub user:     String,
+    pub port: u16,
+    pub user: String,
     pub key_path: PathBuf,
-    pub root:     String,
+    pub root: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HetznerConfig {
-    pub bucket:     String,
-    pub region:     String,
-    pub endpoint:   String,
+    pub bucket: String,
+    pub region: String,
+    pub endpoint: String,
     pub access_key: String,
     pub secret_key: String,
 }
 
-fn default_sftp_port() -> u16 { 22 }
+fn default_sftp_port() -> u16 {
+    22
+}

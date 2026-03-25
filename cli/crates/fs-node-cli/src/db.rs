@@ -9,8 +9,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
 use anyhow::{Context, Result};
-use fs_node_core::audit::AuditEntry;
 use fs_db::{BufferedWrite, DbBackend, DbConnection, Migrator, WriteBuffer};
+use fs_node_core::audit::AuditEntry;
 use tracing::warn;
 
 static DB: OnceLock<Arc<DbConnection>> = OnceLock::new();
@@ -31,6 +31,7 @@ impl NodeDb {
     ///
     /// Call once at startup. Non-fatal — the CLI continues without persistence
     /// if DB init fails (e.g. permission error, missing SQLite).
+    #[allow(clippy::cognitive_complexity)]
     pub async fn init() -> Result<()> {
         let path = Self::path("fsn.db");
         if let Some(parent) = path.parent() {
@@ -52,8 +53,12 @@ impl NodeDb {
         WRITE_BUF.set(Arc::new(buf)).ok();
         DB.set(Arc::new(conn)).ok();
 
-        if let Err(e) = Self::init_core().await { warn!("fs-core.db init failed: {e}"); }
-        if let Err(e) = Self::init_bus().await  { warn!("fs-bus.db init failed: {e}");  }
+        if let Err(e) = Self::init_core().await {
+            warn!("fs-core.db init failed: {e}");
+        }
+        if let Err(e) = Self::init_bus().await {
+            warn!("fs-bus.db init failed: {e}");
+        }
 
         Ok(())
     }
@@ -74,12 +79,12 @@ impl NodeDb {
     pub async fn write_audit(entry: &AuditEntry) {
         let Some(buf) = WRITE_BUF.get() else { return };
 
-        let actor  = entry.actor.replace('\'', "''");
+        let actor = entry.actor.replace('\'', "''");
         let action = entry.action.replace('\'', "''");
-        let kind   = entry.resource_kind.replace('\'', "''");
+        let kind = entry.resource_kind.replace('\'', "''");
         let payload = match &entry.detail {
             Some(d) => format!("'{}'", d.replace('\'', "''")),
-            None    => "NULL".to_string(),
+            None => "NULL".to_string(),
         };
 
         let sql = format!(
@@ -134,13 +139,25 @@ impl NodeDb {
 // ── Public shims (used by main.rs and command modules) ────────────────────────
 
 #[allow(dead_code)]
-pub fn db_path(filename: &str) -> PathBuf { NodeDb::path(filename) }
+pub fn db_path(filename: &str) -> PathBuf {
+    NodeDb::path(filename)
+}
 
-pub async fn init() -> Result<()> { NodeDb::init().await }
-pub fn spawn_flush_loop() { NodeDb::spawn_flush_loop() }
-pub async fn write_audit_entry(entry: &AuditEntry) { NodeDb::write_audit(entry).await }
-pub fn get_conn() -> Option<Arc<DbConnection>> { NodeDb::conn() }
-pub async fn flush() { NodeDb::flush().await }
+pub async fn init() -> Result<()> {
+    NodeDb::init().await
+}
+pub fn spawn_flush_loop() {
+    NodeDb::spawn_flush_loop()
+}
+pub async fn write_audit_entry(entry: &AuditEntry) {
+    NodeDb::write_audit(entry).await
+}
+pub fn get_conn() -> Option<Arc<DbConnection>> {
+    NodeDb::conn()
+}
+pub async fn flush() {
+    NodeDb::flush().await
+}
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 

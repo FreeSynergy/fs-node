@@ -18,11 +18,10 @@ use tracing::info;
 
 use super::{common, HookContext};
 
-/// UID:GID used by CryptPad inside the container.
-
+#[allow(clippy::cognitive_complexity)]
 pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
     let data_dir = ctx.instance_data_dir();
-    let name     = &ctx.instance.name;
+    let name = &ctx.instance.name;
 
     // ── Directories (must be writable by UID 4001 inside the container) ───────
     //
@@ -31,7 +30,7 @@ pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
     // via `podman exec cryptpad chown -R cryptpad:cryptpad /cryptpad/data`.
     for subdir in &["blob", "blobstage", "block", "datastore", "customize"] {
         let path = data_dir.join("data").join(subdir);
-        common::create_dir(&path, 0o1777)?;  // sticky world-writable
+        common::create_dir(&path, 0o1777)?; // sticky world-writable
     }
     info!("{}: data directories created", name);
 

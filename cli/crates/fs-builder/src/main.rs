@@ -93,11 +93,17 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     match cli.command {
-        Command::Analyze { path, format }                   => analyze::run(&path, &format),
-        Command::Validate { path }                          => validate::run(&path),
-        Command::Publish { path, store }                    => publish::run(&path, &store),
-        Command::ValidateStore { store_dir, namespace }     => validate_store::run(&store_dir, &namespace),
-        Command::FetchIcon { source, name, store_dir }      =>
-            fetch_icon::run(&source, &name, &store_dir).await,
+        Command::Analyze { path, format } => analyze::run(&path, &format),
+        Command::Validate { path } => validate::run(&path),
+        Command::Publish { path, store } => publish::run(&path, &store),
+        Command::ValidateStore {
+            store_dir,
+            namespace,
+        } => validate_store::run(&store_dir, &namespace),
+        Command::FetchIcon {
+            source,
+            name,
+            store_dir,
+        } => fetch_icon::run(&source, &name, &store_dir).await,
     }
 }

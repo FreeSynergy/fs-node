@@ -40,18 +40,18 @@ pub struct AuditEntry {
 impl AuditEntry {
     /// Create a new entry stamped with the current system time.
     pub fn new(
-        actor:         impl Into<String>,
-        action:        impl Into<String>,
+        actor: impl Into<String>,
+        action: impl Into<String>,
         resource_kind: impl Into<String>,
         resource_name: impl Into<String>,
     ) -> Self {
         Self {
-            timestamp:     now_unix_secs(),
-            actor:         actor.into(),
-            action:        action.into(),
+            timestamp: now_unix_secs(),
+            actor: actor.into(),
+            action: action.into(),
             resource_kind: resource_kind.into(),
             resource_name: resource_name.into(),
-            detail:        None,
+            detail: None,
         }
     }
 
@@ -87,8 +87,8 @@ impl AuditLog {
     /// Convenience: build and record an entry in one call.
     pub fn log(
         &mut self,
-        actor:         impl Into<String>,
-        action:        impl Into<String>,
+        actor: impl Into<String>,
+        action: impl Into<String>,
         resource_kind: impl Into<String>,
         resource_name: impl Into<String>,
     ) {
@@ -112,7 +112,8 @@ impl AuditLog {
 
     /// Entries for a specific resource (kind + name pair).
     pub fn by_resource<'a>(&'a self, kind: &str, name: &str) -> Vec<&'a AuditEntry> {
-        self.entries.iter()
+        self.entries
+            .iter()
             .filter(|e| e.resource_kind == kind && e.resource_name == name)
             .collect()
     }
@@ -136,9 +137,9 @@ mod tests {
     #[test]
     fn record_and_filter() {
         let mut log = AuditLog::new();
-        log.record(AuditEntry::new("alice", "deploy",   "project", "my-project"));
-        log.record(AuditEntry::new("system", "update",  "service", "kanidm").with_detail("v1.2.3"));
-        log.record(AuditEntry::new("alice",  "undeploy", "service", "kanidm"));
+        log.record(AuditEntry::new("alice", "deploy", "project", "my-project"));
+        log.record(AuditEntry::new("system", "update", "service", "kanidm").with_detail("v1.2.3"));
+        log.record(AuditEntry::new("alice", "undeploy", "service", "kanidm"));
 
         assert_eq!(log.entries().len(), 3);
         assert_eq!(log.by_actor("alice").len(), 2);
@@ -157,8 +158,7 @@ mod tests {
 
     #[test]
     fn serialise_round_trip() {
-        let entry = AuditEntry::new("bot", "deploy", "service", "forgejo")
-            .with_detail("v7.0.1");
+        let entry = AuditEntry::new("bot", "deploy", "service", "forgejo").with_detail("v7.0.1");
         let json = serde_json::to_string(&entry).unwrap();
         let decoded: AuditEntry = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded.actor, "bot");

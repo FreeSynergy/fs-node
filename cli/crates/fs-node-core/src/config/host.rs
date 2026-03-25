@@ -21,14 +21,14 @@ use crate::resource::{HostResource, Resource};
 /// Root structure of a host config file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostConfig {
-    pub host:  HostMeta,
+    pub host: HostMeta,
 
     /// Proxy service declaration — required on every host.
     #[serde(default)]
     pub proxy: IndexMap<String, ProxyInstance>,
 
     /// Host-level DNS default (used by all services unless overridden).
-    pub dns:  Option<HostDns>,
+    pub dns: Option<HostDns>,
 
     /// Host-level ACME/TLS default.
     pub acme: Option<HostAcme>,
@@ -61,7 +61,6 @@ pub struct HostMeta {
     pub ssh_key_path: Option<String>,
 
     // ── Legacy fields (kept for backward compat) ──────────────────────────────
-
     /// Legacy: IPv4 — prefer `address`.
     #[serde(default)]
     pub ip: String,
@@ -75,17 +74,27 @@ pub struct HostMeta {
     pub external: bool,
 }
 
-fn default_ssh_user() -> String { "root".into() }
-fn default_ssh_port() -> u16   { 22 }
+fn default_ssh_user() -> String {
+    "root".into()
+}
+fn default_ssh_port() -> u16 {
+    22
+}
 
 impl HostMeta {
     /// Returns the canonical address: `address` if set, falls back to legacy `ip`.
     pub fn addr(&self) -> &str {
-        if !self.address.is_empty() { &self.address } else { &self.ip }
+        if !self.address.is_empty() {
+            &self.address
+        } else {
+            &self.ip
+        }
     }
 
     /// Convenience: returns name from embedded ResourceMeta.
-    pub fn name(&self) -> &str { &self.meta.name }
+    pub fn name(&self) -> &str {
+        &self.meta.name
+    }
 }
 
 /// Host-level DNS provider configuration.
@@ -113,7 +122,9 @@ pub struct HostAcme {
     pub provider: String,
 }
 
-fn default_acme_provider() -> String { "letsencrypt".into() }
+fn default_acme_provider() -> String {
+    "letsencrypt".into()
+}
 
 /// A proxy instance declaration (typically "zentinel").
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,8 +155,12 @@ pub struct ProxyPlugins {
     pub acme_email: Option<String>,
 }
 
-fn default_dns()  -> String { "hetzner".into() }
-fn default_acme() -> String { "letsencrypt".into() }
+fn default_dns() -> String {
+    "hetzner".into()
+}
+fn default_acme() -> String {
+    "letsencrypt".into()
+}
 
 impl HostConfig {
     /// Load a host config from a TOML file.
@@ -163,7 +178,9 @@ impl HostConfig {
     pub fn plugin_vars(&self, registry: &ServiceRegistry) -> HashMap<String, String> {
         let mut vars: HashMap<String, String> = HashMap::new();
 
-        let Some((_, proxy)) = self.proxy.iter().next() else { return vars };
+        let Some((_, proxy)) = self.proxy.iter().next() else {
+            return vars;
+        };
         let plugins = &proxy.load.plugins;
 
         if let Some(dns_plugin) = registry.get_plugin("dns", &plugins.dns) {
@@ -173,7 +190,9 @@ impl HostConfig {
             vars.extend(acme_plugin.vars.clone());
         }
 
-        let acme_email = plugins.acme_email.as_deref()
+        let acme_email = plugins
+            .acme_email
+            .as_deref()
             .or_else(|| self.acme.as_ref().map(|a| a.email.as_str()))
             .unwrap_or_default();
         vars.insert("acme_email".into(), acme_email.to_string());
@@ -183,23 +202,43 @@ impl HostConfig {
 }
 
 impl Resource for HostConfig {
-    fn kind(&self) -> &'static str { "host" }
-    fn id(&self) -> &str { self.host.addr() }
-    fn display_name(&self) -> &str { self.host.meta.display_name() }
-    fn tags(&self) -> &[String] { &self.host.meta.tags }
+    fn kind(&self) -> &'static str {
+        "host"
+    }
+    fn id(&self) -> &str {
+        self.host.addr()
+    }
+    fn display_name(&self) -> &str {
+        self.host.meta.display_name()
+    }
+    fn tags(&self) -> &[String] {
+        &self.host.meta.tags
+    }
 
     fn validate(&self) -> Result<(), FsyError> {
-        if self.host.meta.name.is_empty() { return Err(FsyError::Config("host.name is required".into())); }
-        if self.host.addr().is_empty()    { return Err(FsyError::Config("host.address is required".into())); }
+        if self.host.meta.name.is_empty() {
+            return Err(FsyError::Config("host.name is required".into()));
+        }
+        if self.host.addr().is_empty() {
+            return Err(FsyError::Config("host.address is required".into()));
+        }
         Ok(())
     }
 }
 
 impl HostResource for HostConfig {
-    fn addr(&self)        -> &str  { self.host.addr() }
-    fn ssh_user(&self)    -> &str  { &self.host.ssh_user }
-    fn ssh_port(&self)    -> u16   { self.host.ssh_port }
-    fn is_external(&self) -> bool  { self.host.external }
+    fn addr(&self) -> &str {
+        self.host.addr()
+    }
+    fn ssh_user(&self) -> &str {
+        &self.host.ssh_user
+    }
+    fn ssh_port(&self) -> u16 {
+        self.host.ssh_port
+    }
+    fn is_external(&self) -> bool {
+        self.host.external
+    }
 }
 
 #[cfg(test)]
@@ -209,11 +248,14 @@ mod tests {
 
     #[test]
     fn host_config_parses_with_ssh_defaults() {
-        let config: HostConfig = toml::from_str(r#"
+        let config: HostConfig = toml::from_str(
+            r#"
 [host]
 name = "myhost"
 address = "192.168.1.1"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert_eq!(config.host.meta.name, "myhost");
         assert_eq!(config.host.address, "192.168.1.1");
         assert_eq!(config.host.ssh_user, "root");
@@ -224,7 +266,13 @@ address = "192.168.1.1"
     #[test]
     fn host_meta_addr_prefers_address_over_ip() {
         let meta = HostMeta {
-            meta: ResourceMeta { name: "test".to_string(), alias: None, description: None, version: "0.1.0".to_string(), tags: vec![] },
+            meta: ResourceMeta {
+                name: "test".to_string(),
+                alias: None,
+                description: None,
+                version: "0.1.0".to_string(),
+                tags: vec![],
+            },
             address: "10.0.0.1".to_string(),
             project: None,
             install_dir: None,
@@ -241,7 +289,13 @@ address = "192.168.1.1"
     #[test]
     fn host_meta_addr_falls_back_to_ip_when_address_empty() {
         let meta = HostMeta {
-            meta: ResourceMeta { name: "test".to_string(), alias: None, description: None, version: "0.1.0".to_string(), tags: vec![] },
+            meta: ResourceMeta {
+                name: "test".to_string(),
+                alias: None,
+                description: None,
+                version: "0.1.0".to_string(),
+                tags: vec![],
+            },
             address: String::new(),
             project: None,
             install_dir: None,
@@ -257,27 +311,33 @@ address = "192.168.1.1"
 
     #[test]
     fn host_config_acme_provider_defaults_to_letsencrypt() {
-        let config: HostConfig = toml::from_str(r#"
+        let config: HostConfig = toml::from_str(
+            r#"
 [host]
 name = "myhost"
 address = "192.168.1.1"
 
 [acme]
 email = "admin@example.com"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert_eq!(config.acme.as_ref().unwrap().provider, "letsencrypt");
     }
 
     #[test]
     fn host_config_parses_proxy_instance() {
-        let config: HostConfig = toml::from_str(r#"
+        let config: HostConfig = toml::from_str(
+            r#"
 [host]
 name = "myhost"
 address = "192.168.1.1"
 
 [proxy.zentinel]
 service_class = "proxy/zentinel"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert!(config.proxy.contains_key("zentinel"));
         assert_eq!(config.proxy["zentinel"].service_class, "proxy/zentinel");
     }
@@ -286,7 +346,8 @@ service_class = "proxy/zentinel"
     fn proxy_plugins_defaults_when_explicitly_empty_toml() {
         // serde default = fn only applies when the key is absent during deserialization,
         // not when Default::default() is invoked. Provide [load.plugins] to trigger it.
-        let config: HostConfig = toml::from_str(r#"
+        let config: HostConfig = toml::from_str(
+            r#"
 [host]
 name = "myhost"
 address = "192.168.1.1"
@@ -295,7 +356,9 @@ address = "192.168.1.1"
 service_class = "proxy/zentinel"
 
 [proxy.zentinel.load.plugins]
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let plugins = &config.proxy["zentinel"].load.plugins;
         assert_eq!(plugins.dns, "hetzner");
         assert_eq!(plugins.acme, "letsencrypt");

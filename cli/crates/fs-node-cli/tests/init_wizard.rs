@@ -37,7 +37,9 @@ fn init_wizard_creates_project_skeleton() {
 
     // Write wizard answers to stdin.
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(WIZARD_INPUT.as_bytes()).expect("write stdin");
+        stdin
+            .write_all(WIZARD_INPUT.as_bytes())
+            .expect("write stdin");
     }
 
     let output = child.wait_with_output().expect("wait for fsn init");
@@ -56,11 +58,21 @@ fn init_wizard_creates_project_skeleton() {
         .join("projects")
         .join("test-project")
         .join("test-project.project.toml");
-    assert!(proj_toml.exists(), "project TOML not created: {:?}", proj_toml);
+    assert!(
+        proj_toml.exists(),
+        "project TOML not created: {:?}",
+        proj_toml
+    );
 
     let proj_content = std::fs::read_to_string(&proj_toml).expect("read project TOML");
-    assert!(proj_content.contains("test.example.com"), "domain not in project TOML");
-    assert!(proj_content.contains("admin@example.com"), "email not in project TOML");
+    assert!(
+        proj_content.contains("test.example.com"),
+        "domain not in project TOML"
+    );
+    assert!(
+        proj_content.contains("admin@example.com"),
+        "email not in project TOML"
+    );
 
     // Host TOML should exist.
     let host_toml = root.join("hosts").join("test-project.host.toml");
@@ -68,10 +80,16 @@ fn init_wizard_creates_project_skeleton() {
 
     let host_content = std::fs::read_to_string(&host_toml).expect("read host TOML");
     assert!(host_content.contains("203.0.113.10"), "IP not in host TOML");
-    assert!(host_content.contains("hetzner"), "DNS provider not in host TOML");
+    assert!(
+        host_content.contains("hetzner"),
+        "DNS provider not in host TOML"
+    );
 
     // Vault stub should exist.
-    let vault = root.join("projects").join("test-project").join("vault.toml");
+    let vault = root
+        .join("projects")
+        .join("test-project")
+        .join("vault.toml");
     assert!(vault.exists(), "vault.toml not created: {:?}", vault);
 }
 

@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+echo -e "${YELLOW}[FS] Pre-commit checks (staged packages only)...${NC}"
+
+fail() { echo -e "${RED}ERROR: $1${NC}"; exit 1; }
+
+require_tool() {
+  if ! cargo "$1" --version &>/dev/null; then
+    echo -e "${RED}Tool missing: cargo $1${NC}"
+    echo "Install with:"
+    echo "  rustup component add $2"
+    exit 1
+  fi
+}
+
+require_tool fmt rustfmt
+require_tool clippy clippy
+
+# ── Collect staged .rs files ──────────────────────────────────────────────────
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.rs$' || true)
+
+if [ -z "$STAGED" ]; then
+  # No Rust files staged — only check toml/config changes with fmt
+  echo "  No staged .rs files — skipping clippy and tests."
+  echo -e "${GREEN}[FS] All checks passed.${NC}"
+  exit 0
+fi
+
+# ── Detect affected packages, grouped by workspace manifest ──────────────────
+# For each staged .rs file:
+#   1. Find the package Cargo.toml (first Cargo.toml going up).
+#   2. Find the workspace Cargo.toml (walk up from package until we find one with [workspace]).
+# Accumulate: "workspace_manifest:package_name" pairs.
+declare -A WS_PKGS  # workspace_manifest → space-separated package names
+
+for f in $STAGED; do
+  dir=$(dirname "$f")
+  pkg_toml=""
+  # Walk up to find the package Cargo.toml.
+  d="$dir"
+  while [ "$d" != "." ] && [ "$d" != "/" ]; do
+    if [ -f "$d/Cargo.toml" ]; then
+      pkg_toml="$d/Cargo.toml"
+      break
+    fi
+    d=$(dirname "$d")
+  done
+  [ -z "$pkg_toml" ] && continue
+  pkg_name=$(grep -m1 '^name' "$pkg_toml" | sed 's/name *= *"\(.*\)"/\1/')
+  [ -z "$pkg_name" ] && continue
+
+  # Walk up from package to find the workspace Cargo.toml.
+  ws_toml="$pkg_toml"
+  d=$(dirname "$pkg_toml")
+  d=$(dirname "$d")  # start one level above the package
+  while [ "$d" != "." ] && [ "$d" != "/" ]; do
+    if [ -f "$d/Cargo.toml" ] && grep -q '^\[workspace\]' "$d/Cargo.toml"; then
+      ws_toml="$d/Cargo.toml"
+      break
+    fi
+    d=$(dirname "$d")
+  done
+  # If the pkg_toml itself has [workspace], use it as its own workspace.
+  if grep -q '^\[workspace\]' "$pkg_toml"; then
+    ws_toml="$pkg_toml"
+  fi
+
+  WS_PKGS["$ws_toml"]+=" $pkg_name"
+done
+
+if [ ${#WS_PKGS[@]} -eq 0 ]; then
+  echo "  Could not map staged files to packages — skipping."
+  echo -e "${GREEN}[FS] All checks passed.${NC}"
+  exit 0
+fi
+
+# ── Run checks per workspace ───────────────────────────────────────────────────
+for ws_toml in "${!WS_PKGS[@]}"; do
+  read -ra pkgs_arr <<< "${WS_PKGS[$ws_toml]}"
+  mapfile -t pkgs_arr < <(printf '%s\n' "${pkgs_arr[@]}" | sort -u)
+  PKG_FLAGS=()
+  for p in "${pkgs_arr[@]}"; do PKG_FLAGS+=("-p" "$p"); done
+  MANIFEST_FLAG=("--manifest-path" "$ws_toml")
+
+  echo "  Workspace: $ws_toml → packages: ${pkgs_arr[*]}"
+
+  # Use --workspace to avoid ambiguity when multiple crates share a name across workspaces.
+  echo "  [1/3] Format check..."
+  cargo fmt "${MANIFEST_FLAG[@]}" --all -- --check \
+    || fail "Format issues found. Run: cargo fmt --manifest-path $ws_toml --all"
+
+  echo "  [2/3] Clippy..."
+  RUSTFLAGS="-D warnings" cargo clippy "${MANIFEST_FLAG[@]}" --workspace --all-targets -- \
+    -D clippy::large_enum_variant \
+    -D clippy::cognitive_complexity \
+    -D clippy::too_many_arguments \
+    -D clippy::too_many_lines \
+    -D clippy::wildcard_imports \
+    -D clippy::unused_self \
+    || fail "Clippy found issues. Fix them before committing."
+
+  echo "  [3/3] Tests..."
+  cargo test "${MANIFEST_FLAG[@]}" --workspace || fail "Tests failed."
+done
+
+echo -e "${GREEN}[FS] All checks passed.${NC}"

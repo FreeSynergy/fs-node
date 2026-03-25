@@ -16,8 +16,8 @@ pub mod profile;
 pub mod server;
 
 // Convenient re-exports for callers
+pub use buckets::{ensure_buckets, BucketInfo, BucketKind};
 pub use config::StorageConfig;
-pub use buckets::{BucketKind, BucketInfo, ensure_buckets};
-pub use server::S3Server;
-pub use profile::{NodeProfile, ProfileStore};
 pub use federation::FederatedS3Client;
+pub use profile::{NodeProfile, ProfileStore};
+pub use server::S3Server;

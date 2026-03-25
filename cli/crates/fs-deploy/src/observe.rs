@@ -7,10 +7,10 @@ use fs_node_core::state::{ActualState, HealthStatus, RunState, ServiceStatus};
 
 fn run_state_from(active: UnitActiveState) -> RunState {
     match active {
-        UnitActiveState::Active                                     => RunState::Running,
-        UnitActiveState::Inactive | UnitActiveState::Deactivating  => RunState::Stopped,
-        UnitActiveState::Failed                                     => RunState::Failed,
-        UnitActiveState::Activating | UnitActiveState::Unknown      => RunState::Missing,
+        UnitActiveState::Active => RunState::Running,
+        UnitActiveState::Inactive | UnitActiveState::Deactivating => RunState::Stopped,
+        UnitActiveState::Failed => RunState::Failed,
+        UnitActiveState::Activating | UnitActiveState::Unknown => RunState::Missing,
     }
 }
 
@@ -25,14 +25,14 @@ pub async fn observe() -> Result<ActualState> {
         let name = unit.trim_end_matches(".service").to_string();
 
         let run_state = match systemd.service_status(unit).await {
-            Ok(s)  => run_state_from(s.active_state),
+            Ok(s) => run_state_from(s.active_state),
             Err(_) => RunState::Missing,
         };
 
         services.push(ServiceStatus {
             name,
             state: run_state,
-            health: HealthStatus::Unknown,   // HTTP health check is a separate step
+            health: HealthStatus::Unknown, // HTTP health check is a separate step
             deployed_version: read_deployed_version(unit).unwrap_or_default(),
             container_id: None,
         });
@@ -46,7 +46,14 @@ pub async fn observe() -> Result<ActualState> {
 /// Returns only `.service` units — same behaviour as the old `fs_podman::systemd::list_fs_units`.
 pub async fn list_fs_units(systemd: &SystemctlManager) -> Result<Vec<String>> {
     let output = tokio::process::Command::new("systemctl")
-        .args(["--user", "--type=service", "--state=loaded", "--plain", "--no-legend", "--no-pager"])
+        .args([
+            "--user",
+            "--type=service",
+            "--state=loaded",
+            "--plain",
+            "--no-legend",
+            "--no-pager",
+        ])
         .output()
         .await?;
 
@@ -55,7 +62,11 @@ pub async fn list_fs_units(systemd: &SystemctlManager) -> Result<Vec<String>> {
         .lines()
         .filter_map(|line| {
             let unit = line.split_whitespace().next()?;
-            if unit.ends_with(".service") { Some(unit.to_string()) } else { None }
+            if unit.ends_with(".service") {
+                Some(unit.to_string())
+            } else {
+                None
+            }
         })
         .collect();
 
@@ -69,5 +80,9 @@ fn read_deployed_version(unit_name: &str) -> Option<String> {
     let path = std::path::PathBuf::from(home)
         .join(".local/share/fsn/deployed")
         .join(format!("{}.version", name));
-    std::fs::read_to_string(path).ok()?.lines().next().map(str::to_owned)
+    std::fs::read_to_string(path)
+        .ok()?
+        .lines()
+        .next()
+        .map(str::to_owned)
 }

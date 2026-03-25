@@ -14,7 +14,7 @@ use fs_error::FsyError;
 
 pub mod types;
 
-pub use types::{Capability, ExportedVarContract, ServiceType, de_service_types};
+pub use types::{de_service_types, Capability, ExportedVarContract, ServiceType};
 
 use indexmap::{IndexMap, IndexSet};
 use schemars::JsonSchema;
@@ -25,8 +25,8 @@ use toml::Value;
 
 /// JSON-Schema helper for `IndexMap<String, toml::Value>` fields.
 /// `toml::Value` has no JsonSchema impl — we accept any JSON object here.
-fn schema_any_object(_: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-    schemars::schema::Schema::Bool(true)
+fn schema_any_object(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!(true)
 }
 
 use crate::config::manifest::ModuleManifest;
@@ -214,17 +214,19 @@ pub struct SetupField {
     pub skip_if_set: bool,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldType {
     #[default]
     String,
-    Secret,  // masked input, stored in vault
+    Secret, // masked input, stored in vault
     Email,
     Ip,
-    Select,  // requires `options`
+    Select, // requires `options`
     Bool,
 }
 
@@ -328,8 +330,7 @@ impl ServiceMeta {
     /// (no subdomain, no proxy route, no user-facing UI).
     /// Requires ALL declared types to be internal.
     pub fn is_internal_only(&self) -> bool {
-        !self.service_types.is_empty()
-            && self.service_types.iter().all(|t| t.is_internal())
+        !self.service_types.is_empty() && self.service_types.iter().all(|t| t.is_internal())
     }
 
     /// Returns `true` if any of the declared types matches `t`.
@@ -347,7 +348,11 @@ impl ServiceMeta {
         if self.service_types.is_empty() {
             return ServiceType::Custom.label().to_string();
         }
-        self.service_types.iter().map(|t| t.label()).collect::<Vec<_>>().join(", ")
+        self.service_types
+            .iter()
+            .map(|t| t.label())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 
@@ -543,36 +548,38 @@ impl ServicePhase {
     /// Short display label shown in TUI and CLI output.
     pub fn label(self) -> &'static str {
         match self {
-            Self::Init         => "Init",
-            Self::Install      => "Install",
-            Self::Configure    => "Configure",
-            Self::Start        => "Start",
-            Self::HealthCheck  => "Health Check",
-            Self::Running      => "Running",
-            Self::Update       => "Update",
-            Self::Backup       => "Backup",
-            Self::Migrate      => "Migrate",
-            Self::Swap         => "Swap",
+            Self::Init => "Init",
+            Self::Install => "Install",
+            Self::Configure => "Configure",
+            Self::Start => "Start",
+            Self::HealthCheck => "Health Check",
+            Self::Running => "Running",
+            Self::Update => "Update",
+            Self::Backup => "Backup",
+            Self::Migrate => "Migrate",
+            Self::Swap => "Swap",
             Self::Decommission => "Decommission",
-            Self::Stop         => "Stop",
+            Self::Stop => "Stop",
         }
     }
 
     /// One-sentence description of what happens during this phase.
     pub fn description(self) -> &'static str {
         match self {
-            Self::Init         => "Service record created; no containers deployed yet.",
-            Self::Install      => "Container image is being pulled and Quadlet files written.",
-            Self::Configure    => "Post-install configuration: secrets, initial data, peer registration.",
-            Self::Start        => "Systemd unit is starting the container.",
-            Self::HealthCheck  => "Waiting for health checks to pass before marking Running.",
-            Self::Running      => "Service is fully operational.",
-            Self::Update       => "New image is being pulled; Quadlet files are being updated.",
-            Self::Backup       => "Data backup in progress before a destructive operation.",
-            Self::Migrate      => "Schema or data migration is running.",
-            Self::Swap         => "A replacement service is being installed; this one is still live.",
+            Self::Init => "Service record created; no containers deployed yet.",
+            Self::Install => "Container image is being pulled and Quadlet files written.",
+            Self::Configure => {
+                "Post-install configuration: secrets, initial data, peer registration."
+            }
+            Self::Start => "Systemd unit is starting the container.",
+            Self::HealthCheck => "Waiting for health checks to pass before marking Running.",
+            Self::Running => "Service is fully operational.",
+            Self::Update => "New image is being pulled; Quadlet files are being updated.",
+            Self::Backup => "Data backup in progress before a destructive operation.",
+            Self::Migrate => "Schema or data migration is running.",
+            Self::Swap => "A replacement service is being installed; this one is still live.",
             Self::Decommission => "Service is being removed; data archival in progress.",
-            Self::Stop         => "Container stopped; data retained on disk.",
+            Self::Stop => "Container stopped; data retained on disk.",
         }
     }
 }
@@ -729,11 +736,21 @@ fn glob_matches(pattern: &str, value: &str) -> bool {
 // ── Resource impl for ServiceClass ────────────────────────────────────────────
 
 impl Resource for ServiceClass {
-    fn kind(&self) -> &'static str { "service_class" }
-    fn id(&self) -> &str { &self.meta.name }
-    fn display_name(&self) -> &str { &self.meta.name }
-    fn description(&self) -> Option<&str> { self.meta.description.as_deref() }
-    fn tags(&self) -> &[String] { &self.meta.tags }
+    fn kind(&self) -> &'static str {
+        "service_class"
+    }
+    fn id(&self) -> &str {
+        &self.meta.name
+    }
+    fn display_name(&self) -> &str {
+        &self.meta.name
+    }
+    fn description(&self) -> Option<&str> {
+        self.meta.description.as_deref()
+    }
+    fn tags(&self) -> &[String] {
+        &self.meta.tags
+    }
 
     fn validate(&self) -> Result<(), FsyError> {
         if self.meta.name.is_empty() {

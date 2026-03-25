@@ -12,33 +12,35 @@ pub mod validate;
 pub mod vault;
 
 pub use bot::{BotConfig, BotMeta, BotType};
-pub use host::{HostConfig, HostDns, HostAcme, HostMeta};
-pub use meta::ResourceMeta;
+pub use discovery::{find_host, find_host_by_name, find_project};
+pub use host::{HostAcme, HostConfig, HostDns, HostMeta};
 pub use manifest::{
-    ModuleManifest, ManifestInputs, ManifestOutputFile,
-    PluginContext, InstanceInfo, PeerService, PeerRoute,
-    PluginResponse, OutputFile, ShellCommand, LogLine, LogLevel,
+    InstanceInfo, LogLevel, LogLine, ManifestInputs, ManifestOutputFile, ModuleManifest,
+    OutputFile, PeerRoute, PeerService, PluginContext, PluginResponse, ShellCommand,
 };
-pub use service::{
-    Capability, ExportedVarContract,
-    Constraints, ContainerDef, NativeServiceDef, DeploymentKind, Locality,
-    ServiceClass, ServiceMeta, ServiceType,
-    ServiceLoad, ServiceSetup, SetupField, FieldType,
-    SubServiceRef,
-    ServiceContract, RouteSpec, HeaderSpec,
-    ModuleRoles, ModuleUi,
-    ServiceLifecycle, LifecycleHook, PeerHook,
-};
-pub use project::{
-    ModuleRef,       // backwards-compat alias
-    ProjectConfig, ProjectLoad, ProjectMeta,
-    ServiceEntry, ServiceSlots,
-    ServiceInstanceConfig, ServiceInstanceMeta,
-};
+pub use meta::ResourceMeta;
 pub use plugin::{PluginConfig, PluginMeta};
+pub use project::{
+    ModuleRef, // backwards-compat alias
+    ProjectConfig,
+    ProjectLoad,
+    ProjectMeta,
+    ServiceEntry,
+    ServiceInstanceConfig,
+    ServiceInstanceMeta,
+    ServiceSlots,
+};
 pub use registry::ServiceRegistry;
-pub use discovery::{find_project, find_host, find_host_by_name};
-pub use settings::{AppSettings, ServiceRoleMap, StoreConfig, ServiceRoleRegistry, resolve_plugins_dir, resolve_plugins_dir_no_fallback};
+pub use service::{
+    Capability, Constraints, ContainerDef, DeploymentKind, ExportedVarContract, FieldType,
+    HeaderSpec, LifecycleHook, Locality, ModuleRoles, ModuleUi, NativeServiceDef, PeerHook,
+    RouteSpec, ServiceClass, ServiceContract, ServiceLifecycle, ServiceLoad, ServiceMeta,
+    ServiceSetup, ServiceType, SetupField, SubServiceRef,
+};
+pub use settings::{
+    resolve_plugins_dir, resolve_plugins_dir_no_fallback, AppSettings, ServiceRoleMap,
+    ServiceRoleRegistry, StoreConfig,
+};
 pub use vault::VaultConfig;
 
 // ── Shared TOML loader ────────────────────────────────────────────────────────
@@ -72,6 +74,5 @@ where
     let content = std::fs::read_to_string(path)
         .map_err(|_| fs_error::FsyError::NotFound(path_str.clone()))?;
     validate::validate_toml_content(&content, kind, &path_str)?;
-    toml::from_str(&content)
-        .map_err(|e| fs_error::FsyError::Parse(format!("{path_str}: {e}")))
+    toml::from_str(&content).map_err(|e| fs_error::FsyError::Parse(format!("{path_str}: {e}")))
 }

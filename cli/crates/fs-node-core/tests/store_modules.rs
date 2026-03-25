@@ -19,8 +19,7 @@ use fs_node_core::config::registry::ServiceRegistry;
 fn store_packages_dir() -> PathBuf {
     // From cli/crates/fs-node-core/ go up 4 levels -> /home/kal/Server/
     // then into fs-store/packages/
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../fs-store/packages")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../fs-store/packages")
 }
 
 fn zentinel_providers_dir() -> PathBuf {
@@ -39,7 +38,10 @@ fn all_store_modules_parse_without_error() {
     let registry = ServiceRegistry::load(&dir).expect("ServiceRegistry::load");
     let classes: Vec<_> = registry.all().collect();
 
-    assert!(!classes.is_empty(), "expected at least one module to be loaded");
+    assert!(
+        !classes.is_empty(),
+        "expected at least one module to be loaded"
+    );
     eprintln!("Loaded {} module classes", classes.len());
 }
 
@@ -83,7 +85,9 @@ fn all_container_modules_have_image() {
 
     for (key, class) in registry.all() {
         // Native apps have no container block — skip them.
-        let Some(container) = &class.container else { continue };
+        let Some(container) = &class.container else {
+            continue;
+        };
 
         assert!(
             !container.image.is_empty(),
@@ -108,7 +112,9 @@ fn all_container_modules_have_healthcheck() {
 
     for (key, class) in registry.all() {
         // Native apps have no container block — skip them.
-        let Some(container) = &class.container else { continue };
+        let Some(container) = &class.container else {
+            continue;
+        };
 
         assert!(
             container.healthcheck.is_some(),
@@ -123,7 +129,10 @@ fn all_container_modules_have_healthcheck() {
 fn zentinel_dns_and_acme_providers_parse() {
     let providers_dir = zentinel_providers_dir();
     if !providers_dir.exists() {
-        eprintln!("SKIP: zentinel providers dir not found at {}", providers_dir.display());
+        eprintln!(
+            "SKIP: zentinel providers dir not found at {}",
+            providers_dir.display()
+        );
         return;
     }
 
@@ -136,8 +145,7 @@ fn zentinel_dns_and_acme_providers_parse() {
     for (kind, name) in &required {
         let path = providers_dir.join(kind).join(format!("{name}.toml"));
         assert!(path.exists(), "provider file missing: {}", path.display());
-        let content = std::fs::read_to_string(&path)
-            .expect("read provider toml");
+        let content = std::fs::read_to_string(&path).expect("read provider toml");
         let _: PluginConfig = toml::from_str(&content)
             .unwrap_or_else(|e| panic!("parse error in {}/{}.toml: {e}", kind, name));
     }

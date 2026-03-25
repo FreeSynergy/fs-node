@@ -42,8 +42,7 @@ impl TokenFile {
         }
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("reading token file: {}", path.display()))?;
-        toml::from_str(&content)
-            .with_context(|| format!("parsing token file: {}", path.display()))
+        toml::from_str(&content).with_context(|| format!("parsing token file: {}", path.display()))
     }
 
     /// Serialize and write this `TokenFile` to `path` (creates or overwrites).
@@ -52,8 +51,7 @@ impl TokenFile {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("creating directory: {}", parent.display()))?;
         }
-        let content = toml::to_string_pretty(self)
-            .context("serializing token file")?;
+        let content = toml::to_string_pretty(self).context("serializing token file")?;
         std::fs::write(path, content)
             .with_context(|| format!("writing token file: {}", path.display()))
     }
@@ -98,15 +96,18 @@ fn utc_now_rfc3339() -> String {
 
     // Manual RFC 3339 formatting (avoids chrono/time dependencies).
     let s = secs;
-    let sec   = s % 60;
-    let min   = (s / 60) % 60;
-    let hour  = (s / 3600) % 24;
-    let days  = s / 86400;
+    let sec = s % 60;
+    let min = (s / 60) % 60;
+    let hour = (s / 3600) % 24;
+    let days = s / 86400;
 
     // Approximate date from epoch days (good enough for a timestamp label).
     let (year, month, day) = days_to_ymd(days);
 
-    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", year, month, day, hour, min, sec)
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        year, month, day, hour, min, sec
+    )
 }
 
 /// Convert days since Unix epoch to (year, month, day).
@@ -116,11 +117,11 @@ fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
     let era = days / 146097;
     let doe = days % 146097;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y   = yoe + era * 400;
+    let y = yoe + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp  = (5 * doy + 2) / 153;
-    let d   = doy - (153 * mp + 2) / 5 + 1;
-    let m   = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y   = if m <= 2 { y + 1 } else { y };
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
     (y, m, d)
 }

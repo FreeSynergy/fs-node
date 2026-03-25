@@ -26,16 +26,15 @@ use tracing::info;
 
 use fs_node_core::{
     config::{AppSettings, ServiceRegistry},
-    store::{StoreCatalog, StoreEntry},
+    store::{Catalog, NodeStoreClient, StoreCatalog, StoreEntry},
 };
-use fs_store::{StoreClient as SdkClient, StoreSource};
 
 // ── StoreClient ───────────────────────────────────────────────────────────────
 
 /// FSN store client — manages catalog fetching and local module availability.
 pub struct StoreClient {
-    settings:    AppSettings,
-    registry:    ServiceRegistry,
+    settings: AppSettings,
+    registry: ServiceRegistry,
     /// Local modules directory for the bundled offline fallback.
     /// Passed to `load_bundled()` when all network stores are unreachable.
     modules_dir: Option<PathBuf>,
@@ -43,7 +42,11 @@ pub struct StoreClient {
 
 impl StoreClient {
     pub fn new(settings: AppSettings, registry: ServiceRegistry) -> Self {
-        Self { settings, registry, modules_dir: None }
+        Self {
+            settings,
+            registry,
+            modules_dir: None,
+        }
     }
 
     /// Set the local modules directory used as bundled offline fallback.
@@ -75,21 +78,42 @@ impl StoreClient {
     /// `errors` vec while still receiving a usable entry list.
     ///
     /// Returns `(entries, errors)`.
+    #[allow(clippy::cognitive_complexity)]
     pub async fn fetch_all(&self) -> (Vec<StoreEntry>, Vec<String>) {
-        let mut seen   = std::collections::HashSet::new();
+        let mut seen = std::collections::HashSet::new();
         let mut result = Vec::new();
         let mut errors = Vec::new();
 
         for store in &self.settings.stores {
-            if !store.enabled { continue; }
+            if !store.enabled {
+                continue;
+            }
 
-            let source = if let Some(local) = &store.local_path {
-                StoreSource::Local(PathBuf::from(local))
+            let base_url = if let Some(local) = &store.local_path {
+                // Local dev mode: read catalog.toml directly from disk.
+                // NodeStoreClient is HTTP-only, so we fall back to a file read.
+                match Self::load_local_catalog(local) {
+                    Ok(catalog) => {
+                        for mut entry in catalog.packages {
+                            if seen.insert(entry.id.clone()) {
+                                entry.store_source = store.name.clone();
+                                result.push(entry);
+                            }
+                        }
+                        continue;
+                    }
+                    Err(e) => {
+                        let msg = format!("Store '{}' (local): {e}", store.name);
+                        tracing::warn!("{}", msg);
+                        errors.push(msg);
+                        continue;
+                    }
+                }
             } else {
-                StoreSource::Http(store.url.clone())
+                store.url.clone()
             };
 
-            let mut client = SdkClient::new(source);
+            let mut client = NodeStoreClient::new(base_url);
             match client.fetch_catalog::<StoreEntry>("node", false).await {
                 Ok(catalog) => {
                     for mut entry in catalog.packages {
@@ -116,7 +140,8 @@ impl StoreClient {
                 if !bundled.packages.is_empty() {
                     tracing::warn!(
                         "All store fetches failed — serving bundled offline catalog \
-                         ({} entries)", bundled.packages.len()
+                         ({} entries)",
+                        bundled.packages.len()
                     );
                     for entry in bundled.packages {
                         if seen.insert(entry.id.clone()) {
@@ -133,9 +158,19 @@ impl StoreClient {
     /// Returns all entries for a given service type from the merged index.
     /// Used by the wizard to populate the service class dropdown.
     pub fn list_by_type<'a>(entries: &'a [StoreEntry], service_type: &str) -> Vec<&'a StoreEntry> {
-        entries.iter()
+        entries
+            .iter()
             .filter(|e| e.primary_type_str() == service_type)
             .collect()
+    }
+
+    /// Read a catalog directly from a local store path (dev mode, no HTTP).
+    fn load_local_catalog(local_path: &str) -> anyhow::Result<Catalog<StoreEntry>> {
+        let base = std::path::PathBuf::from(local_path);
+        let catalog_path = base.join("node").join("catalog.toml");
+        let text = std::fs::read_to_string(&catalog_path)
+            .map_err(|e| anyhow::anyhow!("read {}: {e}", catalog_path.display()))?;
+        toml::from_str(&text).map_err(|e| anyhow::anyhow!("parse {}: {e}", catalog_path.display()))
     }
 
     /// Load a bundled (offline) catalog from the local modules directory.
@@ -145,11 +180,15 @@ impl StoreClient {
     pub fn load_bundled(modules_dir: &Path) -> StoreCatalog {
         let base = modules_dir.parent().unwrap_or(modules_dir).join("store");
         let catalog_path = base.join("catalog.toml");
-        let index_path   = base.join("index.toml");
+        let index_path = base.join("index.toml");
 
-        let path = if catalog_path.exists() { &catalog_path }
-                   else if index_path.exists() { &index_path }
-                   else { return StoreCatalog::default(); };
+        let path = if catalog_path.exists() {
+            &catalog_path
+        } else if index_path.exists() {
+            &index_path
+        } else {
+            return StoreCatalog::default();
+        };
 
         std::fs::read_to_string(path)
             .ok()
@@ -163,29 +202,40 @@ impl StoreClient {
     ///   1. `local_path` set → use as-is (dev mode, no git)
     ///   2. `git_url` set    → git clone/pull into `{cache_dir}/{store_name}/`
     ///   3. Derive git URL from `url` → same git clone/pull
+    #[allow(clippy::cognitive_complexity)]
     pub async fn sync_modules(&self, cache_dir: &Path) -> Result<PathBuf> {
         for store in &self.settings.stores {
-            if !store.enabled { continue; }
+            if !store.enabled {
+                continue;
+            }
 
             if let Some(local) = &store.local_path {
                 let node_dir = PathBuf::from(local).join("Node");
                 if node_dir.exists() {
-                    info!("Store '{}': using local path {}", store.name, node_dir.display());
+                    info!(
+                        "Store '{}': using local path {}",
+                        store.name,
+                        node_dir.display()
+                    );
                     return Ok(node_dir);
                 }
                 tracing::warn!(
                     "Store '{}': local_path '{}' has no Node/ dir — skipping",
-                    store.name, local
+                    store.name,
+                    local
                 );
                 continue;
             }
 
-            let git_url = store.git_url.as_deref()
+            let git_url = store
+                .git_url
+                .as_deref()
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| raw_url_to_git(&store.url));
 
             let local_dir = cache_dir.join(name_to_slug(&store.name));
-            sync_git_repo(&git_url, &local_dir).await
+            sync_git_repo(&git_url, &local_dir)
+                .await
                 .with_context(|| format!("syncing store '{}'", store.name))?;
 
             let node_dir = local_dir.join("Node");
@@ -195,7 +245,8 @@ impl StoreClient {
             }
             tracing::warn!(
                 "Store '{}': synced but no Node/ directory in {}",
-                store.name, local_dir.display()
+                store.name,
+                local_dir.display()
             );
         }
         anyhow::bail!("no enabled store with a Node/ module tree could be synced")
@@ -208,18 +259,35 @@ async fn sync_git_repo(git_url: &str, local_dir: &Path) -> Result<()> {
     if local_dir.join(".git").exists() {
         info!("git pull {}", local_dir.display());
         let status = tokio::process::Command::new("git")
-            .args(["-C", &local_dir.to_string_lossy(), "pull", "--ff-only", "--quiet"])
+            .args([
+                "-C",
+                &local_dir.to_string_lossy(),
+                "pull",
+                "--ff-only",
+                "--quiet",
+            ])
             .status()
             .await
             .with_context(|| format!("git pull in {}", local_dir.display()))?;
-        anyhow::ensure!(status.success(), "git pull failed in {}", local_dir.display());
+        anyhow::ensure!(
+            status.success(),
+            "git pull failed in {}",
+            local_dir.display()
+        );
     } else {
         if let Some(parent) = local_dir.parent() {
             std::fs::create_dir_all(parent)?;
         }
         info!("git clone {} → {}", git_url, local_dir.display());
         let status = tokio::process::Command::new("git")
-            .args(["clone", "--depth", "1", "--quiet", git_url, &local_dir.to_string_lossy()])
+            .args([
+                "clone",
+                "--depth",
+                "1",
+                "--quiet",
+                git_url,
+                &local_dir.to_string_lossy(),
+            ])
             .status()
             .await
             .with_context(|| format!("git clone {git_url}"))?;
@@ -235,14 +303,20 @@ fn raw_url_to_git(raw_url: &str) -> String {
         .replace("://raw.githubusercontent.com/", "://github.com/");
     match base.rfind('/') {
         Some(pos) => base[..pos].to_string(),
-        None      => base,
+        None => base,
     }
 }
 
-/// "FSN Official" → "fs-official"
+/// "FSN Official" → "fsn-official"
 fn name_to_slug(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect()
 }
 
@@ -262,6 +336,6 @@ mod tests {
 
     #[test]
     fn name_to_slug_works() {
-        assert_eq!(name_to_slug("FSN Official"), "fs-official");
+        assert_eq!(name_to_slug("FSN Official"), "fsn-official");
     }
 }

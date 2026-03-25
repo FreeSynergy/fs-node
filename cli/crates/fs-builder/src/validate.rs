@@ -11,9 +11,7 @@
 
 use anyhow::{Context, Result};
 use fs_types::resources::{
-    container::ContainerResource,
-    meta::ValidationStatus,
-    validator::Validate,
+    container::ContainerResource, meta::ValidationStatus, validator::Validate,
 };
 use std::path::Path;
 
@@ -33,7 +31,7 @@ impl ResourceValidator for ContainerResource {
         let mut resource: ContainerResource = toml::from_str(raw)
             .with_context(|| "Failed to parse resource.toml as ContainerResource")?;
         resource.validate();
-        Ok((resource.meta.id.clone(), resource.meta.status.clone()))
+        Ok((resource.meta.id.clone(), resource.meta.status))
     }
 }
 
@@ -43,9 +41,8 @@ type ValidateFn = fn(&str) -> anyhow::Result<(String, ValidationStatus)>;
 
 /// Static mapping from `resource_type` string to validator.
 /// Add a new entry here to support an additional resource type.
-static RESOURCE_VALIDATORS: &[(&str, ValidateFn)] = &[
-    ("container", ContainerResource::parse_and_validate),
-];
+static RESOURCE_VALIDATORS: &[(&str, ValidateFn)] =
+    &[("container", ContainerResource::parse_and_validate)];
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -58,8 +55,8 @@ pub fn run(path: &Path) -> Result<()> {
     let raw = std::fs::read_to_string(&toml_path)
         .with_context(|| format!("Cannot read {}", toml_path.display()))?;
 
-    let value: toml::Value = toml::from_str(&raw)
-        .with_context(|| "resource.toml is not valid TOML")?;
+    let value: toml::Value =
+        toml::from_str(&raw).with_context(|| "resource.toml is not valid TOML")?;
 
     let resource_type = value
         .get("meta")
@@ -79,7 +76,8 @@ pub fn run(path: &Path) -> Result<()> {
                 .join(", ");
             anyhow::anyhow!(
                 "Unsupported resource type '{}'. Supported: {}",
-                resource_type, supported
+                resource_type,
+                supported
             )
         })?;
 
@@ -90,9 +88,15 @@ pub fn run(path: &Path) -> Result<()> {
 
 fn print_status(id: &str, status: &ValidationStatus) {
     let (badge, message) = match status {
-        ValidationStatus::Ok         => ("✅", "Resource is valid."),
-        ValidationStatus::Incomplete => ("⚠️ ", "Resource is incomplete — some required fields are missing."),
-        ValidationStatus::Broken     => ("❌", "Resource is broken — critical fields are missing or invalid."),
+        ValidationStatus::Ok => ("✅", "Resource is valid."),
+        ValidationStatus::Incomplete => (
+            "⚠️ ",
+            "Resource is incomplete — some required fields are missing.",
+        ),
+        ValidationStatus::Broken => (
+            "❌",
+            "Resource is broken — critical fields are missing or invalid.",
+        ),
     };
     println!("{badge} {id}: {message}");
 }

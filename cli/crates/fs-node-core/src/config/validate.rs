@@ -10,8 +10,8 @@
 // The caller passes the file content as a &str (already read from disk);
 // validation is pure (no I/O) and returns a typed FsyError on failure.
 
-use toml::Value;
 use fs_error::FsyError;
+use toml::Value;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -39,19 +39,20 @@ impl TomlValidator {
     /// Validate TOML `content` before deserialization.
     /// Chain: size → syntax → safety → schema.
     pub fn validate(&self, content: &str, kind: TomlKind, path: &str) -> Result<(), FsyError> {
-        self.check_size(content, path)?;
-        let doc = self.check_syntax(content, path)?;
-        self.check_safety(&doc, path, 0)?;
-        self.check_schema(&doc, kind, path)?;
+        Self::check_size(content, path)?;
+        let doc = Self::check_syntax(content, path)?;
+        Self::check_safety(&doc, path, 0)?;
+        Self::check_schema(&doc, kind, path)?;
         Ok(())
     }
 
     // ── Step 1: Size guard ────────────────────────────────────────────────────
 
-    fn check_size(&self, content: &str, path: &str) -> Result<(), FsyError> {
+    fn check_size(content: &str, path: &str) -> Result<(), FsyError> {
         if content.len() > MAX_BYTES {
             return Err(FsyError::Config(format!(
-                "{path}: file too large ({} bytes, max {MAX_BYTES})", content.len()
+                "{path}: file too large ({} bytes, max {MAX_BYTES})",
+                content.len()
             )));
         }
         Ok(())
@@ -59,75 +60,87 @@ impl TomlValidator {
 
     // ── Step 2: Syntax check ──────────────────────────────────────────────────
 
-    fn check_syntax(&self, content: &str, path: &str) -> Result<Value, FsyError> {
+    fn check_syntax(content: &str, path: &str) -> Result<Value, FsyError> {
         toml::from_str::<Value>(content)
             .map_err(|e| FsyError::Parse(format!("{path}: TOML syntax error: {e}")))
     }
 
     // ── Step 3: Safety scan ───────────────────────────────────────────────────
 
-    fn check_safety(&self, val: &Value, path: &str, depth: usize) -> Result<(), FsyError> {
+    fn check_safety(val: &Value, path: &str, depth: usize) -> Result<(), FsyError> {
         if depth > MAX_DEPTH {
-            return Err(FsyError::Config(format!("{path}: structure too deeply nested")));
+            return Err(FsyError::Config(format!(
+                "{path}: structure too deeply nested"
+            )));
         }
         match val {
-            Value::String(s) => self.check_string(s, path)?,
-            Value::Table(t)  => {
-                for v in t.values() { self.check_safety(v, path, depth + 1)?; }
+            Value::String(s) => Self::check_string(s, path)?,
+            Value::Table(t) => {
+                for v in t.values() {
+                    Self::check_safety(v, path, depth + 1)?;
+                }
             }
             Value::Array(a) => {
-                for v in a { self.check_safety(v, path, depth + 1)?; }
+                for v in a {
+                    Self::check_safety(v, path, depth + 1)?;
+                }
             }
             _ => {}
         }
         Ok(())
     }
 
-    fn check_string(&self, s: &str, path: &str) -> Result<(), FsyError> {
+    fn check_string(s: &str, path: &str) -> Result<(), FsyError> {
         if s.len() > MAX_STRING_LEN {
             return Err(FsyError::Config(format!(
-                "{path}: string value too long ({} chars, max {MAX_STRING_LEN})", s.len()
+                "{path}: string value too long ({} chars, max {MAX_STRING_LEN})",
+                s.len()
             )));
         }
         if s.contains('\0') {
-            return Err(FsyError::Config(format!("{path}: null byte in string value")));
+            return Err(FsyError::Config(format!(
+                "{path}: null byte in string value"
+            )));
         }
         for pat in &["$(", "`", " && ", " || "] {
             if s.contains(pat) {
                 return Err(FsyError::Config(format!(
-                    "{path}: potentially unsafe pattern '{}' in string value", pat.trim()
+                    "{path}: potentially unsafe pattern '{}' in string value",
+                    pat.trim()
                 )));
             }
         }
         if s.contains("../") || s.contains("..\\") {
-            return Err(FsyError::Config(format!("{path}: path traversal sequence '../'")));
+            return Err(FsyError::Config(format!(
+                "{path}: path traversal sequence '../'"
+            )));
         }
         Ok(())
     }
 
     // ── Step 4: Schema check ──────────────────────────────────────────────────
 
-    fn check_schema(&self, doc: &Value, kind: TomlKind, path: &str) -> Result<(), FsyError> {
+    fn check_schema(doc: &Value, kind: TomlKind, path: &str) -> Result<(), FsyError> {
         match kind {
-            TomlKind::Project  => self.require_string_field(doc, &["project", "name"], path)?,
-            TomlKind::Host     => self.require_string_field(doc, &["host", "name"], path)?,
-            TomlKind::Service  => {
-                self.require_string_field(doc, &["service", "name"], path)?;
-                self.require_string_field(doc, &["service", "service_class"], path)?;
+            TomlKind::Project => Self::require_string_field(doc, &["project", "name"], path)?,
+            TomlKind::Host => Self::require_string_field(doc, &["host", "name"], path)?,
+            TomlKind::Service => {
+                Self::require_string_field(doc, &["service", "name"], path)?;
+                Self::require_string_field(doc, &["service", "service_class"], path)?;
             }
-            TomlKind::Language => self.require_string_field(doc, &["meta", "language"], path)?,
-            TomlKind::Generic  => {}
+            TomlKind::Language => Self::require_string_field(doc, &["meta", "language"], path)?,
+            TomlKind::Generic => {}
         }
         Ok(())
     }
 
-    fn require_string_field(&self, doc: &Value, keys: &[&str], path: &str) -> Result<(), FsyError> {
+    fn require_string_field(doc: &Value, keys: &[&str], path: &str) -> Result<(), FsyError> {
         let field = keys.join(".");
         let mut cur = doc;
         for &key in keys {
-            cur = cur.get(key).ok_or_else(|| FsyError::Config(format!(
-                "{path}: missing required field '{field}'"
-            )))?;
+            cur = cur.get(key).ok_or_else(|| {
+                FsyError::Config(format!("{path}: missing required field '{field}'"))
+            })?;
         }
         match cur.as_str() {
             Some(s) if !s.is_empty() => Ok(()),

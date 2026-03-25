@@ -74,7 +74,9 @@ pub struct ProjectMeta {
     pub sites: Option<IndexMap<String, SiteConfig>>,
 }
 
-fn default_lang() -> String { "en".into() }
+fn default_lang() -> String {
+    "en".into()
+}
 
 impl ServiceSlots {
     /// Look up which instance fills the given slot by name.
@@ -156,7 +158,9 @@ pub struct ServiceEntry {
     pub vars: IndexMap<String, Value>,
 }
 
-fn default_service_version() -> String { "latest".into() }
+fn default_service_version() -> String {
+    "latest".into()
+}
 
 /// Backwards-compat alias.
 pub type ModuleRef = ServiceEntry;
@@ -224,10 +228,18 @@ impl ServiceInstanceConfig {
 }
 
 impl Resource for ServiceInstanceConfig {
-    fn kind(&self) -> &'static str { "service" }
-    fn id(&self) -> &str { &self.service.meta.name }
-    fn display_name(&self) -> &str { self.service.meta.display_name() }
-    fn tags(&self) -> &[String] { &self.service.meta.tags }
+    fn kind(&self) -> &'static str {
+        "service"
+    }
+    fn id(&self) -> &str {
+        &self.service.meta.name
+    }
+    fn display_name(&self) -> &str {
+        self.service.meta.display_name()
+    }
+    fn tags(&self) -> &[String] {
+        &self.service.meta.tags
+    }
 
     fn validate(&self) -> Result<(), FsyError> {
         if self.service.meta.name.is_empty() {
@@ -244,11 +256,21 @@ impl Resource for ServiceInstanceConfig {
 }
 
 impl ServiceResource for ServiceInstanceConfig {
-    fn service_class(&self) -> &str { &self.service.service_class }
-    fn host(&self)          -> Option<&str> { self.service.host.as_deref() }
-    fn subdomain(&self)     -> Option<&str> { self.service.subdomain.as_deref() }
-    fn port(&self)          -> Option<u16>  { self.service.port }
-    fn project(&self)       -> &str { &self.service.project }
+    fn service_class(&self) -> &str {
+        &self.service.service_class
+    }
+    fn host(&self) -> Option<&str> {
+        self.service.host.as_deref()
+    }
+    fn subdomain(&self) -> Option<&str> {
+        self.service.subdomain.as_deref()
+    }
+    fn port(&self) -> Option<u16> {
+        self.service.port
+    }
+    fn project(&self) -> &str {
+        &self.service.project
+    }
 }
 
 impl ProjectConfig {
@@ -258,11 +280,21 @@ impl ProjectConfig {
 }
 
 impl Resource for ProjectConfig {
-    fn kind(&self) -> &'static str { "project" }
-    fn id(&self) -> &str { &self.project.meta.name }
-    fn display_name(&self) -> &str { self.project.meta.display_name() }
-    fn description(&self) -> Option<&str> { self.project.meta.description.as_deref() }
-    fn tags(&self) -> &[String] { &self.project.meta.tags }
+    fn kind(&self) -> &'static str {
+        "project"
+    }
+    fn id(&self) -> &str {
+        &self.project.meta.name
+    }
+    fn display_name(&self) -> &str {
+        self.project.meta.display_name()
+    }
+    fn description(&self) -> Option<&str> {
+        self.project.meta.description.as_deref()
+    }
+    fn tags(&self) -> &[String] {
+        &self.project.meta.tags
+    }
 
     fn validate(&self) -> Result<(), FsyError> {
         if self.project.meta.name.is_empty() {
@@ -276,13 +308,21 @@ impl Resource for ProjectConfig {
 }
 
 impl ProjectResource for ProjectConfig {
-    fn domain(&self) -> &str { &self.project.domain }
+    fn domain(&self) -> &str {
+        &self.project.domain
+    }
     fn contact_email(&self) -> Option<&str> {
-        self.project.contact.as_ref()
+        self.project
+            .contact
+            .as_ref()
             .and_then(|c| c.email.as_deref().or(c.acme_email.as_deref()))
     }
-    fn languages(&self) -> &[String] { &self.project.languages }
-    fn install_dir(&self) -> Option<&str> { self.project.install_dir.as_deref() }
+    fn languages(&self) -> &[String] {
+        &self.project.languages
+    }
+    fn install_dir(&self) -> Option<&str> {
+        self.project.install_dir.as_deref()
+    }
 }
 
 impl ProjectConfig {
@@ -297,7 +337,7 @@ impl ProjectConfig {
     pub fn cross_service_vars(&self) -> HashMap<String, String> {
         let mut vars = HashMap::new();
 
-        vars.insert("PROJECT_NAME".into(),   self.project.meta.name.clone());
+        vars.insert("PROJECT_NAME".into(), self.project.meta.name.clone());
         vars.insert("PROJECT_DOMAIN".into(), self.project.domain.clone());
         if let Some(email) = self.contact_email() {
             vars.insert("PROJECT_EMAIL".into(), email.to_string());
@@ -305,12 +345,16 @@ impl ProjectConfig {
 
         for (instance_name, entry) in &self.load.services {
             let class_prefix = entry.service_class.split('/').next().unwrap_or("");
-            let Some(stype)    = ServiceType::from_class_prefix(class_prefix) else { continue };
-            let Some(contract) = stype.exported_contract()                    else { continue };
+            let Some(stype) = ServiceType::from_class_prefix(class_prefix) else {
+                continue;
+            };
+            let Some(contract) = stype.exported_contract() else {
+                continue;
+            };
 
             let subdomain = entry.subdomain.as_deref().unwrap_or(instance_name.as_str());
-            let domain    = format!("{}.{}", subdomain, self.project.domain);
-            let port      = entry.port.unwrap_or(0);
+            let domain = format!("{}.{}", subdomain, self.project.domain);
+            let port = entry.port.unwrap_or(0);
 
             vars.extend(contract.resolve(instance_name, &domain, port));
         }
@@ -325,11 +369,14 @@ mod tests {
 
     #[test]
     fn project_config_parses_minimal_toml() {
-        let config: ProjectConfig = toml::from_str(r#"
+        let config: ProjectConfig = toml::from_str(
+            r#"
 [project]
 name = "myproject"
 domain = "example.com"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert_eq!(config.project.meta.name, "myproject");
         assert_eq!(config.project.domain, "example.com");
         assert_eq!(config.project.language, "en"); // default
@@ -337,7 +384,8 @@ domain = "example.com"
 
     #[test]
     fn project_config_parses_services() {
-        let config: ProjectConfig = toml::from_str(r#"
+        let config: ProjectConfig = toml::from_str(
+            r#"
 [project]
 name = "myproject"
 domain = "example.com"
@@ -345,7 +393,9 @@ domain = "example.com"
 [load.services.forgejo]
 service_class = "git/forgejo"
 version = "9"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let entry = config.load.services.get("forgejo").unwrap();
         assert_eq!(entry.service_class, "git/forgejo");
         assert_eq!(entry.version, "9");
@@ -353,27 +403,33 @@ version = "9"
 
     #[test]
     fn service_entry_version_defaults_to_latest() {
-        let config: ProjectConfig = toml::from_str(r#"
+        let config: ProjectConfig = toml::from_str(
+            r#"
 [project]
 name = "myproject"
 domain = "example.com"
 
 [load.services.forgejo]
 service_class = "git/forgejo"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert_eq!(config.load.services["forgejo"].version, "latest");
     }
 
     #[test]
     fn project_config_parses_contact_sub_table() {
-        let config: ProjectConfig = toml::from_str(r#"
+        let config: ProjectConfig = toml::from_str(
+            r#"
 [project]
 name = "myproject"
 domain = "example.com"
 
 [project.contact]
 email = "admin@example.com"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let contact = config.project.contact.as_ref().unwrap();
         assert_eq!(contact.email.as_deref(), Some("admin@example.com"));
     }
@@ -381,11 +437,14 @@ email = "admin@example.com"
     #[test]
     fn project_resource_impl_returns_correct_values() {
         use crate::resource::{ProjectResource, Resource};
-        let config: ProjectConfig = toml::from_str(r#"
+        let config: ProjectConfig = toml::from_str(
+            r#"
 [project]
 name = "testproject"
 domain = "test.example.com"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert_eq!(config.id(), "testproject");
         assert_eq!(config.domain(), "test.example.com");
         assert_eq!(config.kind(), "project");
@@ -393,13 +452,16 @@ domain = "test.example.com"
 
     #[test]
     fn service_instance_config_parses_toml() {
-        let config: ServiceInstanceConfig = toml::from_str(r#"
+        let config: ServiceInstanceConfig = toml::from_str(
+            r#"
 [service]
 name = "forgejo"
 service_class = "git/forgejo"
 project = "myproject"
 host = "myhost"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert_eq!(config.service.meta.name, "forgejo");
         assert_eq!(config.service.service_class, "git/forgejo");
         assert_eq!(config.service.project, "myproject");

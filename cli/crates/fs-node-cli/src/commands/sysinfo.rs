@@ -9,8 +9,8 @@
 
 use anyhow::Result;
 use fs_sysinfo::{
-    AlertChecker, AlertThresholds, DiskInfo, Feature, FeatureDetect,
-    MemInfo, SysInfoCache, ThermalInfo,
+    AlertChecker, AlertThresholds, DiskInfo, Feature, FeatureDetect, MemInfo, SysInfoCache,
+    ThermalInfo,
 };
 
 const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
@@ -38,9 +38,15 @@ pub async fn info() -> Result<()> {
     }
 
     let all = [
-        Feature::Systemd, Feature::Pam, Feature::Launchd,
-        Feature::WindowsServices, Feature::Podman, Feature::Docker,
-        Feature::Git, Feature::Ssh, Feature::Smartctl,
+        Feature::Systemd,
+        Feature::Pam,
+        Feature::Launchd,
+        Feature::WindowsServices,
+        Feature::Podman,
+        Feature::Docker,
+        Feature::Git,
+        Feature::Ssh,
+        Feature::Smartctl,
     ];
     let missing: Vec<_> = all.iter().filter(|f| !features.has(**f)).collect();
     if !missing.is_empty() {
@@ -61,16 +67,26 @@ pub async fn live() -> Result<()> {
     let (os, _) = SysInfoCache::default_path().get_or_detect();
 
     println!("── OS ──────────────────────────────────────────");
-    println!("  {} — {} ({})", os.hostname, os.version, os.os_type.label());
+    println!(
+        "  {} — {} ({})",
+        os.hostname,
+        os.version,
+        os.os_type.label()
+    );
 
     // Memory
     let mem = MemInfo::detect();
     println!("\n── Memory ──────────────────────────────────────");
     println!("  Total:     {:>7.2} GiB", mem.total_bytes as f64 / GIB);
-    println!("  Used:      {:>7.2} GiB  ({:.1}%)", mem.used_bytes as f64 / GIB, mem.used_percent());
+    println!(
+        "  Used:      {:>7.2} GiB  ({:.1}%)",
+        mem.used_bytes as f64 / GIB,
+        mem.used_percent()
+    );
     println!("  Available: {:>7.2} GiB", mem.available_bytes as f64 / GIB);
     if mem.swap_total_bytes > 0 {
-        println!("  Swap:      {:>7.2} / {:.2} GiB",
+        println!(
+            "  Swap:      {:>7.2} / {:.2} GiB",
             mem.swap_used_bytes as f64 / GIB,
             mem.swap_total_bytes as f64 / GIB,
         );
@@ -80,7 +96,8 @@ pub async fn live() -> Result<()> {
     let disk = DiskInfo::detect();
     println!("\n── Disks ───────────────────────────────────────");
     for part in &disk.partitions {
-        println!("  {:<22} {:>6.1} / {:>6.1} GiB  ({:>5.1}%)  [{}]",
+        println!(
+            "  {:<22} {:>6.1} / {:>6.1} GiB  ({:>5.1}%)  [{}]",
             part.mount_point,
             part.used_bytes() as f64 / GIB,
             part.total_bytes as f64 / GIB,
@@ -119,11 +136,12 @@ pub async fn refresh() -> Result<()> {
 
 /// Check whether a single named feature is available on this system.
 pub async fn check_feature(name: &str) -> Result<()> {
-    let feature = Feature::from_str_loose(name)
-        .ok_or_else(|| anyhow::anyhow!(
+    let feature = Feature::from_str_loose(name).ok_or_else(|| {
+        anyhow::anyhow!(
             "Unknown feature '{name}'. Valid values: \
              systemd, pam, launchd, windows-services, podman, docker, git, ssh, smartctl"
-        ))?;
+        )
+    })?;
 
     if FeatureDetect::check(feature) {
         println!("✅ {} is available", feature.label());
@@ -143,9 +161,18 @@ pub async fn monitor(interval_secs: u64, thresholds: AlertThresholds) -> Result<
     let interval = tokio::time::Duration::from_secs(interval_secs);
 
     println!("Monitoring system metrics (interval: {interval_secs}s) — Ctrl+C to stop");
-    println!("  Disk threshold:   {:.0}%", checker.thresholds.disk_full_percent);
-    println!("  Memory threshold: {:.0}%", checker.thresholds.memory_full_percent);
-    println!("  CPU threshold:    {:.0}°C", checker.thresholds.cpu_hot_celsius);
+    println!(
+        "  Disk threshold:   {:.0}%",
+        checker.thresholds.disk_full_percent
+    );
+    println!(
+        "  Memory threshold: {:.0}%",
+        checker.thresholds.memory_full_percent
+    );
+    println!(
+        "  CPU threshold:    {:.0}°C",
+        checker.thresholds.cpu_hot_celsius
+    );
 
     loop {
         let alerts = checker.check_once();

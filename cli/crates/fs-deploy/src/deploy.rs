@@ -22,17 +22,17 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use fs_inventory::{
-    Inventory, InstalledResource, ServiceInstance as InvServiceInstance,
-    ResourceStatus, ServiceStatus,
-};
+use fs_container::SystemctlManager;
 use fs_inventory::models::ReleaseChannel;
+use fs_inventory::{
+    InstalledResource, Inventory, ResourceStatus, ServiceInstance as InvServiceInstance,
+    ServiceStatus,
+};
 use fs_node_core::{
-    config::{ProjectConfig, VaultConfig, service::ServiceType},
+    config::{service::ServiceType, ProjectConfig, VaultConfig},
     state::desired::{DesiredState, ServiceInstance},
 };
 use fs_types::{ResourceType, Role, ValidationStatus};
-use fs_container::SystemctlManager;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -77,13 +77,13 @@ impl DeployOpts {
     pub fn default_for_user() -> Self {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
         Self {
-            quadlet_dir:     PathBuf::from(&home).join(".config/containers/systemd"),
-            state_dir:       PathBuf::from(&home).join(".local/share/fsn/deployed"),
-            dry_run:         false,
-            health_timeout:  Duration::from_secs(120),
-            store_root:      None,
-            remote_host:     None,
-            inventory_path:  Some(PathBuf::from(&home).join(".local/share/fsn/fs-inventory.db")),
+            quadlet_dir: PathBuf::from(&home).join(".config/containers/systemd"),
+            state_dir: PathBuf::from(&home).join(".local/share/fsn/deployed"),
+            dry_run: false,
+            health_timeout: Duration::from_secs(120),
+            store_root: None,
+            remote_host: None,
+            inventory_path: Some(PathBuf::from(&home).join(".local/share/fsn/fs-inventory.db")),
         }
     }
 }
@@ -91,17 +91,19 @@ impl DeployOpts {
 /// Deploy (or reconcile) the full desired state.
 /// Sub-modules are always started before their parents.
 /// When `opts.remote_host` is set, deploys via SSH instead of running locally.
+#[allow(clippy::cognitive_complexity)]
 pub async fn deploy_all(
-    desired:   &DesiredState,
-    project:   &ProjectConfig,
-    vault:     &VaultConfig,
-    opts:      &DeployOpts,
-    fs_root:  &Path,
+    desired: &DesiredState,
+    project: &ProjectConfig,
+    vault: &VaultConfig,
+    opts: &DeployOpts,
+    fs_root: &Path,
     data_root: &Path,
 ) -> Result<()> {
     // Dispatch to remote path when a target host is configured
     if let Some(host) = &opts.remote_host {
-        return remote::deploy_all_remote(desired, project, vault, opts, fs_root, data_root, host).await;
+        return remote::deploy_all_remote(desired, project, vault, opts, fs_root, data_root, host)
+            .await;
     }
 
     std::fs::create_dir_all(&opts.quadlet_dir)?;
@@ -114,7 +116,7 @@ pub async fn deploy_all(
 
     // ── Phase 1: Write the project .network Quadlet ───────────────────────────
     let net_content = gen_quadlet::generate_network(&network_name, &desired.project_name);
-    let net_path    = opts.quadlet_dir.join(format!("{}.network", &network_name));
+    let net_path = opts.quadlet_dir.join(format!("{}.network", &network_name));
     write_if_changed(&net_path, &net_content)?;
 
     // ── Phase 2: Write all .container + .env files ────────────────────────────
@@ -131,7 +133,9 @@ pub async fn deploy_all(
     // ── Phase 3: Reload systemd (once, after all files are on disk) ───────────
     info!("Reloading systemd user daemon…");
     let systemd = SystemctlManager::user();
-    systemd.daemon_reload().await
+    systemd
+        .daemon_reload()
+        .await
         .map_err(anyhow::Error::from)
         .with_context(|| "systemd daemon-reload failed")?;
 
@@ -145,7 +149,9 @@ pub async fn deploy_all(
         // will fail with "unit is transient or generated". Best-effort only.
         let _ = systemd.enable(&unit).await;
 
-        let start_result = systemd.start(&unit).await
+        let start_result = systemd
+            .start(&unit)
+            .await
             .map_err(anyhow::Error::from)
             .with_context(|| format!("starting {unit}"));
 
@@ -156,7 +162,8 @@ pub async fn deploy_all(
             return Err(start_result.unwrap_err());
         }
 
-        let health_result = health::wait_for_ready(instance, opts.health_timeout).await
+        let health_result = health::wait_for_ready(instance, opts.health_timeout)
+            .await
             .with_context(|| format!("health check for {}", instance.name));
 
         if let Err(e) = &health_result {
@@ -187,8 +194,14 @@ pub async fn deploy_all(
         }
 
         // Lifecycle on_install hooks (declared in [lifecycle] TOML block).
-        if let Err(e) = hooks::lifecycle::LifecycleRunner::new(&hook_ctx).on_install().await {
-            warn!("  lifecycle on_install for {} failed: {:#}", instance.name, e);
+        if let Err(e) = hooks::lifecycle::LifecycleRunner::new(&hook_ctx)
+            .on_install()
+            .await
+        {
+            warn!(
+                "  lifecycle on_install for {} failed: {:#}",
+                instance.name, e
+            );
         }
 
         // Fire on_peer_install for all peer services that declared matching hooks.
@@ -209,7 +222,9 @@ pub async fn deploy_all(
                     .cloned()
                     .collect();
 
-                if matching.is_empty() { continue; }
+                if matching.is_empty() {
+                    continue;
+                }
 
                 let peer_ctx = HookContext {
                     instance: peer,
@@ -220,7 +235,10 @@ pub async fn deploy_all(
                     fs_root,
                 };
                 for hook in &matching {
-                    if let Err(e) = hooks::lifecycle::LifecycleRunner::new(&peer_ctx).peer_hook(hook).await {
+                    if let Err(e) = hooks::lifecycle::LifecycleRunner::new(&peer_ctx)
+                        .peer_hook(hook)
+                        .await
+                    {
                         warn!(
                             "  lifecycle on_peer_install for {} (trigger: {}) failed: {:#}",
                             peer.name, instance.name, e
@@ -253,6 +271,7 @@ pub async fn undeploy_all(opts: &DeployOpts) -> Result<usize> {
 }
 
 /// Stop and remove a single service (keep data directories).
+#[allow(clippy::cognitive_complexity)]
 pub async fn undeploy_instance(name: &str, opts: &DeployOpts) -> Result<()> {
     let unit = format!("{}.service", name);
     let systemd = SystemctlManager::user();
@@ -263,25 +282,37 @@ pub async fn undeploy_instance(name: &str, opts: &DeployOpts) -> Result<()> {
 
     // Remove Quadlet files
     let container_file = opts.quadlet_dir.join(format!("{}.container", name));
-    let env_file       = opts.quadlet_dir.join(format!("{}.env", name));
+    let env_file = opts.quadlet_dir.join(format!("{}.env", name));
     for f in [&container_file, &env_file] {
-        if f.exists() { std::fs::remove_file(f)?; }
+        if f.exists() {
+            std::fs::remove_file(f)?;
+        }
     }
 
     // Remove version marker
     let marker = opts.state_dir.join(format!("{}.version", name));
-    if marker.exists() { std::fs::remove_file(marker)?; }
+    if marker.exists() {
+        std::fs::remove_file(marker)?;
+    }
 
-    systemd.daemon_reload().await
+    systemd
+        .daemon_reload()
+        .await
         .map_err(anyhow::Error::from)
         .with_context(|| "systemd daemon-reload failed")?;
 
     // Mark Stopped in Inventory (non-fatal)
     if let Some(inv) = open_inventory(opts).await {
-        if let Err(e) = inv.set_resource_status(name, &ResourceStatus::Stopped).await {
+        if let Err(e) = inv
+            .set_resource_status(name, &ResourceStatus::Stopped)
+            .await
+        {
             warn!("inventory set_resource_status({name}, Stopped) failed: {e:#}");
         }
-        if let Err(e) = inv.set_service_status_by_name(name, &ServiceStatus::Stopped).await {
+        if let Err(e) = inv
+            .set_service_status_by_name(name, &ServiceStatus::Stopped)
+            .await
+        {
             warn!("inventory set_service_status({name}, Stopped) failed: {e:#}");
         }
     }
@@ -305,27 +336,33 @@ async fn open_inventory(opts: &DeployOpts) -> Option<Inventory> {
     }
     match Inventory::open(&path.to_string_lossy()).await {
         Ok(inv) => Some(inv),
-        Err(e)  => { warn!("Cannot open inventory {}: {e}", path.display()); None }
+        Err(e) => {
+            warn!("Cannot open inventory {}: {e}", path.display());
+            None
+        }
     }
 }
 
 /// Record a successful service install/start in the Inventory.
 async fn record_service_installed(
-    inv:          &Inventory,
-    instance:     &ServiceInstance,
+    inv: &Inventory,
+    instance: &ServiceInstance,
     network_name: &str,
-    data_root:    &Path,
+    data_root: &Path,
 ) {
     let resource = InstalledResource {
-        id:            instance.name.clone(),
+        id: instance.name.clone(),
         resource_type: ResourceType::Container,
-        version:       instance.version.clone(),
-        channel:       ReleaseChannel::Stable,
-        installed_at:  Utc::now().to_rfc3339(),
-        status:        ResourceStatus::Active,
-        config_path:   String::new(),
-        data_path:     data_root.join(&instance.name).to_string_lossy().into_owned(),
-        validation:    ValidationStatus::Incomplete,
+        version: instance.version.clone(),
+        channel: ReleaseChannel::Stable,
+        installed_at: Utc::now().to_rfc3339(),
+        status: ResourceStatus::Active,
+        config_path: String::new(),
+        data_path: data_root
+            .join(&instance.name)
+            .to_string_lossy()
+            .into_owned(),
+        validation: ValidationStatus::Incomplete,
     };
     if let Err(e) = inv.upsert_resource(&resource).await {
         warn!("inventory upsert_resource({}) failed: {e:#}", instance.name);
@@ -339,17 +376,17 @@ async fn record_service_installed(
         .collect();
 
     let svc = InvServiceInstance {
-        id:             Uuid::new_v4().to_string(),
-        resource_id:    instance.name.clone(),
-        instance_name:  instance.name.clone(),
+        id: Uuid::new_v4().to_string(),
+        resource_id: instance.name.clone(),
+        instance_name: instance.name.clone(),
         roles_provided: roles,
         roles_required: vec![],
-        bridges:        vec![],
-        variables:      vec![],
-        network:        network_name.to_owned(),
-        status:         fs_inventory::ServiceStatus::Running,
-        port:           Some(instance.class.meta.port),
-        s3_paths:       vec![],
+        bridges: vec![],
+        variables: vec![],
+        network: network_name.to_owned(),
+        status: fs_inventory::ServiceStatus::Running,
+        port: Some(instance.class.meta.port),
+        s3_paths: vec![],
     };
     if let Err(e) = inv.upsert_service(&svc).await {
         warn!("inventory upsert_service({}) failed: {e:#}", instance.name);
@@ -358,27 +395,33 @@ async fn record_service_installed(
 
 /// Record a service start/health error in the Inventory.
 async fn record_service_error(
-    inv:          &Inventory,
-    instance:     &ServiceInstance,
+    inv: &Inventory,
+    instance: &ServiceInstance,
     network_name: &str,
-    error_msg:    &str,
+    error_msg: &str,
 ) {
-    if let Err(e) = inv.set_resource_status(&instance.name, &ResourceStatus::Error(error_msg.to_owned())).await {
-        warn!("inventory set_resource_status({}, Error) failed: {e:#}", instance.name);
+    if let Err(e) = inv
+        .set_resource_status(&instance.name, &ResourceStatus::Error(error_msg.to_owned()))
+        .await
+    {
+        warn!(
+            "inventory set_resource_status({}, Error) failed: {e:#}",
+            instance.name
+        );
     }
     // upsert so it appears in the inventory even if install step wasn't reached
     let svc = InvServiceInstance {
-        id:             Uuid::new_v4().to_string(),
-        resource_id:    instance.name.clone(),
-        instance_name:  instance.name.clone(),
+        id: Uuid::new_v4().to_string(),
+        resource_id: instance.name.clone(),
+        instance_name: instance.name.clone(),
         roles_provided: vec![],
         roles_required: vec![],
-        bridges:        vec![],
-        variables:      vec![],
-        network:        network_name.to_owned(),
-        status:         fs_inventory::ServiceStatus::Error(error_msg.to_owned()),
-        port:           None,
-        s3_paths:       vec![],
+        bridges: vec![],
+        variables: vec![],
+        network: network_name.to_owned(),
+        status: fs_inventory::ServiceStatus::Error(error_msg.to_owned()),
+        port: None,
+        s3_paths: vec![],
     };
     if let Err(e) = inv.upsert_service(&svc).await {
         warn!("inventory upsert_service({}) failed: {e:#}", instance.name);
@@ -405,18 +448,20 @@ fn flatten_recursive<'a>(instance: &'a ServiceInstance, out: &mut Vec<&'a Servic
 }
 
 fn write_quadlet_files(
-    instance:       &ServiceInstance,
-    network_name:   &str,
-    opts:           &DeployOpts,
+    instance: &ServiceInstance,
+    network_name: &str,
+    opts: &DeployOpts,
 ) -> Result<()> {
     // .container
     let quadlet = gen_quadlet::generate(instance, Some(network_name))?;
-    let qpath   = opts.quadlet_dir.join(format!("{}.container", instance.name));
+    let qpath = opts
+        .quadlet_dir
+        .join(format!("{}.container", instance.name));
     write_if_changed(&qpath, &quadlet)?;
 
     // .env
     let env_content = gen_env::generate(instance)?;
-    let epath       = opts.quadlet_dir.join(format!("{}.env", instance.name));
+    let epath = opts.quadlet_dir.join(format!("{}.env", instance.name));
     write_if_changed(&epath, &env_content)?;
 
     Ok(())
@@ -432,8 +477,7 @@ fn write_if_changed(path: &Path, content: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, content)
-        .with_context(|| format!("writing {}", path.display()))
+    std::fs::write(path, content).with_context(|| format!("writing {}", path.display()))
 }
 
 fn write_version_marker(instance: &ServiceInstance, opts: &DeployOpts) -> Result<()> {
@@ -446,7 +490,13 @@ fn write_version_marker(instance: &ServiceInstance, opts: &DeployOpts) -> Result
 pub fn project_network_name(project_name: &str) -> String {
     let slug: String = project_name
         .chars()
-        .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect();
     format!("fs-{}", slug)
 }
@@ -465,9 +515,9 @@ pub fn project_network_name(project_name: &str) -> String {
 /// deploy continues.  This implements graceful degradation — a broken or
 /// missing plugin must never block unrelated services from starting.
 fn run_all_plugin_configs(
-    desired:   &DesiredState,
+    desired: &DesiredState,
     data_root: &Path,
-    opts:      &DeployOpts,
+    opts: &DeployOpts,
 ) -> Result<()> {
     for instance in &desired.services {
         if let Err(e) = run_service_plugin_config(instance, desired, data_root, opts) {
@@ -481,12 +531,15 @@ fn run_all_plugin_configs(
 }
 
 fn run_service_plugin_config(
-    instance:  &ServiceInstance,
-    desired:   &DesiredState,
+    instance: &ServiceInstance,
+    desired: &DesiredState,
     data_root: &Path,
-    opts:      &DeployOpts,
+    opts: &DeployOpts,
 ) -> Result<()> {
-    let has_generate_config = instance.class.manifest.as_ref()
+    let has_generate_config = instance
+        .class
+        .manifest
+        .as_ref()
         .map(|m| m.commands.iter().any(|c| c == "generate-config"))
         .unwrap_or(false);
 
@@ -515,9 +568,9 @@ fn run_service_plugin_config(
 
 /// Invoke the plugin executable for `generate-config`.
 fn run_plugin_generate_config(
-    instance:   &ServiceInstance,
-    desired:    &DesiredState,
-    data_root:  &Path,
+    instance: &ServiceInstance,
+    desired: &DesiredState,
+    data_root: &Path,
     store_root: &Path,
 ) -> Result<()> {
     // Store layout: {store_root}/{class_key}/  e.g. store_root/proxy/zentinel/
@@ -531,7 +584,10 @@ fn run_plugin_generate_config(
         .filter(|s| s.name != instance.name)
         .collect();
 
-    let data_root_str = data_root.join(&instance.name).to_string_lossy().into_owned();
+    let data_root_str = data_root
+        .join(&instance.name)
+        .to_string_lossy()
+        .into_owned();
 
     let ctx = ContextBuilder::build(
         "generate-config",
@@ -541,14 +597,16 @@ fn run_plugin_generate_config(
         &peers,
     );
 
-    let response = runner.run(&ctx)
+    let response = runner
+        .run(&ctx)
         .with_context(|| format!("plugin generate-config for '{}'", instance.name))?;
 
     for log in &response.logs {
         info!("  [{}] {}", instance.name, log.message);
     }
 
-    runner.apply(&response)
+    runner
+        .apply(&response)
         .with_context(|| format!("applying plugin output for '{}'", instance.name))?;
 
     info!("  ✓ {} config written (via plugin)", instance.name);
@@ -560,8 +618,8 @@ fn run_plugin_generate_config(
 /// - Existing file: only the FSN-managed block is replaced (markers preserved).
 /// - New file: full config is generated (server + listeners + managed section).
 fn write_zentinel_kdl_builtin(
-    proxy:     &ServiceInstance,
-    desired:   &DesiredState,
+    proxy: &ServiceInstance,
+    desired: &DesiredState,
     data_root: &Path,
 ) -> Result<()> {
     let kdl_path = data_root
@@ -581,7 +639,10 @@ fn write_zentinel_kdl_builtin(
     };
 
     write_if_changed(&kdl_path, &new_content)?;
-    info!("  ✓ Zentinel config written (built-in) → {}", kdl_path.display());
+    info!(
+        "  ✓ Zentinel config written (built-in) → {}",
+        kdl_path.display()
+    );
 
     Ok(())
 }

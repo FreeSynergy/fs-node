@@ -38,8 +38,6 @@ fs-theme     = { path = "../../fs-libs/fs-theme" }
 fs-help      = { path = "../../fs-libs/fs-help" }
 fs-plugin-sdk     = { path = "../../fs-libs/fs-plugin-sdk" }
 fs-plugin-runtime = { path = "../../fs-libs/fs-plugin-runtime" }
-fs-store          = { path = "../../fs-libs/fs-store" }
-
 # Internal crates
 fs-node-core = { path = "crates/fs-node-core" }
 fs-deploy    = { path = "crates/fs-deploy" }
@@ -51,8 +49,9 @@ fs-container = { path = "crates/fs-container" }
 
 # Serialization
 serde          = { version = "1",    features = ["derive"] }
-toml           = { version = "0.8",  features = ["preserve_order"] }
+toml           = { version = "1",    features = ["preserve_order"] }
 serde_json     = { version = "1" }
+serde_yml      = { version = "0.0.12" }
 indexmap       = { version = "2",    features = ["serde"] }
 
 # Async runtime
@@ -66,7 +65,7 @@ thiserror      = { version = "2" }
 clap           = { version = "4",    features = ["derive", "color", "env"] }
 
 # HTTP client (DNS APIs, store)
-reqwest        = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest        = { version = "0.13", features = ["json", "query", "rustls"], default-features = false }
 
 # Logging / tracing
 tracing        = { version = "0.1" }
@@ -76,10 +75,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 secrecy        = { version = "0.10", features = ["serde"] }
 
 # Encryption at rest (vault.age)
-age            = { version = "0.10", features = ["armor"] }
-
-# YAML parsing (wizard)
-serde_yaml     = { version = "0.9" }
+age            = { version = "0.11", features = ["armor"] }
 
 # Time
 chrono         = { version = "0.4", features = ["serde"] }
@@ -91,7 +87,7 @@ libc           = { version = "0.2" }
 uuid           = { version = "1", features = ["v4", "serde"] }
 
 # Random (crypto-safe RNG)
-rand           = { version = "0.8" }
+rand           = { version = "0.9" }
 
 # SSH (remote deploy)
 russh          = { version = "0.45" }
@@ -104,17 +100,17 @@ tower-http     = { version = "0.6", features = ["cors"] }
 # S3 server (fs-s3)
 hyper          = { version = "1", features = ["server", "http1", "http2"] }
 hyper-util     = { version = "0.1", features = ["tokio", "server"] }
-opendal        = { version = "0.51", features = ["services-fs"] }
+opendal        = { version = "0.55", features = ["services-fs"] }
 
 # WebSocket (Desktop Live-Updates, fsn serve)
-tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.29", features = ["native-tls"] }
 
 # gRPC (Inter-Process Communication)
-tonic          = { version = "0.12" }
-prost          = { version = "0.13" }
+tonic          = { version = "0.14" }
+prost          = { version = "0.14" }
 
 # JSON-Schema Generation aus Rust-Structs
-schemars       = { version = "0.8", features = ["preserve_order", "indexmap2"] }
+schemars       = { version = "1", features = ["preserve_order", "indexmap2"] }
 
 # Test infrastructure (declared here; individual crates use in [dev-dependencies])
 rstest         = { version = "0.23" }

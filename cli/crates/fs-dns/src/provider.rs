@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DnsRecord {
-    pub name: String,        // e.g. "forgejo.example.com"
+    pub name: String, // e.g. "forgejo.example.com"
     pub record_type: RecordType,
-    pub value: String,       // IP address or CNAME target
+    pub value: String, // IP address or CNAME target
     pub ttl: u32,
 }
 
@@ -28,12 +28,12 @@ pub enum RecordType {
 impl std::fmt::Display for RecordType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RecordType::A     => write!(f, "A"),
-            RecordType::Aaaa  => write!(f, "AAAA"),
+            RecordType::A => write!(f, "A"),
+            RecordType::Aaaa => write!(f, "AAAA"),
             RecordType::Cname => write!(f, "CNAME"),
-            RecordType::Txt   => write!(f, "TXT"),
-            RecordType::Mx    => write!(f, "MX"),
-            RecordType::Srv   => write!(f, "SRV"),
+            RecordType::Txt => write!(f, "TXT"),
+            RecordType::Mx => write!(f, "MX"),
+            RecordType::Srv => write!(f, "SRV"),
         }
     }
 }
@@ -128,7 +128,9 @@ mod tests {
         }
         async fn remove_record(&self, record: &DnsRecord) -> anyhow::Result<()> {
             self.removed.lock().unwrap().push(record.clone());
-            self.records.lock().unwrap()
+            self.records
+                .lock()
+                .unwrap()
                 .retain(|r| !(r.name == record.name && r.record_type == record.record_type));
             Ok(())
         }
@@ -138,13 +140,20 @@ mod tests {
     }
 
     fn a_record(name: &str, value: &str) -> DnsRecord {
-        DnsRecord { name: name.to_string(), record_type: RecordType::A, value: value.to_string(), ttl: 300 }
+        DnsRecord {
+            name: name.to_string(),
+            record_type: RecordType::A,
+            value: value.to_string(),
+            ttl: 300,
+        }
     }
 
     #[tokio::test]
     async fn reconcile_creates_missing_records() {
         let mock = MockDns::new(vec![]);
-        mock.reconcile(&[a_record("git.example.com", "1.2.3.4")], "example.com").await.unwrap();
+        mock.reconcile(&[a_record("git.example.com", "1.2.3.4")], "example.com")
+            .await
+            .unwrap();
         let created = mock.created.lock().unwrap();
         assert_eq!(created.len(), 1);
         assert_eq!(created[0].name, "git.example.com");
@@ -162,7 +171,9 @@ mod tests {
     #[tokio::test]
     async fn reconcile_skips_existing_records() {
         let mock = MockDns::new(vec![a_record("git.example.com", "1.2.3.4")]);
-        mock.reconcile(&[a_record("git.example.com", "1.2.3.4")], "example.com").await.unwrap();
+        mock.reconcile(&[a_record("git.example.com", "1.2.3.4")], "example.com")
+            .await
+            .unwrap();
         let created = mock.created.lock().unwrap();
         assert!(created.is_empty(), "should not re-create existing records");
     }

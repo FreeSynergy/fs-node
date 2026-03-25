@@ -24,11 +24,11 @@ pub struct ComposeFile {
 
     /// Top-level named volumes.
     #[serde(default)]
-    pub volumes: IndexMap<String, Option<serde_yaml::Value>>,
+    pub volumes: IndexMap<String, Option<serde_yml::Value>>,
 
     /// Top-level named networks.
     #[serde(default)]
-    pub networks: IndexMap<String, Option<serde_yaml::Value>>,
+    pub networks: IndexMap<String, Option<serde_yml::Value>>,
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ pub struct ComposeService {
     pub restart: Option<String>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub command: Option<serde_yaml::Value>,
+    pub command: Option<serde_yml::Value>,
 
     #[serde(default)]
     pub labels: IndexMap<String, String>,
@@ -87,14 +87,17 @@ pub struct EnvVar {
 
 impl EnvVar {
     pub fn new(name: impl Into<String>, value: Option<String>) -> Self {
-        Self { name: name.into(), value }
+        Self {
+            name: name.into(),
+            value,
+        }
     }
 
     /// Parse from `"KEY=VALUE"` or `"KEY"` string.
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse_entry(s: &str) -> Self {
         match s.split_once('=') {
             Some((k, v)) => Self::new(k.trim(), Some(v.to_string())),
-            None         => Self::new(s.trim(), None),
+            None => Self::new(s.trim(), None),
         }
     }
 }
@@ -131,8 +134,7 @@ pub fn parse_file(path: &Path) -> Result<ComposeFile> {
 
 /// Parse a compose YAML string.
 pub fn parse_str(content: &str) -> Result<ComposeFile> {
-    serde_yaml::from_str(content)
-        .context("parsing compose YAML")
+    serde_yml::from_str(content).context("parsing compose YAML")
 }
 
 // ── Custom deserializers ──────────────────────────────────────────────────────
@@ -147,32 +149,35 @@ where
 {
     use serde::de::Error;
 
-    let raw: Option<serde_yaml::Value> = Option::deserialize(d)?;
-    let Some(raw) = raw else { return Ok(Vec::new()) };
+    let raw: Option<serde_yml::Value> = Option::deserialize(d)?;
+    let Some(raw) = raw else {
+        return Ok(Vec::new());
+    };
 
     match raw {
-        serde_yaml::Value::Mapping(map) => {
+        serde_yml::Value::Mapping(map) => {
             let mut vars = Vec::new();
             for (k, v) in map {
-                let name = yaml_to_string(&k)
-                    .map_err(D::Error::custom)?;
+                let name = yaml_to_string(&k).map_err(D::Error::custom)?;
                 let value = match v {
-                    serde_yaml::Value::Null => None,
+                    serde_yml::Value::Null => None,
                     other => Some(yaml_to_string(&other).map_err(D::Error::custom)?),
                 };
                 vars.push(EnvVar::new(name, value));
             }
             Ok(vars)
         }
-        serde_yaml::Value::Sequence(seq) => {
+        serde_yml::Value::Sequence(seq) => {
             let mut vars = Vec::new();
             for item in seq {
                 let s = yaml_to_string(&item).map_err(D::Error::custom)?;
-                vars.push(EnvVar::from_str(&s));
+                vars.push(EnvVar::parse_entry(&s));
             }
             Ok(vars)
         }
-        _ => Err(D::Error::custom("environment must be a mapping or sequence")),
+        _ => Err(D::Error::custom(
+            "environment must be a mapping or sequence",
+        )),
     }
 }
 
@@ -183,18 +188,23 @@ where
 {
     use serde::de::Error;
 
-    let raw: Option<serde_yaml::Value> = Option::deserialize(d)?;
-    let Some(serde_yaml::Value::Sequence(seq)) = raw else { return Ok(Vec::new()) };
+    let raw: Option<serde_yml::Value> = Option::deserialize(d)?;
+    let Some(serde_yml::Value::Sequence(seq)) = raw else {
+        return Ok(Vec::new());
+    };
 
     let mut out = Vec::new();
     for item in seq {
         match item {
-            serde_yaml::Value::String(s) => out.push(s),
-            serde_yaml::Value::Mapping(map) => {
+            serde_yml::Value::String(s) => out.push(s),
+            serde_yml::Value::Mapping(map) => {
                 // Longform: { type, source, target, read_only }
                 let target = map.get("target").and_then(|v| v.as_str()).unwrap_or("");
                 let source = map.get("source").and_then(|v| v.as_str()).unwrap_or("");
-                let ro     = map.get("read_only").and_then(|v| v.as_bool()).unwrap_or(false);
+                let ro = map
+                    .get("read_only")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
                 let line = if source.is_empty() {
                     target.to_string()
                 } else if ro {
@@ -215,25 +225,31 @@ fn deser_ports<'de, D>(d: D) -> std::result::Result<Vec<String>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    let raw: Option<serde_yaml::Value> = Option::deserialize(d)?;
-    let Some(serde_yaml::Value::Sequence(seq)) = raw else { return Ok(Vec::new()) };
+    let raw: Option<serde_yml::Value> = Option::deserialize(d)?;
+    let Some(serde_yml::Value::Sequence(seq)) = raw else {
+        return Ok(Vec::new());
+    };
 
     let mut out = Vec::new();
     for item in seq {
         match item {
-            serde_yaml::Value::String(s) => out.push(s),
-            serde_yaml::Value::Number(n) => out.push(n.to_string()),
-            serde_yaml::Value::Mapping(map) => {
+            serde_yml::Value::String(s) => out.push(s),
+            serde_yml::Value::Number(n) => out.push(n.to_string()),
+            serde_yml::Value::Mapping(map) => {
                 // Longform: { target, published, protocol }
-                let target    = map.get("target").and_then(|v| v.as_u64()).unwrap_or(0);
-                let published = map.get("published")
+                let target = map.get("target").and_then(|v| v.as_u64()).unwrap_or(0);
+                let published = map
+                    .get("published")
                     .map(|v| match v {
-                        serde_yaml::Value::Number(n) => n.to_string(),
-                        serde_yaml::Value::String(s) => s.clone(),
+                        serde_yml::Value::Number(n) => n.to_string(),
+                        serde_yml::Value::String(s) => s.clone(),
                         _ => String::new(),
                     })
                     .unwrap_or_default();
-                let proto = map.get("protocol").and_then(|v| v.as_str()).unwrap_or("tcp");
+                let proto = map
+                    .get("protocol")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("tcp");
                 let line = if published.is_empty() {
                     format!("{target}/{proto}")
                 } else {
@@ -252,20 +268,20 @@ fn deser_networks<'de, D>(d: D) -> std::result::Result<Vec<String>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    let raw: Option<serde_yaml::Value> = Option::deserialize(d)?;
-    let Some(raw) = raw else { return Ok(Vec::new()) };
+    let raw: Option<serde_yml::Value> = Option::deserialize(d)?;
+    let Some(raw) = raw else {
+        return Ok(Vec::new());
+    };
 
     match raw {
-        serde_yaml::Value::Sequence(seq) => {
-            Ok(seq.into_iter()
-                .filter_map(|v| v.as_str().map(str::to_string))
-                .collect())
-        }
-        serde_yaml::Value::Mapping(map) => {
-            Ok(map.keys()
-                .filter_map(|k| k.as_str().map(str::to_string))
-                .collect())
-        }
+        serde_yml::Value::Sequence(seq) => Ok(seq
+            .into_iter()
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect()),
+        serde_yml::Value::Mapping(map) => Ok(map
+            .keys()
+            .filter_map(|k| k.as_str().map(str::to_string))
+            .collect()),
         _ => Ok(Vec::new()),
     }
 }
@@ -275,32 +291,32 @@ fn deser_depends_on<'de, D>(d: D) -> std::result::Result<Vec<String>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    let raw: Option<serde_yaml::Value> = Option::deserialize(d)?;
-    let Some(raw) = raw else { return Ok(Vec::new()) };
+    let raw: Option<serde_yml::Value> = Option::deserialize(d)?;
+    let Some(raw) = raw else {
+        return Ok(Vec::new());
+    };
 
     match raw {
-        serde_yaml::Value::Sequence(seq) => {
-            Ok(seq.into_iter()
-                .filter_map(|v| v.as_str().map(str::to_string))
-                .collect())
-        }
-        serde_yaml::Value::Mapping(map) => {
-            Ok(map.keys()
-                .filter_map(|k| k.as_str().map(str::to_string))
-                .collect())
-        }
+        serde_yml::Value::Sequence(seq) => Ok(seq
+            .into_iter()
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect()),
+        serde_yml::Value::Mapping(map) => Ok(map
+            .keys()
+            .filter_map(|k| k.as_str().map(str::to_string))
+            .collect()),
         _ => Ok(Vec::new()),
     }
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
-fn yaml_to_string(v: &serde_yaml::Value) -> Result<String, String> {
+fn yaml_to_string(v: &serde_yml::Value) -> Result<String, String> {
     match v {
-        serde_yaml::Value::String(s)  => Ok(s.clone()),
-        serde_yaml::Value::Number(n)  => Ok(n.to_string()),
-        serde_yaml::Value::Bool(b)    => Ok(b.to_string()),
-        serde_yaml::Value::Null       => Ok(String::new()),
+        serde_yml::Value::String(s) => Ok(s.clone()),
+        serde_yml::Value::Number(n) => Ok(n.to_string()),
+        serde_yml::Value::Bool(b) => Ok(b.to_string()),
+        serde_yml::Value::Null => Ok(String::new()),
         other => Err(format!("unexpected YAML value: {:?}", other)),
     }
 }
@@ -362,14 +378,19 @@ networks:
     fn parse_env_map_form() {
         let f = parse_str(SIMPLE).unwrap();
         let env = &f.services["db"].environment;
-        assert!(env.iter().any(|e| e.name == "POSTGRES_DB" && e.value.as_deref() == Some("mydb")));
+        assert!(env
+            .iter()
+            .any(|e| e.name == "POSTGRES_DB" && e.value.as_deref() == Some("mydb")));
         assert!(env.iter().any(|e| e.name == "POSTGRES_PASSWORD"));
     }
 
     #[test]
     fn parse_volumes_and_networks() {
         let f = parse_str(SIMPLE).unwrap();
-        assert!(f.services["app"].volumes.iter().any(|v| v.contains("app-data")));
+        assert!(f.services["app"]
+            .volumes
+            .iter()
+            .any(|v| v.contains("app-data")));
         assert!(f.services["app"].networks.contains(&"backend".to_string()));
         assert_eq!(f.volumes.len(), 2);
         assert_eq!(f.networks.len(), 1);

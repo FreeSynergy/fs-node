@@ -29,15 +29,27 @@ pub struct ValidationIssue {
 
 impl ValidationIssue {
     fn error(service: Option<&str>, msg: impl Into<String>) -> Self {
-        Self { level: IssueLevel::Error, service: service.map(str::to_string), message: msg.into() }
+        Self {
+            level: IssueLevel::Error,
+            service: service.map(str::to_string),
+            message: msg.into(),
+        }
     }
 
     fn warning(service: Option<&str>, msg: impl Into<String>) -> Self {
-        Self { level: IssueLevel::Warning, service: service.map(str::to_string), message: msg.into() }
+        Self {
+            level: IssueLevel::Warning,
+            service: service.map(str::to_string),
+            message: msg.into(),
+        }
     }
 
     fn info(service: Option<&str>, msg: impl Into<String>) -> Self {
-        Self { level: IssueLevel::Info, service: service.map(str::to_string), message: msg.into() }
+        Self {
+            level: IssueLevel::Info,
+            service: service.map(str::to_string),
+            message: msg.into(),
+        }
     }
 }
 
@@ -53,11 +65,17 @@ impl ValidationReport {
     }
 
     pub fn error_count(&self) -> usize {
-        self.issues.iter().filter(|i| i.level == IssueLevel::Error).count()
+        self.issues
+            .iter()
+            .filter(|i| i.level == IssueLevel::Error)
+            .count()
     }
 
     pub fn warning_count(&self) -> usize {
-        self.issues.iter().filter(|i| i.level == IssueLevel::Warning).count()
+        self.issues
+            .iter()
+            .filter(|i| i.level == IssueLevel::Warning)
+            .count()
     }
 
     /// Print a human-readable summary to stdout.
@@ -68,9 +86,9 @@ impl ValidationReport {
         }
         for issue in &self.issues {
             let icon = match issue.level {
-                IssueLevel::Error   => "❌",
+                IssueLevel::Error => "❌",
                 IssueLevel::Warning => "⚠️ ",
-                IssueLevel::Info    => "ℹ️ ",
+                IssueLevel::Info => "ℹ️ ",
             };
             let svc = issue.service.as_deref().unwrap_or("global");
             println!("{icon} [{svc}] {}", issue.message);
@@ -78,7 +96,8 @@ impl ValidationReport {
         println!();
         println!(
             "Validation: {} error(s), {} warning(s)",
-            self.error_count(), self.warning_count()
+            self.error_count(),
+            self.warning_count()
         );
     }
 }
@@ -104,7 +123,10 @@ pub fn validate(compose: &ComposeFile) -> ValidationReport {
 
 fn check_has_services(compose: &ComposeFile, issues: &mut Vec<ValidationIssue>) {
     if compose.services.is_empty() {
-        issues.push(ValidationIssue::error(None, "No services defined in compose file"));
+        issues.push(ValidationIssue::error(
+            None,
+            "No services defined in compose file",
+        ));
     }
 }
 
@@ -142,7 +164,9 @@ fn check_healthchecks(compose: &ComposeFile, issues: &mut Vec<ValidationIssue>) 
 fn check_networks(compose: &ComposeFile, issues: &mut Vec<ValidationIssue>) {
     // Networks declared but never used
     for net_name in compose.networks.keys() {
-        let used = compose.services.values()
+        let used = compose
+            .services
+            .values()
             .any(|svc| svc.networks.contains(net_name));
         if !used {
             issues.push(ValidationIssue::warning(
@@ -253,9 +277,10 @@ services:
 "#;
         let f = parse_str(yaml).unwrap();
         let r = validate(&f);
-        assert!(r.issues.iter().any(|i| {
-            i.level == IssueLevel::Error && i.service.as_deref() == Some("app")
-        }));
+        assert!(r
+            .issues
+            .iter()
+            .any(|i| { i.level == IssueLevel::Error && i.service.as_deref() == Some("app") }));
     }
 
     #[test]
@@ -285,6 +310,9 @@ services:
 "#;
         let f = parse_str(yaml).unwrap();
         let r = validate(&f);
-        assert!(r.issues.iter().any(|i| i.level == IssueLevel::Error && i.message.contains("8080")));
+        assert!(r
+            .issues
+            .iter()
+            .any(|i| i.level == IssueLevel::Error && i.message.contains("8080")));
     }
 }

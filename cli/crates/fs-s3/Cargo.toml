@@ -18,7 +18,7 @@ s3s    = "0.13"
 s3s-fs = "0.13"
 
 # Pluggable storage backend for replication / sync
-opendal = { version = "0.51", features = ["services-fs"] }
+opendal = { version = "0.55", features = ["services-fs"] }
 
 # Async runtime
 tokio  = { workspace = true }

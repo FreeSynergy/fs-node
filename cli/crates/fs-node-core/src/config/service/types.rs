@@ -91,24 +91,24 @@ pub enum ServiceType {
 impl std::fmt::Display for ServiceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            ServiceType::IamProvider     => "iam_provider",
-            ServiceType::IamBroker       => "iam_broker",
-            ServiceType::Iam             => "iam",
-            ServiceType::Proxy           => "proxy",
+            ServiceType::IamProvider => "iam_provider",
+            ServiceType::IamBroker => "iam_broker",
+            ServiceType::Iam => "iam",
+            ServiceType::Proxy => "proxy",
             ServiceType::WebhosterSimple => "webhoster_simple",
-            ServiceType::Mail            => "mail",
-            ServiceType::Chat            => "chat",
-            ServiceType::Git             => "git",
-            ServiceType::Wiki            => "wiki",
-            ServiceType::Collab          => "collab",
-            ServiceType::Tasks           => "tasks",
-            ServiceType::Tickets         => "tickets",
-            ServiceType::Maps            => "maps",
-            ServiceType::Monitoring      => "monitoring",
-            ServiceType::Database        => "database",
-            ServiceType::Cache           => "cache",
-            ServiceType::Bot             => "bot",
-            ServiceType::Custom          => "custom",
+            ServiceType::Mail => "mail",
+            ServiceType::Chat => "chat",
+            ServiceType::Git => "git",
+            ServiceType::Wiki => "wiki",
+            ServiceType::Collab => "collab",
+            ServiceType::Tasks => "tasks",
+            ServiceType::Tickets => "tickets",
+            ServiceType::Maps => "maps",
+            ServiceType::Monitoring => "monitoring",
+            ServiceType::Database => "database",
+            ServiceType::Cache => "cache",
+            ServiceType::Bot => "bot",
+            ServiceType::Custom => "custom",
         };
         write!(f, "{s}")
     }
@@ -122,17 +122,17 @@ impl ServiceType {
     /// (e.g. cross-service var collection) where the full class is not yet loaded.
     pub fn from_class_prefix(prefix: &str) -> Option<Self> {
         match prefix {
-            "mail"       => Some(Self::Mail),
-            "iam"        => Some(Self::IamProvider),
-            "git"        => Some(Self::Git),
-            "chat"       => Some(Self::Chat),
-            "wiki"       => Some(Self::Wiki),
-            "tasks"      => Some(Self::Tasks),
-            "collab"     => Some(Self::Collab),
+            "mail" => Some(Self::Mail),
+            "iam" => Some(Self::IamProvider),
+            "git" => Some(Self::Git),
+            "chat" => Some(Self::Chat),
+            "wiki" => Some(Self::Wiki),
+            "tasks" => Some(Self::Tasks),
+            "collab" => Some(Self::Collab),
             "monitoring" => Some(Self::Monitoring),
-            "tickets"    => Some(Self::Tickets),
-            "maps"       => Some(Self::Maps),
-            _            => None,
+            "tickets" => Some(Self::Tickets),
+            "maps" => Some(Self::Maps),
+            _ => None,
         }
     }
 
@@ -144,7 +144,10 @@ impl ServiceType {
 
     /// Returns `true` if this type can fill the IAM slot of a project.
     pub fn is_iam(&self) -> bool {
-        matches!(self, ServiceType::IamProvider | ServiceType::IamBroker | ServiceType::Iam)
+        matches!(
+            self,
+            ServiceType::IamProvider | ServiceType::IamBroker | ServiceType::Iam
+        )
     }
 
     /// Returns `true` if this type can act as the project's reverse proxy.
@@ -159,40 +162,40 @@ impl ServiceType {
     pub fn category(&self) -> &'static str {
         match self {
             ServiceType::IamProvider | ServiceType::IamBroker | ServiceType::Iam => "iam",
-            ServiceType::Proxy | ServiceType::WebhosterSimple                    => "proxy",
-            ServiceType::Mail  | ServiceType::Chat                               => "communication",
-            ServiceType::Git                                                     => "developer",
-            ServiceType::Wiki  | ServiceType::Collab                             => "knowledge",
-            ServiceType::Tasks | ServiceType::Tickets                            => "project",
-            ServiceType::Maps                                                    => "geo",
-            ServiceType::Monitoring                                              => "monitoring",
-            ServiceType::Database | ServiceType::Cache                          => "infrastructure",
-            ServiceType::Bot                                                     => "automation",
-            ServiceType::Custom                                                  => "custom",
+            ServiceType::Proxy | ServiceType::WebhosterSimple => "proxy",
+            ServiceType::Mail | ServiceType::Chat => "communication",
+            ServiceType::Git => "developer",
+            ServiceType::Wiki | ServiceType::Collab => "knowledge",
+            ServiceType::Tasks | ServiceType::Tickets => "project",
+            ServiceType::Maps => "geo",
+            ServiceType::Monitoring => "monitoring",
+            ServiceType::Database | ServiceType::Cache => "infrastructure",
+            ServiceType::Bot => "automation",
+            ServiceType::Custom => "custom",
         }
     }
 
     /// Human-readable label (English) for TUI display.
     pub fn label(&self) -> &'static str {
         match self {
-            ServiceType::IamProvider     => "IAM Provider",
-            ServiceType::IamBroker       => "IAM Broker",
-            ServiceType::Iam             => "IAM",
-            ServiceType::Proxy           => "Reverse Proxy",
+            ServiceType::IamProvider => "IAM Provider",
+            ServiceType::IamBroker => "IAM Broker",
+            ServiceType::Iam => "IAM",
+            ServiceType::Proxy => "Reverse Proxy",
             ServiceType::WebhosterSimple => "Webhoster (Simple)",
-            ServiceType::Mail            => "Mail Server",
-            ServiceType::Chat            => "Team Chat",
-            ServiceType::Git             => "Git Hosting",
-            ServiceType::Wiki            => "Wiki",
-            ServiceType::Collab          => "Collaborative Editing",
-            ServiceType::Tasks           => "Task Tracker",
-            ServiceType::Tickets         => "Ticketing",
-            ServiceType::Maps            => "Maps",
-            ServiceType::Monitoring      => "Monitoring",
-            ServiceType::Database        => "Database",
-            ServiceType::Cache           => "Cache",
-            ServiceType::Bot             => "Bot",
-            ServiceType::Custom          => "Custom",
+            ServiceType::Mail => "Mail Server",
+            ServiceType::Chat => "Team Chat",
+            ServiceType::Git => "Git Hosting",
+            ServiceType::Wiki => "Wiki",
+            ServiceType::Collab => "Collaborative Editing",
+            ServiceType::Tasks => "Task Tracker",
+            ServiceType::Tickets => "Ticketing",
+            ServiceType::Maps => "Maps",
+            ServiceType::Monitoring => "Monitoring",
+            ServiceType::Database => "Database",
+            ServiceType::Cache => "Cache",
+            ServiceType::Bot => "Bot",
+            ServiceType::Custom => "Custom",
         }
     }
 
@@ -260,21 +263,15 @@ impl ServiceType {
                 "GIT_HOST, GIT_DOMAIN, GIT_URL, GIT_PORT variables",
                 "OAuth2 provider for other services (if supported)",
             ],
-            ServiceType::Wiki => &[
-                "WIKI_HOST, WIKI_DOMAIN, WIKI_URL, WIKI_PORT variables",
-            ],
-            ServiceType::Collab => &[
-                "COLLAB_HOST, COLLAB_DOMAIN, COLLAB_URL, COLLAB_PORT variables",
-            ],
-            ServiceType::Tasks => &[
-                "TASKS_HOST, TASKS_DOMAIN, TASKS_URL, TASKS_PORT variables",
-            ],
-            ServiceType::Tickets => &[
-                "TICKETS_HOST, TICKETS_DOMAIN, TICKETS_URL, TICKETS_PORT variables",
-            ],
-            ServiceType::Maps => &[
-                "MAPS_HOST, MAPS_DOMAIN, MAPS_URL, MAPS_PORT variables",
-            ],
+            ServiceType::Wiki => &["WIKI_HOST, WIKI_DOMAIN, WIKI_URL, WIKI_PORT variables"],
+            ServiceType::Collab => {
+                &["COLLAB_HOST, COLLAB_DOMAIN, COLLAB_URL, COLLAB_PORT variables"]
+            }
+            ServiceType::Tasks => &["TASKS_HOST, TASKS_DOMAIN, TASKS_URL, TASKS_PORT variables"],
+            ServiceType::Tickets => {
+                &["TICKETS_HOST, TICKETS_DOMAIN, TICKETS_URL, TICKETS_PORT variables"]
+            }
+            ServiceType::Maps => &["MAPS_HOST, MAPS_DOMAIN, MAPS_URL, MAPS_PORT variables"],
             ServiceType::Monitoring => &[
                 "MONITORING_HOST, MONITORING_DOMAIN, MONITORING_URL, MONITORING_PORT variables",
                 "Centralized log and metric collection endpoint",
@@ -287,10 +284,7 @@ impl ServiceType {
                 "Internal Redis-compatible connection (not exported)",
                 "Used directly by services that need it",
             ],
-            ServiceType::Bot => &[
-                "Scheduled automation tasks",
-                "Cross-service event handling",
-            ],
+            ServiceType::Bot => &["Scheduled automation tasks", "Cross-service event handling"],
             ServiceType::Custom => &[],
         }
     }
@@ -303,20 +297,23 @@ impl ServiceType {
     /// OOP principle: the type owns this knowledge, not the caller's match block.
     pub fn exported_contract(&self) -> Option<ExportedVarContract> {
         let prefix = match self {
-            ServiceType::Mail                                                 => "MAIL",
+            ServiceType::Mail => "MAIL",
             ServiceType::Iam | ServiceType::IamProvider | ServiceType::IamBroker => "IAM",
-            ServiceType::Git                                                  => "GIT",
-            ServiceType::Chat                                                 => "CHAT",
-            ServiceType::Wiki                                                 => "WIKI",
-            ServiceType::Tasks                                                => "TASKS",
-            ServiceType::Collab                                               => "COLLAB",
-            ServiceType::Monitoring                                           => "MONITORING",
-            ServiceType::Tickets                                              => "TICKETS",
-            ServiceType::Maps                                                 => "MAPS",
+            ServiceType::Git => "GIT",
+            ServiceType::Chat => "CHAT",
+            ServiceType::Wiki => "WIKI",
+            ServiceType::Tasks => "TASKS",
+            ServiceType::Collab => "COLLAB",
+            ServiceType::Monitoring => "MONITORING",
+            ServiceType::Tickets => "TICKETS",
+            ServiceType::Maps => "MAPS",
             // Internal / infrastructure: no cross-service export.
-            ServiceType::Database | ServiceType::Cache
-            | ServiceType::Proxy  | ServiceType::WebhosterSimple
-            | ServiceType::Bot    | ServiceType::Custom                       => return None,
+            ServiceType::Database
+            | ServiceType::Cache
+            | ServiceType::Proxy
+            | ServiceType::WebhosterSimple
+            | ServiceType::Bot
+            | ServiceType::Custom => return None,
         };
         Some(ExportedVarContract { prefix })
     }
@@ -329,13 +326,13 @@ impl ServiceType {
     /// OOP principle: the type knows what it depends on — callers iterate and look up.
     pub fn consumed_slots(&self) -> &'static [&'static str] {
         match self {
-            ServiceType::Git     => &["iam", "mail"],
-            ServiceType::Wiki    => &["iam"],
-            ServiceType::Chat    => &["iam"],
-            ServiceType::Collab  => &["iam"],
-            ServiceType::Tasks   => &["iam", "mail"],
+            ServiceType::Git => &["iam", "mail"],
+            ServiceType::Wiki => &["iam"],
+            ServiceType::Chat => &["iam"],
+            ServiceType::Collab => &["iam"],
+            ServiceType::Tasks => &["iam", "mail"],
             ServiceType::Tickets => &["iam", "mail"],
-            ServiceType::Maps    => &["iam"],
+            ServiceType::Maps => &["iam"],
             // Infrastructure, proxy, and bots consume no project-level slots.
             _ => &[],
         }
@@ -348,12 +345,14 @@ impl ServiceType {
     /// that any implementation of this type must provide.
     pub fn capabilities(&self) -> Vec<Capability> {
         match self {
-            ServiceType::Database | ServiceType::Cache         => vec![Capability::InternalOnly],
-            ServiceType::Proxy | ServiceType::WebhosterSimple  => vec![Capability::InternalOnly, Capability::ProxyTls],
-            ServiceType::IamProvider | ServiceType::Iam        => vec![Capability::IamOidc],
-            ServiceType::IamBroker                             => vec![Capability::IamOidc, Capability::IamFederation],
-            ServiceType::Mail                                   => vec![Capability::MailSmtp, Capability::MailImap],
-            _                                                   => vec![],
+            ServiceType::Database | ServiceType::Cache => vec![Capability::InternalOnly],
+            ServiceType::Proxy | ServiceType::WebhosterSimple => {
+                vec![Capability::InternalOnly, Capability::ProxyTls]
+            }
+            ServiceType::IamProvider | ServiceType::Iam => vec![Capability::IamOidc],
+            ServiceType::IamBroker => vec![Capability::IamOidc, Capability::IamFederation],
+            ServiceType::Mail => vec![Capability::MailSmtp, Capability::MailImap],
+            _ => vec![],
         }
     }
 }
@@ -440,10 +439,10 @@ impl ExportedVarContract {
     pub fn resolve(&self, name: &str, domain: &str, port: u16) -> HashMap<String, String> {
         let p = self.prefix;
         HashMap::from([
-            (format!("{p}_HOST"),   name.to_string()),
+            (format!("{p}_HOST"), name.to_string()),
             (format!("{p}_DOMAIN"), domain.to_string()),
-            (format!("{p}_URL"),    format!("https://{domain}")),
-            (format!("{p}_PORT"),   port.to_string()),
+            (format!("{p}_URL"), format!("https://{domain}")),
+            (format!("{p}_PORT"), port.to_string()),
         ])
     }
 }
@@ -469,9 +468,8 @@ where
         }
         // Single string: `type = "proxy"`
         fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-            let t: ServiceType = serde::Deserialize::deserialize(
-                serde::de::value::StrDeserializer::new(v)
-            )?;
+            let t: ServiceType =
+                serde::Deserialize::deserialize(serde::de::value::StrDeserializer::new(v))?;
             Ok(vec![t])
         }
         // Array: `types = ["proxy", "webhoster_simple"]`
@@ -493,22 +491,46 @@ mod tests {
 
     #[test]
     fn from_class_prefix_maps_known_types() {
-        assert_eq!(ServiceType::from_class_prefix("mail"),       Some(ServiceType::Mail));
-        assert_eq!(ServiceType::from_class_prefix("git"),        Some(ServiceType::Git));
-        assert_eq!(ServiceType::from_class_prefix("iam"),        Some(ServiceType::IamProvider));
-        assert_eq!(ServiceType::from_class_prefix("wiki"),       Some(ServiceType::Wiki));
-        assert_eq!(ServiceType::from_class_prefix("chat"),       Some(ServiceType::Chat));
-        assert_eq!(ServiceType::from_class_prefix("monitoring"), Some(ServiceType::Monitoring));
-        assert_eq!(ServiceType::from_class_prefix("tasks"),      Some(ServiceType::Tasks));
-        assert_eq!(ServiceType::from_class_prefix("collab"),     Some(ServiceType::Collab));
+        assert_eq!(
+            ServiceType::from_class_prefix("mail"),
+            Some(ServiceType::Mail)
+        );
+        assert_eq!(
+            ServiceType::from_class_prefix("git"),
+            Some(ServiceType::Git)
+        );
+        assert_eq!(
+            ServiceType::from_class_prefix("iam"),
+            Some(ServiceType::IamProvider)
+        );
+        assert_eq!(
+            ServiceType::from_class_prefix("wiki"),
+            Some(ServiceType::Wiki)
+        );
+        assert_eq!(
+            ServiceType::from_class_prefix("chat"),
+            Some(ServiceType::Chat)
+        );
+        assert_eq!(
+            ServiceType::from_class_prefix("monitoring"),
+            Some(ServiceType::Monitoring)
+        );
+        assert_eq!(
+            ServiceType::from_class_prefix("tasks"),
+            Some(ServiceType::Tasks)
+        );
+        assert_eq!(
+            ServiceType::from_class_prefix("collab"),
+            Some(ServiceType::Collab)
+        );
     }
 
     #[test]
     fn from_class_prefix_returns_none_for_unknown() {
-        assert_eq!(ServiceType::from_class_prefix("proxy"),    None);
+        assert_eq!(ServiceType::from_class_prefix("proxy"), None);
         assert_eq!(ServiceType::from_class_prefix("database"), None);
-        assert_eq!(ServiceType::from_class_prefix("custom"),   None);
-        assert_eq!(ServiceType::from_class_prefix(""),         None);
+        assert_eq!(ServiceType::from_class_prefix("custom"), None);
+        assert_eq!(ServiceType::from_class_prefix(""), None);
     }
 
     #[test]
@@ -538,15 +560,15 @@ mod tests {
 
     #[test]
     fn category_correct_per_type() {
-        assert_eq!(ServiceType::Git.category(),        "developer");
-        assert_eq!(ServiceType::Mail.category(),       "communication");
-        assert_eq!(ServiceType::Chat.category(),       "communication");
-        assert_eq!(ServiceType::Database.category(),   "infrastructure");
-        assert_eq!(ServiceType::Cache.category(),      "infrastructure");
-        assert_eq!(ServiceType::Proxy.category(),      "proxy");
-        assert_eq!(ServiceType::IamProvider.category(),"iam");
+        assert_eq!(ServiceType::Git.category(), "developer");
+        assert_eq!(ServiceType::Mail.category(), "communication");
+        assert_eq!(ServiceType::Chat.category(), "communication");
+        assert_eq!(ServiceType::Database.category(), "infrastructure");
+        assert_eq!(ServiceType::Cache.category(), "infrastructure");
+        assert_eq!(ServiceType::Proxy.category(), "proxy");
+        assert_eq!(ServiceType::IamProvider.category(), "iam");
         assert_eq!(ServiceType::Monitoring.category(), "monitoring");
-        assert_eq!(ServiceType::Custom.category(),     "custom");
+        assert_eq!(ServiceType::Custom.category(), "custom");
     }
 
     #[test]
@@ -562,10 +584,10 @@ mod tests {
     fn exported_contract_resolves_four_vars() {
         let contract = ServiceType::Mail.exported_contract().unwrap();
         let vars = contract.resolve("stalwart", "mail.example.com", 25);
-        assert_eq!(vars["MAIL_HOST"],   "stalwart");
+        assert_eq!(vars["MAIL_HOST"], "stalwart");
         assert_eq!(vars["MAIL_DOMAIN"], "mail.example.com");
-        assert_eq!(vars["MAIL_URL"],    "https://mail.example.com");
-        assert_eq!(vars["MAIL_PORT"],   "25");
+        assert_eq!(vars["MAIL_URL"], "https://mail.example.com");
+        assert_eq!(vars["MAIL_PORT"], "25");
     }
 
     #[test]
@@ -580,24 +602,33 @@ mod tests {
     fn de_service_types_accepts_single_string() {
         // Test via ServiceMeta TOML parsing (which uses de_service_types internally)
         use crate::config::service::ServiceMeta;
-        let meta: ServiceMeta = toml::from_str(r#"
+        let meta: ServiceMeta = toml::from_str(
+            r#"
 name    = "test"
 version = "1.0"
 port    = 3000
 type    = "git"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         assert_eq!(meta.service_types, vec![ServiceType::Git]);
     }
 
     #[test]
     fn de_service_types_accepts_array() {
         use crate::config::service::ServiceMeta;
-        let meta: ServiceMeta = toml::from_str(r#"
+        let meta: ServiceMeta = toml::from_str(
+            r#"
 name    = "zentinel"
 version = "1.0"
 port    = 443
 types   = ["proxy", "webhoster_simple"]
-        "#).unwrap();
-        assert_eq!(meta.service_types, vec![ServiceType::Proxy, ServiceType::WebhosterSimple]);
+        "#,
+        )
+        .unwrap();
+        assert_eq!(
+            meta.service_types,
+            vec![ServiceType::Proxy, ServiceType::WebhosterSimple]
+        );
     }
 }

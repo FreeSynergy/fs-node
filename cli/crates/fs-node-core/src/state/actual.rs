@@ -46,7 +46,7 @@ impl RunState {
         match self {
             RunState::Running => "status.running",
             RunState::Stopped => "status.stopped",
-            RunState::Failed  => "status.error",
+            RunState::Failed => "status.error",
             RunState::Missing => "status.unknown",
         }
     }
@@ -57,7 +57,7 @@ impl std::fmt::Display for RunState {
         match self {
             RunState::Running => write!(f, "running"),
             RunState::Stopped => write!(f, "stopped"),
-            RunState::Failed  => write!(f, "failed"),
+            RunState::Failed => write!(f, "failed"),
             RunState::Missing => write!(f, "missing"),
         }
     }
@@ -74,10 +74,10 @@ pub enum HealthStatus {
 impl std::fmt::Display for HealthStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HealthStatus::Healthy   => write!(f, "healthy"),
+            HealthStatus::Healthy => write!(f, "healthy"),
             HealthStatus::Unhealthy => write!(f, "unhealthy"),
-            HealthStatus::Starting  => write!(f, "starting"),
-            HealthStatus::Unknown   => write!(f, "unknown"),
+            HealthStatus::Starting => write!(f, "starting"),
+            HealthStatus::Unknown => write!(f, "unknown"),
         }
     }
 }

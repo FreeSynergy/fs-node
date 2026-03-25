@@ -18,16 +18,15 @@ use std::path::Path;
 
 use anyhow::Result;
 use axum::{
-    Router,
     extract::{Path as AxumPath, Query, State},
     http::StatusCode,
     response::Json,
     routing::get,
+    Router,
 };
 use fs_db::InstalledPackageRepo;
-use fs_node_core::store::StoreEntry;
+use fs_node_core::store::{Catalog, NodeStoreClient, StoreEntry};
 use fs_s3::{S3Server, StorageConfig};
-use fs_store::StoreClient;
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
@@ -49,20 +48,20 @@ struct SearchQuery {
 
 #[derive(Serialize)]
 struct InstalledRow {
-    package_id:   String,
-    version:      String,
+    package_id: String,
+    version: String,
     package_type: String,
-    channel:      String,
-    active:       bool,
+    channel: String,
+    active: bool,
     installed_at: i64,
 }
 
 // ── ServeCmd ──────────────────────────────────────────────────────────────────
 
 pub struct ServeCmd<'a> {
-    root:  &'a Path,
-    bind:  &'a str,
-    port:  u16,
+    root: &'a Path,
+    bind: &'a str,
+    port: u16,
 }
 
 impl<'a> ServeCmd<'a> {
@@ -74,13 +73,13 @@ impl<'a> ServeCmd<'a> {
         let addr = format!("{}:{}", self.bind, self.port);
 
         let s3_config = StorageConfig {
-            enabled:    true,
-            port:       9000,
-            bind:       "127.0.0.1".to_owned(),
-            data_root:  self.root.join("storage"),
+            enabled: true,
+            port: 9000,
+            bind: "127.0.0.1".to_owned(),
+            data_root: self.root.join("storage"),
             access_key: "fs_local".to_owned(),
             secret_key: "changeme_secret_key".to_owned(),
-            sync:       None,
+            sync: None,
         };
         let _s3_handle = S3Server::new(s3_config).start().await?;
 
@@ -90,11 +89,11 @@ impl<'a> ServeCmd<'a> {
             .allow_headers(Any);
 
         let app = Router::new()
-            .route("/api/store/know/catalog",       get(handle_catalog))
-            .route("/api/store/know/search",        get(handle_search))
-            .route("/api/store/know/package/:id",   get(handle_package))
-            .route("/api/store/know/installed",     get(handle_installed))
-            .route("/api/store/know/i18n",          get(handle_i18n))
+            .route("/api/store/know/catalog", get(handle_catalog))
+            .route("/api/store/know/search", get(handle_search))
+            .route("/api/store/know/package/:id", get(handle_package))
+            .route("/api/store/know/installed", get(handle_installed))
+            .route("/api/store/know/i18n", get(handle_i18n))
             .layer(cors)
             .with_state(AppState);
 
@@ -115,9 +114,7 @@ pub async fn run(root: &Path, _project: Option<&Path>, bind: &str, port: u16) ->
 
 // ── handlers ──────────────────────────────────────────────────────────────────
 
-async fn handle_catalog(
-    State(_): State<AppState>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+async fn handle_catalog(State(_): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
     let catalog = fetch_catalog().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
     let packages: Vec<serde_json::Value> = catalog.packages.iter().map(entry_to_json).collect();
     Ok(Json(serde_json::json!({
@@ -137,7 +134,9 @@ async fn handle_search(
     let catalog = fetch_catalog().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
     let q = params.q.to_lowercase();
 
-    let matches: Vec<serde_json::Value> = catalog.packages.iter()
+    let matches: Vec<serde_json::Value> = catalog
+        .packages
+        .iter()
         .filter(|e| {
             q.is_empty()
                 || e.name.to_lowercase().contains(&q)
@@ -148,7 +147,9 @@ async fn handle_search(
         .map(entry_to_json)
         .collect();
 
-    Ok(Json(serde_json::json!({ "packages": matches, "total": matches.len() })))
+    Ok(Json(
+        serde_json::json!({ "packages": matches, "total": matches.len() }),
+    ))
 }
 
 async fn handle_package(
@@ -160,7 +161,7 @@ async fn handle_package(
 
     match catalog.packages.iter().find(|e| e.id == decoded) {
         Some(e) => Ok(Json(entry_to_json(e))),
-        None    => Err(StatusCode::NOT_FOUND),
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -172,16 +173,20 @@ async fn handle_installed(
     };
 
     let repo = InstalledPackageRepo::new(conn.inner());
-    let rows = repo.list_all().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let rows = repo
+        .list_all()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let result = rows.into_iter()
+    let result = rows
+        .into_iter()
         .filter(|r| r.active)
         .map(|r| InstalledRow {
-            package_id:   r.package_id,
-            version:      r.version,
+            package_id: r.package_id,
+            version: r.version,
             package_type: r.package_type,
-            channel:      r.channel,
-            active:       r.active,
+            channel: r.channel,
+            active: r.active,
             installed_at: r.installed_at,
         })
         .collect();
@@ -189,26 +194,30 @@ async fn handle_installed(
     Ok(Json(result))
 }
 
-async fn handle_i18n(
-    State(_): State<AppState>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+async fn handle_i18n(State(_): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
     let catalog = fetch_catalog().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
 
-    let locales: Vec<serde_json::Value> = catalog.locales.iter().map(|l| serde_json::json!({
-        "code":         l.code,
-        "name":         l.name,
-        "completeness": l.completeness,
-        "direction":    l.direction,
-    })).collect();
+    let locales: Vec<serde_json::Value> = catalog
+        .locales
+        .iter()
+        .map(|l| {
+            serde_json::json!({
+                "code":         l.code,
+                "name":         l.name,
+                "completeness": l.completeness,
+                "direction":    l.direction,
+            })
+        })
+        .collect();
 
     Ok(Json(serde_json::json!({ "locales": locales })))
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-async fn fetch_catalog() -> Result<fs_store::Catalog<StoreEntry>> {
-    let mut client = StoreClient::node_store();
-    client.fetch_catalog("node", false).await.map_err(anyhow::Error::from)
+async fn fetch_catalog() -> Result<Catalog<StoreEntry>> {
+    let mut client = NodeStoreClient::node_store();
+    client.fetch_catalog("node", false).await
 }
 
 fn entry_to_json(e: &StoreEntry) -> serde_json::Value {

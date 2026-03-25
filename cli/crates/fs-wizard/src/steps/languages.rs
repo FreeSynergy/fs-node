@@ -11,7 +11,9 @@ pub struct LanguagesInput {
 
 impl Default for LanguagesInput {
     fn default() -> Self {
-        Self { locale: "en".to_string() }
+        Self {
+            locale: "en".to_string(),
+        }
     }
 }
 

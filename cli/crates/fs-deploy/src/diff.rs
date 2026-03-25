@@ -13,10 +13,9 @@ pub fn compute_diff(desired: &DesiredState, actual: &ActualState) -> StateDiff {
 
     // Find services running that are NOT in desired state → remove them
     for service in &actual.services {
-        let still_desired = desired
-            .services
-            .iter()
-            .any(|m| m.name == service.name || m.sub_services.iter().any(|s| s.name == service.name));
+        let still_desired = desired.services.iter().any(|m| {
+            m.name == service.name || m.sub_services.iter().any(|s| s.name == service.name)
+        });
 
         if !still_desired && service.state == RunState::Running {
             diff.to_remove.push(service.name.clone());
@@ -55,18 +54,18 @@ fn check_instance(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-    use indexmap::IndexMap;
     use fs_node_core::{
         config::service::{
-            Capability, Constraints, ContainerDef, ServiceClass, ServiceContract,
-            ServiceLoad, ServiceMeta, ServiceSetup, ServiceType,
+            Constraints, ContainerDef, ServiceClass, ServiceContract, ServiceLoad, ServiceMeta,
+            ServiceSetup, ServiceType,
         },
         state::{
             actual::{ActualState, HealthStatus as ContainerHealth, RunState, ServiceStatus},
             desired::{DesiredState, ServiceInstance},
         },
     };
+    use indexmap::IndexMap;
+    use std::collections::HashMap;
 
     fn make_class(name: &str) -> ServiceClass {
         ServiceClass {
@@ -144,12 +143,19 @@ mod tests {
     }
 
     fn desired(services: Vec<ServiceInstance>) -> DesiredState {
-        DesiredState { project_name: "test".to_string(), domain: "example.com".to_string(), services }
+        DesiredState {
+            project_name: "test".to_string(),
+            domain: "example.com".to_string(),
+            services,
+        }
     }
 
     #[test]
     fn new_instance_goes_to_deploy() {
-        let diff = compute_diff(&desired(vec![make_instance("forgejo", "1.0")]), &ActualState::default());
+        let diff = compute_diff(
+            &desired(vec![make_instance("forgejo", "1.0")]),
+            &ActualState::default(),
+        );
         assert_eq!(diff.to_deploy.len(), 1);
         assert_eq!(diff.to_deploy[0].name, "forgejo");
         assert!(diff.to_update.is_empty());
@@ -158,7 +164,9 @@ mod tests {
 
     #[test]
     fn missing_state_triggers_deploy() {
-        let actual = ActualState { services: vec![make_status("forgejo", "1.0", RunState::Missing)] };
+        let actual = ActualState {
+            services: vec![make_status("forgejo", "1.0", RunState::Missing)],
+        };
         let diff = compute_diff(&desired(vec![make_instance("forgejo", "1.0")]), &actual);
         assert_eq!(diff.to_deploy.len(), 1);
         assert!(diff.to_update.is_empty());
@@ -166,7 +174,9 @@ mod tests {
 
     #[test]
     fn version_mismatch_triggers_update() {
-        let actual = ActualState { services: vec![make_status("forgejo", "1.0", RunState::Running)] };
+        let actual = ActualState {
+            services: vec![make_status("forgejo", "1.0", RunState::Running)],
+        };
         let diff = compute_diff(&desired(vec![make_instance("forgejo", "2.0")]), &actual);
         assert!(diff.to_deploy.is_empty());
         assert_eq!(diff.to_update.len(), 1);
@@ -175,7 +185,9 @@ mod tests {
 
     #[test]
     fn running_with_matching_version_is_ok() {
-        let actual = ActualState { services: vec![make_status("forgejo", "1.0", RunState::Running)] };
+        let actual = ActualState {
+            services: vec![make_status("forgejo", "1.0", RunState::Running)],
+        };
         let diff = compute_diff(&desired(vec![make_instance("forgejo", "1.0")]), &actual);
         assert!(diff.to_deploy.is_empty());
         assert!(diff.to_update.is_empty());
@@ -185,14 +197,18 @@ mod tests {
 
     #[test]
     fn running_service_not_in_desired_goes_to_remove() {
-        let actual = ActualState { services: vec![make_status("forgejo", "1.0", RunState::Running)] };
+        let actual = ActualState {
+            services: vec![make_status("forgejo", "1.0", RunState::Running)],
+        };
         let diff = compute_diff(&desired(vec![]), &actual);
         assert!(diff.to_remove.contains(&"forgejo".to_string()));
     }
 
     #[test]
     fn stopped_service_not_in_desired_is_not_removed() {
-        let actual = ActualState { services: vec![make_status("forgejo", "1.0", RunState::Stopped)] };
+        let actual = ActualState {
+            services: vec![make_status("forgejo", "1.0", RunState::Stopped)],
+        };
         let diff = compute_diff(&desired(vec![]), &actual);
         assert!(!diff.to_remove.contains(&"forgejo".to_string()));
     }

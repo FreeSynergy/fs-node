@@ -33,7 +33,7 @@ use fs_node_core::{
 };
 
 const MARKER_START: &str = "# === FSN-MANAGED-START ===";
-const MARKER_END:   &str = "# === FSN-MANAGED-END ===";
+const MARKER_END: &str = "# === FSN-MANAGED-END ===";
 
 // ── KdlGenerator ─────────────────────────────────────────────────────────────
 
@@ -78,11 +78,11 @@ impl KdlGenerator {
         let instances = self.collect_proxy_instances(desired);
 
         let mut upstreams = String::new();
-        let mut routes    = String::new();
+        let mut routes = String::new();
 
         for inst in &instances {
-            upstreams.push_str(&self.upstream_block(inst));
-            routes.push_str(&self.route_blocks(inst));
+            upstreams.push_str(&Self::upstream_block(inst));
+            routes.push_str(&Self::route_blocks(inst));
         }
 
         format!(
@@ -90,7 +90,7 @@ impl KdlGenerator {
         )
     }
 
-    fn upstream_block(&self, inst: &ServiceInstance) -> String {
+    fn upstream_block(inst: &ServiceInstance) -> String {
         let name = &inst.name;
         let port = inst.class.meta.port;
         format!(
@@ -104,7 +104,7 @@ impl KdlGenerator {
         )
     }
 
-    fn route_blocks(&self, inst: &ServiceInstance) -> String {
+    fn route_blocks(inst: &ServiceInstance) -> String {
         let name = &inst.name;
         let mut all_domains = vec![inst.service_domain.clone()];
         all_domains.extend(inst.alias_domains.clone());
@@ -159,15 +159,15 @@ pub fn upsert_without(config: &str, desired: &DesiredState) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-    use indexmap::IndexMap;
     use fs_node_core::{
         config::service::{
-            Constraints, ContainerDef, ServiceClass, ServiceContract,
-            ServiceLoad, ServiceMeta, ServiceSetup, ServiceType,
+            Constraints, ContainerDef, ServiceClass, ServiceContract, ServiceLoad, ServiceMeta,
+            ServiceSetup, ServiceType,
         },
         state::desired::{DesiredState, ServiceInstance},
     };
+    use indexmap::IndexMap;
+    use std::collections::HashMap;
 
     fn make_class(name: &str, port: u16, service_types: Vec<ServiceType>) -> ServiceClass {
         ServiceClass {
@@ -217,7 +217,12 @@ mod tests {
         }
     }
 
-    fn make_instance(name: &str, domain: &str, service_types: Vec<ServiceType>, port: u16) -> ServiceInstance {
+    fn make_instance(
+        name: &str,
+        domain: &str,
+        service_types: Vec<ServiceType>,
+        port: u16,
+    ) -> ServiceInstance {
         ServiceInstance {
             name: name.to_string(),
             class_key: format!("test/{name}"),
@@ -235,23 +240,33 @@ mod tests {
     }
 
     fn desired(services: Vec<ServiceInstance>) -> DesiredState {
-        DesiredState { project_name: "myproject".to_string(), domain: "example.com".to_string(), services }
+        DesiredState {
+            project_name: "myproject".to_string(),
+            domain: "example.com".to_string(),
+            services,
+        }
     }
 
     #[test]
     fn full_config_contains_markers() {
-        let config = KdlGenerator.full_config(&desired(vec![
-            make_instance("forgejo", "git.example.com", vec![ServiceType::Git], 3000),
-        ]));
+        let config = KdlGenerator.full_config(&desired(vec![make_instance(
+            "forgejo",
+            "git.example.com",
+            vec![ServiceType::Git],
+            3000,
+        )]));
         assert!(config.contains(MARKER_START));
         assert!(config.contains(MARKER_END));
     }
 
     #[test]
     fn full_config_contains_upstream_and_route_for_git() {
-        let config = KdlGenerator.full_config(&desired(vec![
-            make_instance("forgejo", "git.example.com", vec![ServiceType::Git], 3000),
-        ]));
+        let config = KdlGenerator.full_config(&desired(vec![make_instance(
+            "forgejo",
+            "git.example.com",
+            vec![ServiceType::Git],
+            3000,
+        )]));
         assert!(config.contains(r#"upstream "forgejo""#));
         assert!(config.contains("forgejo:3000"));
         assert!(config.contains("git.example.com"));
@@ -259,25 +274,34 @@ mod tests {
 
     #[test]
     fn proxy_service_excluded_from_routes() {
-        let config = KdlGenerator.full_config(&desired(vec![
-            make_instance("zentinel", "example.com", vec![ServiceType::Proxy], 443),
-        ]));
+        let config = KdlGenerator.full_config(&desired(vec![make_instance(
+            "zentinel",
+            "example.com",
+            vec![ServiceType::Proxy],
+            443,
+        )]));
         assert!(!config.contains(r#"upstream "zentinel""#));
     }
 
     #[test]
     fn internal_service_excluded_from_routes() {
-        let config = KdlGenerator.full_config(&desired(vec![
-            make_instance("postgres", "postgres.internal", vec![ServiceType::Database], 5432),
-        ]));
+        let config = KdlGenerator.full_config(&desired(vec![make_instance(
+            "postgres",
+            "postgres.internal",
+            vec![ServiceType::Database],
+            5432,
+        )]));
         assert!(!config.contains(r#"upstream "postgres""#));
     }
 
     #[test]
     fn domain_dots_replaced_in_route_name() {
-        let config = KdlGenerator.full_config(&desired(vec![
-            make_instance("forgejo", "git.example.com", vec![ServiceType::Git], 3000),
-        ]));
+        let config = KdlGenerator.full_config(&desired(vec![make_instance(
+            "forgejo",
+            "git.example.com",
+            vec![ServiceType::Git],
+            3000,
+        )]));
         assert!(config.contains(r#"route "git-example-com""#));
     }
 
@@ -296,9 +320,15 @@ mod tests {
         let existing = format!(
             "# hand-written config\n{MARKER_START}\nold content\n{MARKER_END}\n# after marker\n"
         );
-        let result = KdlGenerator.upsert(&existing, &desired(vec![
-            make_instance("forgejo", "git.example.com", vec![ServiceType::Git], 3000),
-        ]));
+        let result = KdlGenerator.upsert(
+            &existing,
+            &desired(vec![make_instance(
+                "forgejo",
+                "git.example.com",
+                vec![ServiceType::Git],
+                3000,
+            )]),
+        );
         assert!(result.starts_with("# hand-written config\n"));
         assert!(result.ends_with("# after marker\n"));
         assert!(!result.contains("old content"));
@@ -308,9 +338,15 @@ mod tests {
     #[test]
     fn upsert_appends_when_no_markers_present() {
         let existing = "# existing config\n";
-        let result = KdlGenerator.upsert(existing, &desired(vec![
-            make_instance("forgejo", "git.example.com", vec![ServiceType::Git], 3000),
-        ]));
+        let result = KdlGenerator.upsert(
+            existing,
+            &desired(vec![make_instance(
+                "forgejo",
+                "git.example.com",
+                vec![ServiceType::Git],
+                3000,
+            )]),
+        );
         assert!(result.starts_with("# existing config"));
         assert!(result.contains(MARKER_START));
         assert!(result.contains(MARKER_END));

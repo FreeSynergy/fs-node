@@ -8,8 +8,8 @@
 // fs-container-app is the container management app (service list, logs, health status).
 // fsd is the full Desktop shell that hosts container app manager and other apps.
 
-use std::path::Path;
 use anyhow::{bail, Result};
+use std::path::Path;
 
 pub async fn run(_root: &Path) -> Result<()> {
     if let Some(bin) = which_desktop_bin() {
@@ -60,7 +60,11 @@ fn which_desktop_bin() -> Option<std::path::PathBuf> {
             format!("{base}/release/fsd"),
             format!("{base}/debug/fsd"),
         ];
-        if let Some(p) = candidates.iter().map(std::path::PathBuf::from).find(|p| p.exists()) {
+        if let Some(p) = candidates
+            .iter()
+            .map(std::path::PathBuf::from)
+            .find(|p| p.exists())
+        {
             return Some(p);
         }
     }

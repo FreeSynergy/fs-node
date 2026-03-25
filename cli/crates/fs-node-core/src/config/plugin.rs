@@ -43,10 +43,18 @@ impl PluginConfig {
 }
 
 impl Resource for PluginConfig {
-    fn kind(&self) -> &'static str { "plugin" }
-    fn id(&self) -> &str { &self.plugin.name }
-    fn description(&self) -> Option<&str> { self.plugin.description.as_deref() }
-    fn tags(&self) -> &[String] { &[] }
+    fn kind(&self) -> &'static str {
+        "plugin"
+    }
+    fn id(&self) -> &str {
+        &self.plugin.name
+    }
+    fn description(&self) -> Option<&str> {
+        self.plugin.description.as_deref()
+    }
+    fn tags(&self) -> &[String] {
+        &[]
+    }
 
     fn validate(&self) -> Result<(), fs_error::FsyError> {
         if self.plugin.name.is_empty() {

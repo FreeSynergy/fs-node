@@ -12,5 +12,8 @@ use fs_node_core::config::service::ServiceClass;
 
 fn main() {
     let schema = schemars::schema_for!(ServiceClass);
-    println!("{}", serde_json::to_string_pretty(&schema).expect("schema serialization"));
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&schema).expect("schema serialization")
+    );
 }

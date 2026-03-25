@@ -47,7 +47,12 @@ pub struct EnrichedVar {
 
 impl EnrichedVar {
     fn from_analyzed(v: AnalyzedVar) -> Self {
-        Self { analyzed: v, description: None, example: None, required: None }
+        Self {
+            analyzed: v,
+            description: None,
+            example: None,
+            required: None,
+        }
     }
 }
 
@@ -58,11 +63,7 @@ impl EnrichedVar {
 /// - `vars`: analyzed variables to enrich
 ///
 /// Returns the enriched list. On any error the original list is returned unchanged.
-pub async fn enrich(
-    base_url: &str,
-    image: &str,
-    vars: Vec<AnalyzedVar>,
-) -> Vec<EnrichedVar> {
+pub async fn enrich(base_url: &str, image: &str, vars: Vec<AnalyzedVar>) -> Vec<EnrichedVar> {
     match fetch_package_meta(base_url, image).await {
         Ok(meta) => apply_enrichment(vars, &meta),
         Err(e) => {
@@ -103,8 +104,8 @@ fn apply_enrichment(vars: Vec<AnalyzedVar>, meta: &StorePackageMeta) -> Vec<Enri
             if let Some(sv) = store_var {
                 // Only fill gaps — never overwrite container app manager's own analysis
                 enriched.description = sv.description.clone();
-                enriched.example     = sv.example.clone();
-                enriched.required    = sv.required;
+                enriched.example = sv.example.clone();
+                enriched.required = sv.required;
             }
             enriched
         })

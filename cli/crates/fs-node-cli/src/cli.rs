@@ -595,6 +595,7 @@ pub enum InstallRootCommand {
 }
 
 /// Parse args and dispatch to the right command handler.
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
 
@@ -605,64 +606,167 @@ pub async fn run() -> Result<()> {
         .unwrap_or_else(|| PathBuf::from("."));
 
     match cli.command {
-        Command::Deploy { service, host }    => commands::deploy::run(&root, cli.project.as_deref(), service.as_deref(), host.as_deref()).await,
-        Command::Undeploy { service }      => commands::undeploy::run(&root, cli.project.as_deref(), service.as_deref()).await,
-        Command::Update { package, service, all, dry_run } =>
-            commands::update::run(&root, cli.project.as_deref(), package.as_deref(), service.as_deref(), all, dry_run).await,
-        Command::Restart { service }       => commands::restart::run(&root, cli.project.as_deref(), service.as_deref()).await,
-        Command::Remove { package, service, keep_data, confirm } =>
-            commands::remove::run(&root, cli.project.as_deref(), package.as_deref(), service.as_deref(), keep_data, confirm).await,
-        Command::Clean                     => commands::clean::run(&root, cli.project.as_deref()).await,
-        Command::Sync                      => commands::sync::run(&root, cli.project.as_deref()).await,
-        Command::Status                    => commands::status::run(&root, cli.project.as_deref()).await,
-        Command::Logs { service, follow }  => commands::logs::run(&service, follow).await,
-        Command::Config { cmd }            => commands::config::run(&root, cli.project.as_deref(), cmd).await,
-        Command::Serve { port, bind }      => commands::serve::run(&root, cli.project.as_deref(), &bind, port).await,
-        Command::Init                      => commands::init::run(&root).await,
-        Command::Tui                       => commands::tui::run(&root).await,
+        Command::Deploy { service, host } => {
+            commands::deploy::run(
+                &root,
+                cli.project.as_deref(),
+                service.as_deref(),
+                host.as_deref(),
+            )
+            .await
+        }
+        Command::Undeploy { service } => {
+            commands::undeploy::run(&root, cli.project.as_deref(), service.as_deref()).await
+        }
+        Command::Update {
+            package,
+            service,
+            all,
+            dry_run,
+        } => {
+            commands::update::run(
+                &root,
+                cli.project.as_deref(),
+                package.as_deref(),
+                service.as_deref(),
+                all,
+                dry_run,
+            )
+            .await
+        }
+        Command::Restart { service } => {
+            commands::restart::run(&root, cli.project.as_deref(), service.as_deref()).await
+        }
+        Command::Remove {
+            package,
+            service,
+            keep_data,
+            confirm,
+        } => {
+            commands::remove::run(
+                &root,
+                cli.project.as_deref(),
+                package.as_deref(),
+                service.as_deref(),
+                keep_data,
+                confirm,
+            )
+            .await
+        }
+        Command::Clean => commands::clean::run(&root, cli.project.as_deref()).await,
+        Command::Sync => commands::sync::run(&root, cli.project.as_deref()).await,
+        Command::Status => commands::status::run(&root, cli.project.as_deref()).await,
+        Command::Logs { service, follow } => commands::logs::run(&service, follow).await,
+        Command::Config { cmd } => commands::config::run(&root, cli.project.as_deref(), cmd).await,
+        Command::Serve { port, bind } => {
+            commands::serve::run(&root, cli.project.as_deref(), &bind, port).await
+        }
+        Command::Init => commands::init::run(&root).await,
+        Command::Tui => commands::tui::run(&root).await,
         Command::Container { cmd } => match cmd {
-            ContainerCommand::Analyze { file, name, offline } =>
-                commands::container::ContainerCmd.analyze(&file, name.as_deref(), offline).await,
-            ContainerCommand::Install { file, name, dry_run, store_url } =>
-                commands::container::ContainerCmd.install(&file, name.as_deref(), dry_run, store_url.as_deref()).await,
-            ContainerCommand::Start   { service } => commands::container::ContainerCmd.start(&service).await,
-            ContainerCommand::Stop    { service } => commands::container::ContainerCmd.stop(&service).await,
-            ContainerCommand::Restart { service } => commands::container::ContainerCmd.restart(&service).await,
-            ContainerCommand::Logs    { service, lines } => commands::container::ContainerCmd.logs(&service, lines).await,
-            ContainerCommand::Status  { service } => commands::container::ContainerCmd.status(&service).await,
-            ContainerCommand::List              => commands::container::ContainerCmd.list().await,
+            ContainerCommand::Analyze {
+                file,
+                name,
+                offline,
+            } => {
+                commands::container::ContainerCmd
+                    .analyze(&file, name.as_deref(), offline)
+                    .await
+            }
+            ContainerCommand::Install {
+                file,
+                name,
+                dry_run,
+                store_url,
+            } => {
+                commands::container::ContainerCmd
+                    .install(&file, name.as_deref(), dry_run, store_url.as_deref())
+                    .await
+            }
+            ContainerCommand::Start { service } => {
+                commands::container::ContainerCmd.start(&service).await
+            }
+            ContainerCommand::Stop { service } => {
+                commands::container::ContainerCmd.stop(&service).await
+            }
+            ContainerCommand::Restart { service } => {
+                commands::container::ContainerCmd.restart(&service).await
+            }
+            ContainerCommand::Logs { service, lines } => {
+                commands::container::ContainerCmd
+                    .logs(&service, lines)
+                    .await
+            }
+            ContainerCommand::Status { service } => {
+                commands::container::ContainerCmd.status(&service).await
+            }
+            ContainerCommand::List => commands::container::ContainerCmd.list().await,
         },
-        Command::Store { cmd }             => match cmd {
-            StoreCommand::Search { query }  => commands::store::StoreCmd.search(&query).await,
-            StoreCommand::Info { id }       => commands::store::StoreCmd.info(&id).await,
-            StoreCommand::Install { id }    => commands::store::StoreCmd.install(&id).await,
-            StoreCommand::Update            => commands::store::StoreCmd.update_check().await,
-            StoreCommand::List { r#type }   => commands::store::PackageCmd.list(r#type.as_deref()).await,
-            StoreCommand::Remove { id, confirm } => commands::store::PackageCmd.remove(&id, confirm).await,
-            StoreCommand::Rollback { id, version } => commands::store::PackageCmd.rollback(&id, version.as_deref()).await,
-            StoreCommand::Sync              => commands::store::StoreCmd.sync().await,
-            StoreCommand::I18n { cmd }      => match cmd {
-                I18nCommand::Status        => commands::store::I18nCmd.status().await,
-                I18nCommand::Set { lang }  => commands::store::I18nCmd.set(&lang).await,
-                I18nCommand::Check         => commands::store::I18nCmd.check().await,
+        Command::Store { cmd } => match cmd {
+            StoreCommand::Search { query } => commands::store::StoreCmd.search(&query).await,
+            StoreCommand::Info { id } => commands::store::StoreCmd.info(&id).await,
+            StoreCommand::Install { id } => commands::store::StoreCmd.install(&id).await,
+            StoreCommand::Update => commands::store::StoreCmd.update_check().await,
+            StoreCommand::List { r#type } => {
+                commands::store::PackageCmd.list(r#type.as_deref()).await
+            }
+            StoreCommand::Remove { id, confirm } => {
+                commands::store::PackageCmd.remove(&id, confirm).await
+            }
+            StoreCommand::Rollback { id, version } => {
+                commands::store::PackageCmd
+                    .rollback(&id, version.as_deref())
+                    .await
+            }
+            StoreCommand::Sync => commands::store::StoreCmd.sync().await,
+            StoreCommand::I18n { cmd } => match cmd {
+                I18nCommand::Status => commands::store::I18nCmd.status().await,
+                I18nCommand::Set { lang } => commands::store::I18nCmd.set(&lang).await,
+                I18nCommand::Check => commands::store::I18nCmd.check().await,
             },
-            StoreCommand::Theme { cmd }     => match cmd {
-                PackageAssetCommand::Available { query }     => commands::store::AssetCmd::theme().available(&query).await,
-                PackageAssetCommand::List                    => commands::store::AssetCmd::theme().list().await,
-                PackageAssetCommand::Install { id, dry_run } => commands::store::AssetCmd::theme().install(&id, dry_run).await,
-                PackageAssetCommand::Remove { id, confirm }  => commands::store::AssetCmd::theme().remove(&id, confirm).await,
+            StoreCommand::Theme { cmd } => match cmd {
+                PackageAssetCommand::Available { query } => {
+                    commands::store::AssetCmd::theme().available(&query).await
+                }
+                PackageAssetCommand::List => commands::store::AssetCmd::theme().list().await,
+                PackageAssetCommand::Install { id, dry_run } => {
+                    commands::store::AssetCmd::theme()
+                        .install(&id, dry_run)
+                        .await
+                }
+                PackageAssetCommand::Remove { id, confirm } => {
+                    commands::store::AssetCmd::theme()
+                        .remove(&id, confirm)
+                        .await
+                }
             },
-            StoreCommand::Widget { cmd }    => match cmd {
-                PackageAssetCommand::Available { query }     => commands::store::AssetCmd::widget().available(&query).await,
-                PackageAssetCommand::List                    => commands::store::AssetCmd::widget().list().await,
-                PackageAssetCommand::Install { id, dry_run } => commands::store::AssetCmd::widget().install(&id, dry_run).await,
-                PackageAssetCommand::Remove { id, confirm }  => commands::store::AssetCmd::widget().remove(&id, confirm).await,
+            StoreCommand::Widget { cmd } => match cmd {
+                PackageAssetCommand::Available { query } => {
+                    commands::store::AssetCmd::widget().available(&query).await
+                }
+                PackageAssetCommand::List => commands::store::AssetCmd::widget().list().await,
+                PackageAssetCommand::Install { id, dry_run } => {
+                    commands::store::AssetCmd::widget()
+                        .install(&id, dry_run)
+                        .await
+                }
+                PackageAssetCommand::Remove { id, confirm } => {
+                    commands::store::AssetCmd::widget()
+                        .remove(&id, confirm)
+                        .await
+                }
             },
         },
-        Command::Server { cmd }            => match cmd {
-            ServerCommand::Setup           => commands::server_setup::run(&root).await,
+        Command::Server { cmd } => match cmd {
+            ServerCommand::Setup => commands::server_setup::run(&root).await,
         },
-        Command::Install { package, from, list, check, dry_run } =>
+        Command::Install {
+            package,
+            from,
+            list,
+            check,
+            dry_run,
+        } => {
             commands::install::run(
                 &root,
                 package.as_deref(),
@@ -670,31 +774,43 @@ pub async fn run() -> Result<()> {
                 list,
                 check,
                 dry_run,
-            ).await,
+            )
+            .await
+        }
         Command::Export { output } => {
             commands::export_import::export(&root, cli.project.as_deref(), &output).await
-        },
-        Command::Import { input } => {
-            commands::export_import::import(&root, &input).await
-        },
+        }
+        Command::Import { input } => commands::export_import::import(&root, &input).await,
         Command::Deps { service } => {
             commands::deps::run(&root, cli.project.as_deref(), &service).await
-        },
+        }
         Command::Storage { cmd } => match cmd {
             StorageCommand::Status => commands::storage::status(&root).await,
-            StorageCommand::Init   => commands::storage::init(&root).await,
+            StorageCommand::Init => commands::storage::init(&root).await,
             StorageCommand::Profile { cmd } => commands::storage::profile(&root, cmd).await,
-            StorageCommand::Sync { cmd }    => commands::storage::sync(&root, cmd).await,
+            StorageCommand::Sync { cmd } => commands::storage::sync(&root, cmd).await,
         },
         Command::Bus { cmd } => match cmd {
-            BusCommand::Serve { port, bind, config } =>
-                commands::bus::serve(&bind, port, config.as_deref()).await,
-            BusCommand::Status =>
-                commands::bus::status().await,
-            BusCommand::Publish { topic, source, payload } =>
-                commands::bus::publish_event(&topic, &source, payload.as_deref()).await,
+            BusCommand::Serve { port, bind, config } => {
+                commands::bus::serve(&bind, port, config.as_deref()).await
+            }
+            BusCommand::Status => commands::bus::status().await,
+            BusCommand::Publish {
+                topic,
+                source,
+                payload,
+            } => commands::bus::publish_event(&topic, &source, payload.as_deref()).await,
         },
-        Command::Sysinfo { live, refresh, check, monitor, interval, disk_threshold, mem_threshold, cpu_threshold } => {
+        Command::Sysinfo {
+            live,
+            refresh,
+            check,
+            monitor,
+            interval,
+            disk_threshold,
+            mem_threshold,
+            cpu_threshold,
+        } => {
             if let Some(feature) = check {
                 commands::sysinfo::check_feature(&feature).await
             } else if refresh {
@@ -703,14 +819,14 @@ pub async fn run() -> Result<()> {
                 commands::sysinfo::live().await
             } else if monitor {
                 let thresholds = fs_sysinfo::AlertThresholds {
-                    disk_full_percent:   disk_threshold,
+                    disk_full_percent: disk_threshold,
                     memory_full_percent: mem_threshold,
-                    cpu_hot_celsius:     cpu_threshold,
+                    cpu_hot_celsius: cpu_threshold,
                 };
                 commands::sysinfo::monitor(interval, thresholds).await
             } else {
                 commands::sysinfo::info().await
             }
-        },
+        }
     }
 }

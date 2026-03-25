@@ -83,31 +83,29 @@ impl SetupField {
 pub fn setup_fields_for(class: &str) -> Vec<SetupField> {
     let primary = class.split('/').next().unwrap_or(class);
     match primary {
-        "proxy"      => proxy_fields(),
-        "mail"       => mail_fields(),
-        "git"        => git_fields(),
-        "wiki"       => wiki_fields(),
-        "iam"        => iam_fields(),
-        "chat"       => chat_fields(),
-        "collab"     => collab_fields(),
-        "tasks"      => tasks_fields(),
-        "tickets"    => tickets_fields(),
-        "maps"       => maps_fields(),
+        "proxy" => proxy_fields(),
+        "mail" => mail_fields(),
+        "git" => git_fields(),
+        "wiki" => wiki_fields(),
+        "iam" => iam_fields(),
+        "chat" => chat_fields(),
+        "collab" => collab_fields(),
+        "tasks" => tasks_fields(),
+        "tickets" => tickets_fields(),
+        "maps" => maps_fields(),
         "monitoring" => monitoring_fields(),
-        _            => vec![],
+        _ => vec![],
     }
 }
 
 // ── Per-type field definitions ────────────────────────────────────────────────
 
 fn proxy_fields() -> Vec<SetupField> {
-    vec![
-        SetupField::email(
-            "acme_email",
-            "ACME email address",
-            "Email address used to register TLS certificates via Let's Encrypt.",
-        ),
-    ]
+    vec![SetupField::email(
+        "acme_email",
+        "ACME email address",
+        "Email address used to register TLS certificates via Let's Encrypt.",
+    )]
 }
 
 fn mail_fields() -> Vec<SetupField> {
@@ -196,13 +194,11 @@ fn chat_fields() -> Vec<SetupField> {
 }
 
 fn collab_fields() -> Vec<SetupField> {
-    vec![
-        SetupField::secret(
-            "vault_cryptpad_session_key",
-            "Session signing key",
-            "Secret key for signing user sessions. Generate with `openssl rand -hex 64`.",
-        ),
-    ]
+    vec![SetupField::secret(
+        "vault_cryptpad_session_key",
+        "Session signing key",
+        "Secret key for signing user sessions. Generate with `openssl rand -hex 64`.",
+    )]
 }
 
 fn tasks_fields() -> Vec<SetupField> {

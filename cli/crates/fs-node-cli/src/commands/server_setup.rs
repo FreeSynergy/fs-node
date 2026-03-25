@@ -24,11 +24,13 @@ pub async fn run(_root: &Path) -> Result<()> {
 struct ServerSetup;
 
 impl ServerSetup {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        Self
+    }
 
     async fn run(&self) -> Result<()> {
-        self.check_root()?;
-        let user = self.detect_deploy_user();
+        Self::check_root()?;
+        let user = Self::detect_deploy_user();
 
         let podman_ver = self.check_podman().await?;
         self.ensure_user(&user).await?;
@@ -48,15 +50,18 @@ impl ServerSetup {
         Ok(())
     }
 
-    fn check_root(&self) -> Result<()> {
+    fn check_root() -> Result<()> {
         let uid = unsafe { libc::getuid() };
         if uid != 0 {
-            bail!("fsn server setup must be run as root (current uid: {})", uid);
+            bail!(
+                "fsn server setup must be run as root (current uid: {})",
+                uid
+            );
         }
         Ok(())
     }
 
-    fn detect_deploy_user(&self) -> String {
+    fn detect_deploy_user() -> String {
         std::env::var("SUDO_USER")
             .ok()
             .filter(|u| !u.is_empty() && u != "root")
@@ -72,7 +77,9 @@ impl ServerSetup {
 
         let stdout = String::from_utf8_lossy(&out.stdout);
         let version = stdout.split_whitespace().last().unwrap_or("?").to_string();
-        let major: u32 = version.split('.').next()
+        let major: u32 = version
+            .split('.')
+            .next()
             .and_then(|s| s.parse().ok())
             .unwrap_or(0);
 
@@ -88,7 +95,10 @@ impl ServerSetup {
     }
 
     async fn ensure_user(&self, user: &str) -> Result<()> {
-        let st = tokio::process::Command::new("id").arg(user).status().await?;
+        let st = tokio::process::Command::new("id")
+            .arg(user)
+            .status()
+            .await?;
         if st.success() {
             info!("User '{user}' already exists – skipping creation");
             return Ok(());

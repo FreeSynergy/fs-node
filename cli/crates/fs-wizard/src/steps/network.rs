@@ -46,7 +46,10 @@ impl NetworkStep {
         if input.ip.trim().is_empty() {
             errors.push("IP address is required.".to_string());
         } else if !is_valid_ip(&input.ip) {
-            errors.push(format!("'{}' is not a valid IPv4 or IPv6 address.", input.ip));
+            errors.push(format!(
+                "'{}' is not a valid IPv4 or IPv6 address.",
+                input.ip
+            ));
         }
 
         errors

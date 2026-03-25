@@ -50,7 +50,8 @@ impl CapabilityMatcher {
 
     /// Register a binding from `capability` to a service at `url`.
     pub fn add_binding(&mut self, capability: &str, service_name: &str, url: &str) {
-        self.bindings.push(CapabilityBinding::new(capability, service_name, url));
+        self.bindings
+            .push(CapabilityBinding::new(capability, service_name, url));
     }
 
     /// Return the first binding that satisfies `capability`, if any.
@@ -74,7 +75,7 @@ impl CapabilityMatcher {
         let mut vars = HashMap::new();
         for cap in required_capabilities {
             if let Some(binding) = self.resolve(cap) {
-                vars.insert(format!("{}_url", cap),     binding.url.clone());
+                vars.insert(format!("{}_url", cap), binding.url.clone());
                 vars.insert(format!("{}_service", cap), binding.service_name.clone());
             }
         }
@@ -102,14 +103,20 @@ mod tests {
     #[test]
     fn auto_fill_returns_url_and_service_vars() {
         let mut m = CapabilityMatcher::new();
-        m.add_binding("iam",  "kanidm",   "https://auth.example.com");
+        m.add_binding("iam", "kanidm", "https://auth.example.com");
         m.add_binding("mail", "stalwart", "https://mail.example.com");
 
         let vars = m.auto_fill(&["iam", "mail", "git"]);
 
-        assert_eq!(vars.get("iam_url"),      Some(&"https://auth.example.com".to_string()));
-        assert_eq!(vars.get("iam_service"),  Some(&"kanidm".to_string()));
-        assert_eq!(vars.get("mail_url"),     Some(&"https://mail.example.com".to_string()));
+        assert_eq!(
+            vars.get("iam_url"),
+            Some(&"https://auth.example.com".to_string())
+        );
+        assert_eq!(vars.get("iam_service"), Some(&"kanidm".to_string()));
+        assert_eq!(
+            vars.get("mail_url"),
+            Some(&"https://mail.example.com".to_string())
+        );
         assert_eq!(vars.get("mail_service"), Some(&"stalwart".to_string()));
         // "git" has no binding — should be absent
         assert!(!vars.contains_key("git_url"));

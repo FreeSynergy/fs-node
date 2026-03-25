@@ -37,7 +37,9 @@ pub struct ResourceMeta {
     pub tags: Vec<String>,
 }
 
-fn default_version() -> String { "0.1.0".into() }
+fn default_version() -> String {
+    "0.1.0".into()
+}
 
 impl ResourceMeta {
     /// Returns the display name: alias if set, otherwise name.

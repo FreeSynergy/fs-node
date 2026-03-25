@@ -69,10 +69,10 @@ impl BotType {
     /// Returns the machine-readable string representation.
     pub fn as_str(&self) -> &'static str {
         match self {
-            BotType::Matrix   => "matrix",
+            BotType::Matrix => "matrix",
             BotType::Telegram => "telegram",
-            BotType::Webhook  => "webhook",
-            BotType::Custom   => "custom",
+            BotType::Webhook => "webhook",
+            BotType::Custom => "custom",
         }
     }
 }
@@ -80,12 +80,24 @@ impl BotType {
 // ── Resource impl ─────────────────────────────────────────────────────────────
 
 impl Resource for BotConfig {
-    fn kind(&self) -> &'static str { "bot" }
-    fn id(&self) -> &str { &self.bot.meta.name }
-    fn display_name(&self) -> &str { self.bot.meta.display_name() }
-    fn description(&self) -> Option<&str> { self.bot.meta.description.as_deref() }
-    fn tags(&self) -> &[String] { &self.bot.meta.tags }
-    fn phase(&self) -> ResourcePhase { ResourcePhase::Unknown }
+    fn kind(&self) -> &'static str {
+        "bot"
+    }
+    fn id(&self) -> &str {
+        &self.bot.meta.name
+    }
+    fn display_name(&self) -> &str {
+        self.bot.meta.display_name()
+    }
+    fn description(&self) -> Option<&str> {
+        self.bot.meta.description.as_deref()
+    }
+    fn tags(&self) -> &[String] {
+        &self.bot.meta.tags
+    }
+    fn phase(&self) -> ResourcePhase {
+        ResourcePhase::Unknown
+    }
 
     fn validate(&self) -> Result<(), FsyError> {
         if self.bot.meta.name.is_empty() {
@@ -102,7 +114,13 @@ impl Resource for BotConfig {
 }
 
 impl BotResource for BotConfig {
-    fn project(&self)       -> &str { &self.bot.project }
-    fn service_class(&self) -> &str { &self.bot.service_class }
-    fn bot_type_str(&self)  -> &str { self.bot.bot_type.as_str() }
+    fn project(&self) -> &str {
+        &self.bot.project
+    }
+    fn service_class(&self) -> &str {
+        &self.bot.service_class
+    }
+    fn bot_type_str(&self) -> &str {
+        self.bot.bot_type.as_str()
+    }
 }

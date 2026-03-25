@@ -1,5 +1,5 @@
-use std::path::Path;
 use anyhow::Result;
+use std::path::Path;
 
 pub async fn run(_root: &Path, _project: Option<&Path>) -> Result<()> {
     // podman system prune removes stopped containers, dangling images, unused networks

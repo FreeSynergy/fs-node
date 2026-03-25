@@ -1,6 +1,6 @@
-use std::path::Path;
 use anyhow::Result;
-use fs_deploy::deploy::{DeployOpts, undeploy_all, undeploy_instance};
+use fs_deploy::deploy::{undeploy_all, undeploy_instance, DeployOpts};
+use std::path::Path;
 
 /// Stop and remove Quadlet files for one or all services.
 pub async fn run(_root: &Path, _project: Option<&Path>, service: Option<&str>) -> Result<()> {

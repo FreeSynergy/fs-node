@@ -102,7 +102,10 @@ impl SwapPlanner {
             }
         }
 
-        SwapCompatibility { compatible_capabilities, warnings }
+        SwapCompatibility {
+            compatible_capabilities,
+            warnings,
+        }
     }
 
     /// Build a `SwapPlan` for replacing `source_id` with `target_id`.

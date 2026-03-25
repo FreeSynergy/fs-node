@@ -18,18 +18,16 @@ use std::sync::Arc;
 use anyhow::Result;
 use axum::extract::ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 use axum::{
-    Router,
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{delete, get, post},
+    Router,
 };
-use fs_bus::{
-    BusMessage, Event, MessageBus, StandingOrder, Subscription,
-};
+use fs_bus::{BusMessage, Event, MessageBus, StandingOrder, Subscription};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tokio::sync::{Mutex, broadcast};
+use tokio::sync::{broadcast, Mutex};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 use uuid::Uuid;
@@ -42,18 +40,18 @@ const EVENT_RING_SIZE: usize = 500;
 /// App state shared across all axum handlers.
 #[derive(Clone)]
 struct BusState {
-    bus:    Arc<Mutex<MessageBus>>,
+    bus: Arc<Mutex<MessageBus>>,
     /// In-memory ring buffer of recent events (serialized JSON).
     events: Arc<Mutex<VecDeque<serde_json::Value>>>,
     /// Broadcast channel for WebSocket live streaming.
-    tx:     broadcast::Sender<String>,
+    tx: broadcast::Sender<String>,
 }
 
 impl BusState {
     fn new(bus: MessageBus) -> Self {
         let (tx, _) = broadcast::channel(1024);
         Self {
-            bus:    Arc::new(Mutex::new(bus)),
+            bus: Arc::new(Mutex::new(bus)),
             events: Arc::new(Mutex::new(VecDeque::with_capacity(EVENT_RING_SIZE))),
             tx,
         }
@@ -82,46 +80,46 @@ impl BusState {
 #[derive(Deserialize)]
 #[allow(dead_code)]
 struct PublishReq {
-    topic:   String,
-    source:  String,
+    topic: String,
+    source: String,
     payload: Option<serde_json::Value>,
     #[serde(default)]
     delivery: Option<String>,
     #[serde(default)]
-    storage:  Option<String>,
+    storage: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct SubscribeReq {
     subscriber_role: String,
-    topic_filter:    String,
-    inst_tag:        Option<String>,
+    topic_filter: String,
+    inst_tag: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct StandingOrderReq {
-    name:         String,
+    name: String,
     trigger_role: String,
-    topic:        String,
-    payload:      Option<serde_json::Value>,
+    topic: String,
+    payload: Option<serde_json::Value>,
 }
 
 #[derive(Serialize)]
 struct SubJson {
-    id:              String,
+    id: String,
     subscriber_role: String,
-    topic_filter:    String,
-    inst_tag:        Option<String>,
-    granted_read:    bool,
+    topic_filter: String,
+    inst_tag: Option<String>,
+    granted_read: bool,
 }
 
 #[derive(Serialize)]
 struct OrderJson {
-    id:           String,
-    name:         String,
+    id: String,
+    name: String,
     trigger_role: String,
-    topic:        String,
-    enabled:      bool,
+    topic: String,
+    enabled: bool,
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -131,8 +129,7 @@ async fn handle_publish(
     Json(req): Json<PublishReq>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let payload = req.payload.unwrap_or(json!({}));
-    let ev = Event::new(req.topic, req.source, payload)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let ev = Event::new(req.topic, req.source, payload).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     s.record_event(&ev).await;
 
@@ -147,9 +144,7 @@ async fn handle_publish(
     })))
 }
 
-async fn handle_list_subscriptions(
-    State(s): State<BusState>,
-) -> Json<serde_json::Value> {
+async fn handle_list_subscriptions(State(s): State<BusState>) -> Json<serde_json::Value> {
     let bus = s.bus.lock().await;
     let all: Vec<SubJson> = bus.subscriptions_iter().map(sub_to_json).collect();
     Json(json!({ "subscriptions": all }))
@@ -180,13 +175,9 @@ async fn handle_unsubscribe(
     }
 }
 
-async fn handle_list_orders(
-    State(s): State<BusState>,
-) -> Json<serde_json::Value> {
+async fn handle_list_orders(State(s): State<BusState>) -> Json<serde_json::Value> {
     let bus = s.bus.lock().await;
-    let orders: Vec<OrderJson> = bus.standing_orders_iter()
-        .map(order_to_json)
-        .collect();
+    let orders: Vec<OrderJson> = bus.standing_orders_iter().map(order_to_json).collect();
     Json(json!({ "standing_orders": orders }))
 }
 
@@ -214,9 +205,7 @@ async fn handle_remove_order(
     }
 }
 
-async fn handle_events(
-    State(s): State<BusState>,
-) -> Json<serde_json::Value> {
+async fn handle_events(State(s): State<BusState>) -> Json<serde_json::Value> {
     let ring = s.events.lock().await;
     let events: Vec<_> = ring.iter().cloned().collect();
     Json(json!({ "events": events, "count": events.len() }))
@@ -231,20 +220,15 @@ async fn handle_trigger_role(
     drop(bus);
 
     let mut published = 0usize;
-    for result in generated {
-        if let Ok(ev) = result {
-            s.record_event(&ev).await;
-            s.bus.lock().await.publish(BusMessage::fire(ev)).await;
-            published += 1;
-        }
+    for ev in generated.into_iter().flatten() {
+        s.record_event(&ev).await;
+        s.bus.lock().await.publish(BusMessage::fire(ev)).await;
+        published += 1;
     }
     Json(json!({ "triggered": published, "role": role }))
 }
 
-async fn handle_ws(
-    State(s): State<BusState>,
-    ws: WebSocketUpgrade,
-) -> impl IntoResponse {
+async fn handle_ws(State(s): State<BusState>, ws: WebSocketUpgrade) -> impl IntoResponse {
     ws.on_upgrade(move |socket| ws_handler(socket, s.tx.subscribe()))
 }
 
@@ -270,27 +254,28 @@ async fn ws_handler(mut socket: WebSocket, mut rx: broadcast::Receiver<String>) 
 
 fn sub_to_json(s: &fs_bus::Subscription) -> SubJson {
     SubJson {
-        id:              s.id.to_string(),
+        id: s.id.to_string(),
         subscriber_role: s.subscriber_role.clone(),
-        topic_filter:    s.topic_filter.clone(),
-        inst_tag:        s.inst_tag.clone(),
-        granted_read:    s.granted_read,
+        topic_filter: s.topic_filter.clone(),
+        inst_tag: s.inst_tag.clone(),
+        granted_read: s.granted_read,
     }
 }
 
 fn order_to_json(o: &fs_bus::StandingOrder) -> OrderJson {
     OrderJson {
-        id:           o.id.to_string(),
-        name:         o.name.clone(),
+        id: o.id.to_string(),
+        name: o.name.clone(),
         trigger_role: o.trigger_role.clone(),
-        topic:        o.topic.clone(),
-        enabled:      o.enabled,
+        topic: o.topic.clone(),
+        enabled: o.enabled,
     }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// Start the bus HTTP/WS server.
+#[allow(clippy::cognitive_complexity)]
 pub async fn serve(bind: &str, port: u16, config_path: Option<&str>) -> Result<()> {
     let mut bus = MessageBus::new();
 
@@ -309,16 +294,16 @@ pub async fn serve(bind: &str, port: u16, config_path: Option<&str>) -> Result<(
         .allow_headers(Any);
 
     let app = Router::new()
-        .route("/api/bus/publish",              post(handle_publish))
-        .route("/api/bus/subscriptions",        get(handle_list_subscriptions))
-        .route("/api/bus/subscribe",            post(handle_subscribe))
-        .route("/api/bus/subscribe/:id",        delete(handle_unsubscribe))
-        .route("/api/bus/standing-orders",      get(handle_list_orders))
-        .route("/api/bus/standing-orders",      post(handle_add_order))
-        .route("/api/bus/standing-orders/:id",  delete(handle_remove_order))
-        .route("/api/bus/events",               get(handle_events))
-        .route("/api/bus/role/:role/trigger",   post(handle_trigger_role))
-        .route("/api/bus/ws",                   get(handle_ws))
+        .route("/api/bus/publish", post(handle_publish))
+        .route("/api/bus/subscriptions", get(handle_list_subscriptions))
+        .route("/api/bus/subscribe", post(handle_subscribe))
+        .route("/api/bus/subscribe/:id", delete(handle_unsubscribe))
+        .route("/api/bus/standing-orders", get(handle_list_orders))
+        .route("/api/bus/standing-orders", post(handle_add_order))
+        .route("/api/bus/standing-orders/:id", delete(handle_remove_order))
+        .route("/api/bus/events", get(handle_events))
+        .route("/api/bus/role/:role/trigger", post(handle_trigger_role))
+        .route("/api/bus/ws", get(handle_ws))
         .layer(cors)
         .with_state(state);
 
@@ -339,14 +324,19 @@ pub async fn status() -> Result<()> {
     let client = reqwest::Client::new();
     let base = "http://127.0.0.1:8081";
 
-    match client.get(format!("{base}/api/bus/subscriptions")).send().await {
+    match client
+        .get(format!("{base}/api/bus/subscriptions"))
+        .send()
+        .await
+    {
         Ok(resp) => {
             let v: serde_json::Value = resp.json().await?;
             let subs = v["subscriptions"].as_array().cloned().unwrap_or_default();
             println!("Active subscriptions: {}", subs.len());
             for s in &subs {
-                println!("  [{role}] → {filter}",
-                    role   = s["subscriber_role"].as_str().unwrap_or("?"),
+                println!(
+                    "  [{role}] → {filter}",
+                    role = s["subscriber_role"].as_str().unwrap_or("?"),
                     filter = s["topic_filter"].as_str().unwrap_or("?"),
                 );
             }
@@ -354,20 +344,26 @@ pub async fn status() -> Result<()> {
         Err(_) => println!("Bus not running (try `fsn bus serve`)"),
     }
 
-    match client.get(format!("{base}/api/bus/standing-orders")).send().await {
-        Ok(resp) => {
-            let v: serde_json::Value = resp.json().await?;
-            let orders = v["standing_orders"].as_array().cloned().unwrap_or_default();
-            println!("Standing orders: {}", orders.len());
-            for o in &orders {
-                println!("  [{}] {} → {}",
-                    if o["enabled"].as_bool().unwrap_or(false) { "✓" } else { "✗" },
-                    o["name"].as_str().unwrap_or("?"),
-                    o["topic"].as_str().unwrap_or("?"),
-                );
-            }
+    if let Ok(resp) = client
+        .get(format!("{base}/api/bus/standing-orders"))
+        .send()
+        .await
+    {
+        let v: serde_json::Value = resp.json().await?;
+        let orders = v["standing_orders"].as_array().cloned().unwrap_or_default();
+        println!("Standing orders: {}", orders.len());
+        for o in &orders {
+            println!(
+                "  [{}] {} → {}",
+                if o["enabled"].as_bool().unwrap_or(false) {
+                    "✓"
+                } else {
+                    "✗"
+                },
+                o["name"].as_str().unwrap_or("?"),
+                o["topic"].as_str().unwrap_or("?"),
+            );
         }
-        Err(_) => {}
     }
 
     Ok(())
@@ -387,7 +383,8 @@ pub async fn publish_event(topic: &str, source: &str, payload_json: Option<&str>
         .await?;
 
     let v: serde_json::Value = resp.json().await?;
-    println!("Published: delivered_to={:?} delivery={}",
+    println!(
+        "Published: delivered_to={:?} delivery={}",
         v["delivered_to"],
         v["delivery"].as_str().unwrap_or("?"),
     );

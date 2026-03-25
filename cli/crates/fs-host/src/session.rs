@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use russh::client::{self, Handle};
 use russh::keys::{key, load_secret_key};
 use tokio::sync::Mutex;
@@ -75,10 +75,13 @@ impl SshSession {
     /// Open an SSH connection to `host`.
     /// Authentication order: key file (if set) → SSH agent.
     pub async fn connect(host: &RemoteHost) -> Result<Self> {
-        info!("SSH connect → {}@{}:{}", host.ssh_user, host.address, host.ssh_port);
+        info!(
+            "SSH connect → {}@{}:{}",
+            host.ssh_user, host.address, host.ssh_port
+        );
 
         let config = Arc::new(client::Config::default());
-        let addr   = format!("{}:{}", host.address, host.ssh_port);
+        let addr = format!("{}:{}", host.address, host.ssh_port);
 
         let mut handle = client::connect(config, addr, ClientHandler)
             .await
@@ -95,7 +98,10 @@ impl SshSession {
             .context("public-key authentication")?;
 
         if !authenticated {
-            bail!("SSH public-key authentication rejected for {}", host.ssh_user);
+            bail!(
+                "SSH public-key authentication rejected for {}",
+                host.ssh_user
+            );
         }
 
         debug!("SSH authenticated as {}", host.ssh_user);
@@ -121,7 +127,9 @@ impl SshSession {
         let mut exit_code = 0u32;
 
         loop {
-            let Some(msg) = channel.wait().await else { break };
+            let Some(msg) = channel.wait().await else {
+                break;
+            };
             match msg {
                 russh::ChannelMsg::Data { data } => stdout.extend_from_slice(&data),
                 russh::ChannelMsg::ExtendedData { data, .. } => stderr.extend_from_slice(&data),
@@ -133,8 +141,8 @@ impl SshSession {
         channel.close().await.ok();
 
         Ok(ExecOutput {
-            stdout:    String::from_utf8_lossy(&stdout).into_owned(),
-            stderr:    String::from_utf8_lossy(&stderr).into_owned(),
+            stdout: String::from_utf8_lossy(&stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&stderr).into_owned(),
             exit_code,
         })
     }
@@ -151,14 +159,20 @@ impl SshSession {
             .unwrap_or(".");
         let mkdir_cmd = format!("mkdir -p {}", shell_escape(parent));
 
-        let mut mkdir_ch = guard.channel_open_session().await.context("open channel mkdir")?;
+        let mut mkdir_ch = guard
+            .channel_open_session()
+            .await
+            .context("open channel mkdir")?;
         mkdir_ch.exec(true, mkdir_cmd.as_bytes()).await?;
         drain_channel(&mut mkdir_ch).await?;
         mkdir_ch.close().await.ok();
 
         // Write via stdin of `cat >`
         let write_cmd = format!("cat > {}", shell_escape(remote_path));
-        let mut write_ch = guard.channel_open_session().await.context("open channel write")?;
+        let mut write_ch = guard
+            .channel_open_session()
+            .await
+            .context("open channel write")?;
         write_ch.exec(true, write_cmd.as_bytes()).await?;
 
         // Send content as AsyncRead
@@ -174,7 +188,10 @@ impl SshSession {
     /// Close the SSH connection gracefully.
     pub async fn close(self) -> Result<()> {
         let guard = self.handle.lock().await;
-        guard.disconnect(russh::Disconnect::ByApplication, "", "en").await.ok();
+        guard
+            .disconnect(russh::Disconnect::ByApplication, "", "en")
+            .await
+            .ok();
         Ok(())
     }
 }

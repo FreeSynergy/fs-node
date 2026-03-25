@@ -6,16 +6,18 @@
 
 use anyhow::{Context, Result};
 use fs_db::{repository::CrudRepo, InstalledPackageRepo};
-use fs_node_core::store::StoreEntry;
+use fs_node_core::store::{Catalog, NodeStoreClient, StoreEntry};
 use fs_pkg::versioning::{VersionManager, VersionRecord};
-use fs_store::StoreClient;
 
 // Schema version bundled with this binary — must match Lib's sync_snippets.py SCHEMA_VERSION.
 const BUNDLED_SCHEMA_VERSION: &str = "1.0.0";
 
-async fn fetch_node_catalog() -> Result<fs_store::Catalog<StoreEntry>> {
-    let mut client = StoreClient::node_store();
-    client.fetch_catalog("node", false).await.context("fetching module catalog")
+async fn fetch_node_catalog() -> Result<Catalog<StoreEntry>> {
+    let mut client = NodeStoreClient::node_store();
+    client
+        .fetch_catalog("node", false)
+        .await
+        .context("fetching module catalog")
 }
 
 // ── StoreCmd ────────────────────────────────────────────────────────────────
@@ -28,7 +30,9 @@ impl StoreCmd {
     pub async fn search(&self, query: &str) -> Result<()> {
         let catalog = fetch_node_catalog().await?;
         let q = query.to_lowercase();
-        let matches: Vec<&StoreEntry> = catalog.packages.iter()
+        let matches: Vec<&StoreEntry> = catalog
+            .packages
+            .iter()
             .filter(|e| {
                 q.is_empty()
                     || e.name.to_lowercase().contains(&q)
@@ -47,7 +51,7 @@ impl StoreCmd {
             return Ok(());
         }
 
-        println!("{:<24} {:<10} {}", "ID", "VERSION", "DESCRIPTION");
+        println!("{:<24} {:<10} DESCRIPTION", "ID", "VERSION");
         println!("{}", "─".repeat(72));
         for entry in &matches {
             let desc = if entry.description.len() > 40 {
@@ -75,10 +79,18 @@ impl StoreCmd {
                 println!("Version:     {}", e.version);
                 println!("Category:    {}", e.category);
                 println!("Description: {}", e.description);
-                if let Some(w) = &e.website    { println!("Website:     {w}"); }
-                if let Some(r) = &e.repository { println!("Repository:  {r}"); }
-                if let Some(l) = &e.license    { println!("License:     {l}"); }
-                if !e.tags.is_empty()           { println!("Tags:        {}", e.tags.join(", ")); }
+                if let Some(w) = &e.website {
+                    println!("Website:     {w}");
+                }
+                if let Some(r) = &e.repository {
+                    println!("Repository:  {r}");
+                }
+                if let Some(l) = &e.license {
+                    println!("License:     {l}");
+                }
+                if !e.tags.is_empty() {
+                    println!("Tags:        {}", e.tags.join(", "));
+                }
             }
         }
         Ok(())
@@ -104,7 +116,10 @@ impl StoreCmd {
     /// Check for module updates and report available newer versions.
     pub async fn update_check(&self) -> Result<()> {
         let catalog = fetch_node_catalog().await?;
-        println!("Fetched catalog: {} modules available.", catalog.packages.len());
+        println!(
+            "Fetched catalog: {} modules available.",
+            catalog.packages.len()
+        );
         println!("To update a deployed module, run `fsn update --service <name>`.");
         Ok(())
     }
@@ -114,7 +129,8 @@ impl StoreCmd {
         let cache_dir = {
             let xdg = std::env::var("XDG_CACHE_HOME").ok();
             let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
-            let base = xdg.map(std::path::PathBuf::from)
+            let base = xdg
+                .map(std::path::PathBuf::from)
                 .unwrap_or_else(|| std::path::PathBuf::from(&home).join(".cache"));
             base.join("fsn").join("store")
         };
@@ -122,8 +138,9 @@ impl StoreCmd {
         if cache_dir.exists() {
             let removed = std::fs::read_dir(&cache_dir)
                 .map(|entries| {
-                    entries.filter_map(|e| e.ok())
-                        .filter(|e| e.path().extension().map_or(false, |x| x == "toml"))
+                    entries
+                        .filter_map(|e| e.ok())
+                        .filter(|e| e.path().extension().is_some_and(|x| x == "toml"))
                         .filter_map(|e| std::fs::remove_file(e.path()).ok().map(|_| ()))
                         .count()
                 })
@@ -135,8 +152,11 @@ impl StoreCmd {
 
         println!("Fetching fresh catalog…");
         let catalog = fetch_node_catalog().await?;
-        println!("Synced — {} packages, {} language packs available.",
-            catalog.packages.len(), catalog.locales.len());
+        println!(
+            "Synced — {} packages, {} language packs available.",
+            catalog.packages.len(),
+            catalog.locales.len()
+        );
         Ok(())
     }
 }
@@ -153,10 +173,13 @@ impl I18nCmd {
             println!("No language packs listed in the store catalog.");
             return Ok(());
         }
-        println!("{:<6} {:<24} {:>5}  {}", "CODE", "LANGUAGE", "COMP%", "DIR");
+        println!("{:<6} {:<24} {:>5}  DIR", "CODE", "LANGUAGE", "COMP%");
         println!("{}", "─".repeat(46));
         for loc in &catalog.locales {
-            println!("{:<6} {:<24} {:>4}%  {}", loc.code, loc.name, loc.completeness, loc.direction);
+            println!(
+                "{:<6} {:<24} {:>4}%  {}",
+                loc.code, loc.name, loc.completeness, loc.direction
+            );
         }
         println!("\n{} language packs available.", catalog.locales.len());
         Ok(())
@@ -172,8 +195,10 @@ impl I18nCmd {
         }
 
         println!("Downloading language pack '{lang}'…");
-        let client = StoreClient::node_store();
-        let bundle = client.fetch_i18n("Node", lang).await
+        let client = NodeStoreClient::node_store();
+        let bundle = client
+            .fetch_i18n("Node", lang)
+            .await
             .with_context(|| format!("fetching i18n bundle for '{lang}'"))?;
 
         let cache_dir = Self::cache_dir();
@@ -192,21 +217,28 @@ impl I18nCmd {
         if let Some(conn) = crate::db::get_conn() {
             let repo = InstalledPackageRepo::new(conn.inner());
             let all = repo.list_all().await.unwrap_or_default();
-            for r in all.iter().filter(|r| r.package_id == format!("lang/{lang}") && r.active) {
+            for r in all
+                .iter()
+                .filter(|r| r.package_id == format!("lang/{lang}") && r.active)
+            {
                 let _ = repo.set_active(r.id, false).await;
             }
-            let _ = repo.insert(
-                format!("lang/{lang}"),
-                &bundle.meta.locale_code,
-                "stable",
-                "language",
-                None,
-                false,
-            ).await;
+            let _ = repo
+                .insert(
+                    format!("lang/{lang}"),
+                    &bundle.meta.locale_code,
+                    "stable",
+                    "language",
+                    None,
+                    false,
+                )
+                .await;
         }
 
-        println!("Language pack '{}' ({}) installed — {}% complete.",
-            lang, bundle.meta.native_name, bundle.meta.completeness);
+        println!(
+            "Language pack '{}' ({}) installed — {}% complete.",
+            lang, bundle.meta.native_name, bundle.meta.completeness
+        );
         println!("Restart fsn to apply.");
         Ok(())
     }
@@ -237,7 +269,9 @@ impl I18nCmd {
         let marker = std::path::PathBuf::from(home).join(".local/share/fsn/lang");
         if let Ok(lang) = std::fs::read_to_string(&marker) {
             let lang = lang.trim().to_string();
-            if !lang.is_empty() { return lang; }
+            if !lang.is_empty() {
+                return lang;
+            }
         }
         Self::detect_system_lang()
     }
@@ -247,8 +281,7 @@ impl I18nCmd {
             .or_else(|_| std::env::var("LANG"))
             .or_else(|_| std::env::var("LC_ALL"))
             .unwrap_or_default();
-        raw.split(['.', '_']).next().unwrap_or("en")
-            .to_lowercase()
+        raw.split(['.', '_']).next().unwrap_or("en").to_lowercase()
     }
 }
 
@@ -265,7 +298,10 @@ impl PackageCmd {
         };
 
         let repo = InstalledPackageRepo::new(conn.inner());
-        let mut rows = repo.list_all().await.context("reading installed packages")?;
+        let mut rows = repo
+            .list_all()
+            .await
+            .context("reading installed packages")?;
         if let Some(t) = type_filter {
             rows.retain(|r| r.package_type == t);
         }
@@ -276,10 +312,13 @@ impl PackageCmd {
             return Ok(());
         }
 
-        println!("{:<32} {:<12} {:<10} {}", "PACKAGE", "VERSION", "TYPE", "CHANNEL");
+        println!("{:<32} {:<12} {:<10} CHANNEL", "PACKAGE", "VERSION", "TYPE");
         println!("{}", "─".repeat(68));
         for r in &active {
-            println!("{:<32} {:<12} {:<10} {}", r.package_id, r.version, r.package_type, r.channel);
+            println!(
+                "{:<32} {:<12} {:<10} {}",
+                r.package_id, r.version, r.package_type, r.channel
+            );
         }
         println!("\n{} package(s) installed.", active.len());
         Ok(())
@@ -300,12 +339,17 @@ impl PackageCmd {
         };
 
         if !confirm {
-            println!("Remove '{id}' (v{})? This cannot be undone.", record.version);
+            println!(
+                "Remove '{id}' (v{})? This cannot be undone.",
+                record.version
+            );
             println!("Run with --confirm to proceed.");
             return Ok(());
         }
 
-        repo.delete_by_id(record.id).await.context("removing package record")?;
+        repo.delete_by_id(record.id)
+            .await
+            .context("removing package record")?;
         println!("Removed '{id}' from the package registry.");
         println!("Note: deployed services are not affected — run `fsn remove` to undeploy.");
         Ok(())
@@ -326,13 +370,17 @@ impl PackageCmd {
             return Ok(());
         }
 
-        let vm_records: Vec<VersionRecord> = pkg_records.iter().map(|r| VersionRecord {
-            package_id:   r.package_id.clone().into(),
-            version:      r.version.clone(),
-            channel:      fs_pkg::channel::ReleaseChannel::from_str_ci(&r.channel).unwrap_or_default(),
-            active:       r.active,
-            installed_at: r.installed_at,
-        }).collect();
+        let vm_records: Vec<VersionRecord> = pkg_records
+            .iter()
+            .map(|r| VersionRecord {
+                package_id: r.package_id.clone().into(),
+                version: r.version.clone(),
+                channel: fs_pkg::channel::ReleaseChannel::from_str_ci(&r.channel)
+                    .unwrap_or_default(),
+                active: r.active,
+                installed_at: r.installed_at,
+            })
+            .collect();
 
         let mut vm = VersionManager::from_records(vm_records);
 
@@ -349,7 +397,8 @@ impl PackageCmd {
             }
         };
 
-        vm.rollback(id, &target_version).map_err(|e| anyhow::anyhow!("{e}"))?;
+        vm.rollback(id, &target_version)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
 
         for record in pkg_records {
             let should_be_active = record.version == target_version;
@@ -373,8 +422,12 @@ pub struct AssetCmd {
 }
 
 impl AssetCmd {
-    pub fn theme() -> Self { Self { kind: "theme" } }
-    pub fn widget() -> Self { Self { kind: "widget" } }
+    pub fn theme() -> Self {
+        Self { kind: "theme" }
+    }
+    pub fn widget() -> Self {
+        Self { kind: "widget" }
+    }
 
     /// List available assets of this kind from the store catalog.
     pub async fn available(&self, query: &str) -> Result<()> {
@@ -382,7 +435,9 @@ impl AssetCmd {
         let q = query.to_lowercase();
         let kind = self.kind;
 
-        let matches: Vec<&StoreEntry> = catalog.packages.iter()
+        let matches: Vec<&StoreEntry> = catalog
+            .packages
+            .iter()
             .filter(|e| e.category.starts_with(&format!("{kind}.")))
             .filter(|e| {
                 q.is_empty()
@@ -394,11 +449,14 @@ impl AssetCmd {
             .collect();
 
         if matches.is_empty() {
-            println!("No {kind}s found{}.", if q.is_empty() { "" } else { " matching query" });
+            println!(
+                "No {kind}s found{}.",
+                if q.is_empty() { "" } else { " matching query" }
+            );
             return Ok(());
         }
 
-        println!("{:<28} {:<10} {}", "ID", "VERSION", "DESCRIPTION");
+        println!("{:<28} {:<10} DESCRIPTION", "ID", "VERSION");
         println!("{}", "─".repeat(64));
         for e in &matches {
             let desc = if e.description.len() > 28 {
@@ -420,8 +478,12 @@ impl AssetCmd {
         };
 
         let repo = InstalledPackageRepo::new(conn.inner());
-        let rows = repo.list_all().await.context("reading installed packages")?;
-        let installed: Vec<_> = rows.iter()
+        let rows = repo
+            .list_all()
+            .await
+            .context("reading installed packages")?;
+        let installed: Vec<_> = rows
+            .iter()
             .filter(|r| r.active && r.package_type == self.kind)
             .collect();
 
@@ -430,7 +492,7 @@ impl AssetCmd {
             return Ok(());
         }
 
-        println!("{:<32} {:<12} {}", "ID", "VERSION", "CHANNEL");
+        println!("{:<32} {:<12} CHANNEL", "ID", "VERSION");
         println!("{}", "─".repeat(58));
         for r in &installed {
             println!("{:<32} {:<12} {}", r.package_id, r.version, r.channel);
@@ -443,7 +505,9 @@ impl AssetCmd {
         let catalog = fetch_node_catalog().await?;
         let kind = self.kind;
 
-        let entry = catalog.packages.iter()
+        let entry = catalog
+            .packages
+            .iter()
             .find(|e| e.id == id && e.category.starts_with(&format!("{kind}.")));
         let Some(entry) = entry else {
             println!("{} not found in catalog: {id}", Self::capitalize(kind));
@@ -453,7 +517,11 @@ impl AssetCmd {
 
         let install_dir = self.install_dir(id);
         if dry_run {
-            println!("Dry-run: would install '{id}' (v{}) to {}", entry.version, install_dir.display());
+            println!(
+                "Dry-run: would install '{id}' (v{}) to {}",
+                entry.version,
+                install_dir.display()
+            );
             return Ok(());
         }
 
@@ -461,10 +529,14 @@ impl AssetCmd {
             .with_context(|| format!("creating {} directory {}", kind, install_dir.display()))?;
 
         let marker = install_dir.join("manifest.toml");
-        std::fs::write(&marker, format!(
-            "[package]\nid = \"{}\"\nname = \"{}\"\nversion = \"{}\"\ncategory = \"{}\"\n",
-            entry.id, entry.name, entry.version, entry.category,
-        )).with_context(|| format!("writing {}", marker.display()))?;
+        std::fs::write(
+            &marker,
+            format!(
+                "[package]\nid = \"{}\"\nname = \"{}\"\nversion = \"{}\"\ncategory = \"{}\"\n",
+                entry.id, entry.name, entry.version, entry.category,
+            ),
+        )
+        .with_context(|| format!("writing {}", marker.display()))?;
 
         if let Some(conn) = crate::db::get_conn() {
             let repo = InstalledPackageRepo::new(conn.inner());
@@ -473,7 +545,13 @@ impl AssetCmd {
                 .context("registering in database")?;
         }
 
-        println!("Installed {} '{}' (v{}) to {}", kind, entry.name, entry.version, install_dir.display());
+        println!(
+            "Installed {} '{}' (v{}) to {}",
+            kind,
+            entry.name,
+            entry.version,
+            install_dir.display()
+        );
         Ok(())
     }
 
@@ -492,8 +570,10 @@ impl AssetCmd {
         };
 
         if !confirm {
-            println!("Remove {} '{}' (v{})? Run with --confirm to proceed.",
-                self.kind, id, record.version);
+            println!(
+                "Remove {} '{}' (v{})? Run with --confirm to proceed.",
+                self.kind, id, record.version
+            );
             return Ok(());
         }
 
@@ -503,7 +583,9 @@ impl AssetCmd {
                 .with_context(|| format!("removing {} directory", install_dir.display()))?;
         }
 
-        repo.delete_by_id(record.id).await.context("removing from database")?;
+        repo.delete_by_id(record.id)
+            .await
+            .context("removing from database")?;
         println!("Removed {} '{id}'.", self.kind);
         Ok(())
     }

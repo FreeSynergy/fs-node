@@ -5,22 +5,21 @@
 // for a minimal service instance.
 
 use std::collections::HashMap;
-use std::path::Path;
 use std::time::Duration;
 
+use fs_deploy::deploy::{deploy_all, DeployOpts};
 use fs_node_core::{
     config::{
+        meta::ResourceMeta,
         project::{ProjectConfig, ProjectLoad, ProjectMeta, ServiceSlots},
         service::{
             Constraints, ContainerDef, ServiceClass, ServiceContract, ServiceLoad, ServiceMeta,
             ServiceSetup, ServiceType,
         },
         vault::VaultConfig,
-        meta::ResourceMeta,
     },
     state::desired::{DesiredState, ServiceInstance},
 };
-use fs_deploy::deploy::{deploy_all, DeployOpts};
 use indexmap::IndexMap;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -119,22 +118,22 @@ fn minimal_service_instance(name: &str) -> ServiceInstance {
 async fn dry_run_writes_quadlet_and_env_files() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let quadlet_dir = tmp.path().join("systemd");
-    let state_dir   = tmp.path().join("state");
+    let state_dir = tmp.path().join("state");
 
     let desired = DesiredState {
         project_name: "testproject".to_string(),
-        domain:       "example.com".to_string(),
-        services:     vec![minimal_service_instance("forgejo")],
+        domain: "example.com".to_string(),
+        services: vec![minimal_service_instance("forgejo")],
     };
-    let project  = minimal_project("testproject", "example.com");
-    let vault    = VaultConfig::default();
+    let project = minimal_project("testproject", "example.com");
+    let vault = VaultConfig::default();
     let opts = DeployOpts {
-        quadlet_dir:    quadlet_dir.clone(),
-        state_dir:      state_dir.clone(),
-        dry_run:        true,
+        quadlet_dir: quadlet_dir.clone(),
+        state_dir: state_dir.clone(),
+        dry_run: true,
         health_timeout: Duration::from_secs(1),
-        store_root:     None,
-        remote_host:    None,
+        store_root: None,
+        remote_host: None,
         inventory_path: None,
     };
 
@@ -143,14 +142,20 @@ async fn dry_run_writes_quadlet_and_env_files() {
         .expect("deploy_all dry_run");
 
     // Network file
-    assert!(quadlet_dir.join("fs-testproject.network").exists(),
-        ".network file must be written");
+    assert!(
+        quadlet_dir.join("fs-testproject.network").exists(),
+        ".network file must be written"
+    );
 
     // Container + env files
-    assert!(quadlet_dir.join("forgejo.container").exists(),
-        ".container file must be written");
-    assert!(quadlet_dir.join("forgejo.env").exists(),
-        ".env file must be written");
+    assert!(
+        quadlet_dir.join("forgejo.container").exists(),
+        ".container file must be written"
+    );
+    assert!(
+        quadlet_dir.join("forgejo.env").exists(),
+        ".env file must be written"
+    );
 }
 
 #[tokio::test]
@@ -160,16 +165,16 @@ async fn dry_run_container_file_contains_image() {
 
     let desired = DesiredState {
         project_name: "myproject".to_string(),
-        domain:       "myproject.example.com".to_string(),
-        services:     vec![minimal_service_instance("forgejo")],
+        domain: "myproject.example.com".to_string(),
+        services: vec![minimal_service_instance("forgejo")],
     };
     let opts = DeployOpts {
-        quadlet_dir:    quadlet_dir.clone(),
-        state_dir:      tmp.path().join("state"),
-        dry_run:        true,
+        quadlet_dir: quadlet_dir.clone(),
+        state_dir: tmp.path().join("state"),
+        dry_run: true,
         health_timeout: Duration::from_secs(1),
-        store_root:     None,
-        remote_host:    None,
+        store_root: None,
+        remote_host: None,
         inventory_path: None,
     };
 
@@ -197,16 +202,16 @@ async fn dry_run_env_file_contains_resolved_vars() {
 
     let desired = DesiredState {
         project_name: "envtest".to_string(),
-        domain:       "envtest.example.com".to_string(),
-        services:     vec![minimal_service_instance("forgejo")],
+        domain: "envtest.example.com".to_string(),
+        services: vec![minimal_service_instance("forgejo")],
     };
     let opts = DeployOpts {
-        quadlet_dir:    quadlet_dir.clone(),
-        state_dir:      tmp.path().join("state"),
-        dry_run:        true,
+        quadlet_dir: quadlet_dir.clone(),
+        state_dir: tmp.path().join("state"),
+        dry_run: true,
         health_timeout: Duration::from_secs(1),
-        store_root:     None,
-        remote_host:    None,
+        store_root: None,
+        remote_host: None,
         inventory_path: None,
     };
 
@@ -236,16 +241,16 @@ async fn dry_run_sub_services_written_before_parent() {
 
     let desired = DesiredState {
         project_name: "subtest".to_string(),
-        domain:       "subtest.example.com".to_string(),
-        services:     vec![parent],
+        domain: "subtest.example.com".to_string(),
+        services: vec![parent],
     };
     let opts = DeployOpts {
-        quadlet_dir:    quadlet_dir.clone(),
-        state_dir:      tmp.path().join("state"),
-        dry_run:        true,
+        quadlet_dir: quadlet_dir.clone(),
+        state_dir: tmp.path().join("state"),
+        dry_run: true,
         health_timeout: Duration::from_secs(1),
-        store_root:     None,
-        remote_host:    None,
+        store_root: None,
+        remote_host: None,
         inventory_path: None,
     };
 

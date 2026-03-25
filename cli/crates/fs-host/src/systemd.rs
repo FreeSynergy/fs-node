@@ -14,11 +14,17 @@ pub struct RemoteSystemd<'a> {
 
 impl<'a> RemoteSystemd<'a> {
     pub fn new(session: &'a SshSession) -> Self {
-        Self { session, user: true }
+        Self {
+            session,
+            user: true,
+        }
     }
 
     pub fn system(session: &'a SshSession) -> Self {
-        Self { session, user: false }
+        Self {
+            session,
+            user: false,
+        }
     }
 
     /// `systemctl [--user] daemon-reload`
@@ -59,14 +65,21 @@ impl<'a> RemoteSystemd<'a> {
 
     /// `systemctl [--user] is-active <unit>` — returns true if active.
     pub async fn is_active(&self, unit: &str) -> Result<bool> {
-        let out = self.session.exec(&self.cmd(&format!("is-active {unit}"))).await?;
+        let out = self
+            .session
+            .exec(&self.cmd(&format!("is-active {unit}")))
+            .await?;
         Ok(out.exit_code == 0)
     }
 
     // ── Internal ─────────────────────────────────────────────────────────────
 
     fn scope_flag(&self) -> &'static str {
-        if self.user { "--user" } else { "" }
+        if self.user {
+            "--user"
+        } else {
+            ""
+        }
     }
 
     fn cmd(&self, sub: &str) -> String {

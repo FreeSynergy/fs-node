@@ -24,8 +24,8 @@ use tracing::{info, warn};
 
 use fs_node_core::config::service::{LifecycleHook, PeerHook};
 
-use super::HookContext;
 use super::common::podman_exec;
+use super::HookContext;
 
 // ── LifecycleHookExt ──────────────────────────────────────────────────────────
 
@@ -43,7 +43,10 @@ impl LifecycleHookExt for LifecycleHook {
         match self {
             LifecycleHook::Run { command } => run_shell(ctx, Some(command)).await,
             LifecycleHook::BusEmit { event, .. } => {
-                info!("[lifecycle:bus_emit] {} → event={}", ctx.instance.name, event);
+                info!(
+                    "[lifecycle:bus_emit] {} → event={}",
+                    ctx.instance.name, event
+                );
                 // Bus integration placeholder — bus_emit will be wired in Teil 6
                 // when fs-bus is available as a dependency.
                 Ok(())
@@ -63,7 +66,9 @@ pub struct LifecycleRunner<'a> {
 }
 
 impl<'a> LifecycleRunner<'a> {
-    pub fn new(ctx: &'a HookContext<'a>) -> Self { Self { ctx } }
+    pub fn new(ctx: &'a HookContext<'a>) -> Self {
+        Self { ctx }
+    }
 
     pub async fn on_install(&self) -> Result<()> {
         let hooks = self.ctx.instance.class.lifecycle.on_install.clone();
@@ -106,11 +111,21 @@ impl<'a> LifecycleRunner<'a> {
     }
 
     async fn run_phase(&self, phase: &str, hooks: &[LifecycleHook]) -> Result<()> {
-        if hooks.is_empty() { return Ok(()); }
-        info!("[lifecycle] {} {}: {} hook(s)", self.ctx.instance.name, phase, hooks.len());
+        if hooks.is_empty() {
+            return Ok(());
+        }
+        info!(
+            "[lifecycle] {} {}: {} hook(s)",
+            self.ctx.instance.name,
+            phase,
+            hooks.len()
+        );
         for hook in hooks {
             if let Err(e) = hook.execute(self.ctx).await {
-                warn!("[lifecycle] {} {} hook failed (continuing): {:#}", self.ctx.instance.name, phase, e);
+                warn!(
+                    "[lifecycle] {} {} hook failed (continuing): {:#}",
+                    self.ctx.instance.name, phase, e
+                );
             }
         }
         Ok(())
@@ -122,6 +137,7 @@ impl<'a> LifecycleRunner<'a> {
 // Free functions so `LifecycleHookExt::execute` can call them without
 // going through `LifecycleRunner` (which would create a circular reference).
 
+#[allow(clippy::cognitive_complexity)]
 async fn run_shell(ctx: &HookContext<'_>, command: Option<&str>) -> Result<()> {
     let cmd = match command {
         Some(c) if !c.trim().is_empty() => c,
@@ -139,23 +155,25 @@ async fn run_shell(ctx: &HookContext<'_>, command: Option<&str>) -> Result<()> {
         let mut all = vec![*bin];
         all.extend_from_slice(args);
         all
-    }).await?;
+    })
+    .await?;
 
     if !out.is_empty() {
-        info!("[lifecycle:run] {} output: {}", ctx.instance.name, out.trim());
+        info!(
+            "[lifecycle:run] {} output: {}",
+            ctx.instance.name,
+            out.trim()
+        );
     }
     Ok(())
 }
 
 async fn run_backup(ctx: &HookContext<'_>, target: Option<&str>) -> Result<()> {
     let src = ctx.instance_data_dir();
-    let ts  = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    let ts = chrono::Local::now().format("%Y%m%d-%H%M%S");
     let dst = target
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| src.with_file_name(format!(
-            "{}-backup-{}",
-            ctx.instance.name, ts
-        )));
+        .unwrap_or_else(|| src.with_file_name(format!("{}-backup-{}", ctx.instance.name, ts)));
 
     info!("[lifecycle:backup] {} → {}", src.display(), dst.display());
 
@@ -170,16 +188,22 @@ async fn run_backup(ctx: &HookContext<'_>, target: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-async fn run_export(ctx: &HookContext<'_>, target: Option<&str>, format: Option<&str>) -> Result<()> {
+async fn run_export(
+    ctx: &HookContext<'_>,
+    target: Option<&str>,
+    format: Option<&str>,
+) -> Result<()> {
     let fmt = format.unwrap_or("json");
-    let out_path = target
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from(format!(
-            "/tmp/fs-export-{}.{}",
-            ctx.instance.name, fmt
-        )));
+    let out_path = target.map(std::path::PathBuf::from).unwrap_or_else(|| {
+        std::path::PathBuf::from(format!("/tmp/fs-export-{}.{}", ctx.instance.name, fmt))
+    });
 
-    info!("[lifecycle:export] {} format={} → {}", ctx.instance.name, fmt, out_path.display());
+    info!(
+        "[lifecycle:export] {} format={} → {}",
+        ctx.instance.name,
+        fmt,
+        out_path.display()
+    );
     // Actual export implementation is service-specific and provided via
     // the `command` field in the hook (run_shell handles the exec).
     // This stub logs intent and returns OK for Bus-signalling purposes.

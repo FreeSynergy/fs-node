@@ -20,7 +20,7 @@ pub struct InstanceName(String);
 
 impl InstanceName {
     /// Create from user-supplied string, validating format.
-    pub fn from_str(s: &str) -> Result<Self> {
+    pub fn parse(s: &str) -> Result<Self> {
         let s = s.trim().to_lowercase();
         validate_name(&s)?;
         Ok(Self(s))
@@ -102,25 +102,25 @@ mod tests {
 
     #[test]
     fn valid_name() {
-        assert!(InstanceName::from_str("kanidm").is_ok());
-        assert!(InstanceName::from_str("my-app-42").is_ok());
+        assert!(InstanceName::parse("kanidm").is_ok());
+        assert!(InstanceName::parse("my-app-42").is_ok());
     }
 
     #[test]
     fn rejects_uppercase() {
         // from_str lowercases, so it should pass
-        assert!(InstanceName::from_str("Kanidm").is_ok());
+        assert!(InstanceName::parse("Kanidm").is_ok());
     }
 
     #[test]
     fn rejects_leading_hyphen() {
-        assert!(InstanceName::from_str("-bad").is_err());
+        assert!(InstanceName::parse("-bad").is_err());
     }
 
     #[test]
     fn rejects_too_long() {
         let long = "a".repeat(49);
-        assert!(InstanceName::from_str(&long).is_err());
+        assert!(InstanceName::parse(&long).is_err());
     }
 
     #[test]
@@ -139,13 +139,13 @@ services:
 
     #[test]
     fn service_name_no_double_prefix() {
-        let n = InstanceName::from_str("kanidm").unwrap();
+        let n = InstanceName::parse("kanidm").unwrap();
         assert_eq!(n.service_name("kanidm"), "kanidm");
     }
 
     #[test]
     fn service_name_prefixed() {
-        let n = InstanceName::from_str("kanidm").unwrap();
+        let n = InstanceName::parse("kanidm").unwrap();
         assert_eq!(n.service_name("db"), "kanidm-db");
     }
 }

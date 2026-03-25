@@ -59,7 +59,11 @@ impl Wizard {
             .map(|svc| {
                 let hint = detect::detect(&svc);
                 let module = generate::generate(&svc, &hint);
-                WizardResult { service: svc, hint, module }
+                WizardResult {
+                    service: svc,
+                    hint,
+                    module,
+                }
             })
             .collect();
 

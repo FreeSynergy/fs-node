@@ -1,47 +1,97 @@
-// Store catalog data model — FSN-specific types that consume fs-store.
+// Store catalog data model — FSN-specific types for the package catalog.
 //
 // Architecture:
-//   fs-store  — generic Manifest trait, CatalogMeta, LocaleEntry, StoreClient
-//   fs-core   — StoreEntry (FSN package entry, implements Manifest), StoreCatalog
-//   fs-deploy — StoreClient wraps fs_store::StoreClient for FSN
+//   fs-node-core — Manifest trait, CatalogMeta, LocaleEntry, StoreEntry,
+//                  StoreCatalog, NodeStoreClient (HTTP catalog/i18n fetch)
+//   fs-deploy    — StoreClient (FSN multi-store aggregator, git sync)
 //
-// StoreCatalog is FSN's version of the catalog — it re-uses CatalogMeta and
-// LocaleEntry from fs-store but keeps FSN-specific fields on StoreEntry.
+// StoreCatalog is FSN's catalog format. StoreEntry is FSN's package entry.
 // The `alias = "modules"` on packages is FSN legacy backward-compat.
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::service::types::{ServiceType, de_service_types};
+use crate::config::service::types::{de_service_types, ServiceType};
 
-// Re-export shared types so callers import from one place.
-pub use fs_store::{CatalogMeta, LocaleEntry};
+// ── Manifest ──────────────────────────────────────────────────────────────────
+
+/// Minimal trait for store catalog entries — allows generic catalog filtering.
+pub trait Manifest {
+    fn id(&self) -> &str;
+    fn version(&self) -> &str;
+    fn category(&self) -> &str;
+    fn name(&self) -> &str;
+}
+
+// ── CatalogMeta ───────────────────────────────────────────────────────────────
+
+/// Auto-generated header block in `catalog.toml` — informational only.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CatalogMeta {
+    #[serde(default)]
+    pub project: String,
+    #[serde(default)]
+    pub generated_at: String,
+    #[serde(default)]
+    pub version: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+// ── LocaleEntry ───────────────────────────────────────────────────────────────
+
+/// One locale pack listed in the store catalog.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LocaleEntry {
+    #[serde(default)]
+    pub code: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub completeness: u8,
+    #[serde(default)]
+    pub direction: String,
+}
+
+// ── Catalog<T> ────────────────────────────────────────────────────────────────
+
+/// Generic catalog returned by [`NodeStoreClient::fetch_catalog`].
+///
+/// `packages` contains entries deserialized as `T`.
+/// `locales` lists all available locale packs.
+/// `catalog` holds auto-generated metadata (informational only).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Catalog<T> {
+    #[serde(default)]
+    pub catalog: CatalogMeta,
+    #[serde(default = "Vec::new", alias = "modules")]
+    pub packages: Vec<T>,
+    #[serde(default = "Vec::new")]
+    pub locales: Vec<LocaleEntry>,
+}
+
+impl<T> Default for Catalog<T> {
+    fn default() -> Self {
+        Self {
+            catalog: CatalogMeta::default(),
+            packages: Vec::new(),
+            locales: Vec::new(),
+        }
+    }
+}
 
 // ── StoreCatalog ───────────────────────────────────────────────────────────────
 
-/// FSN's top-level store catalog.
+/// FSN's top-level store catalog (concrete alias for `Catalog<StoreEntry>`).
+///
 /// Deserializes `catalog.toml` fetched from `{store_url}/node/catalog.toml`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct StoreCatalog {
-    /// Catalog metadata — auto-generated header, informational only.
-    #[serde(default)]
-    pub catalog: CatalogMeta,
-
-    /// All deployment packages listed in this catalog.
-    /// Accepts both `[[packages]]` (catalog format) and `[[modules]]` (legacy).
-    #[serde(default, alias = "modules")]
-    pub packages: Vec<StoreEntry>,
-
-    /// All available locale packs listed in this catalog.
-    #[serde(default)]
-    pub locales: Vec<LocaleEntry>,
-}
+pub type StoreCatalog = Catalog<StoreEntry>;
 
 // ── StoreEntry ────────────────────────────────────────────────────────────────
 
 /// One package entry in the FSN catalog.
 /// Describes a deployable service module (zentinel, kanidm, forgejo, …).
 ///
-/// Implements `fs_store::Manifest` so generic catalog infrastructure can
+/// Implements [`Manifest`] so generic catalog infrastructure can
 /// filter and look up entries without knowing FSN-specific fields.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoreEntry {
@@ -122,11 +172,19 @@ fn default_custom_types() -> Vec<ServiceType> {
 
 // ── Manifest impl ─────────────────────────────────────────────────────────────
 
-impl fs_store::Manifest for StoreEntry {
-    fn id(&self)       -> &str { &self.id }
-    fn version(&self)  -> &str { &self.version }
-    fn category(&self) -> &str { &self.category }
-    fn name(&self)     -> &str { &self.name }
+impl Manifest for StoreEntry {
+    fn id(&self) -> &str {
+        &self.id
+    }
+    fn version(&self) -> &str {
+        &self.version
+    }
+    fn category(&self) -> &str {
+        &self.category
+    }
+    fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 // ── StoreEntry methods ────────────────────────────────────────────────────────
@@ -138,11 +196,12 @@ impl StoreEntry {
         let type_label = if !self.category.is_empty() {
             self.category
                 .split('.')
-                .last()
+                .next_back()
                 .unwrap_or(&self.category)
                 .to_uppercase()
         } else {
-            self.service_types.iter()
+            self.service_types
+                .iter()
                 .map(|t| t.label())
                 .collect::<Vec<_>>()
                 .join("/")
@@ -168,9 +227,102 @@ impl StoreEntry {
     /// Falls back to primary_type_str for backward compat.
     pub fn category_type(&self) -> &str {
         if !self.category.is_empty() {
-            self.category.split('.').last().unwrap_or(&self.category)
+            self.category
+                .split('.')
+                .next_back()
+                .unwrap_or(&self.category)
         } else {
             &self.category
         }
+    }
+}
+
+// ── NodeStoreClient ───────────────────────────────────────────────────────────
+
+/// I18n bundle fetched from the store (UI strings + metadata).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct I18nBundleMeta {
+    #[serde(default)]
+    pub locale_code: String,
+    #[serde(default)]
+    pub native_name: String,
+    #[serde(default)]
+    pub completeness: u8,
+}
+
+/// Full i18n bundle returned by [`NodeStoreClient::fetch_i18n`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct I18nBundle {
+    pub meta: I18nBundleMeta,
+    pub ui: toml::Table,
+}
+
+/// HTTP client for the FreeSynergy Store.
+///
+/// Fetches catalog and i18n bundles from a raw-file store URL.
+/// Use [`NodeStoreClient::node_store`] for the FSN production store.
+pub struct NodeStoreClient {
+    base_url: String,
+    client: reqwest::Client,
+}
+
+impl NodeStoreClient {
+    /// Create a client targeting `base_url` (no trailing slash).
+    pub fn new(base_url: impl Into<String>) -> Self {
+        Self {
+            base_url: base_url.into(),
+            client: reqwest::Client::new(),
+        }
+    }
+
+    /// Pre-configured client for the FSN production store.
+    pub fn node_store() -> Self {
+        Self::new("https://raw.githubusercontent.com/FreeSynergy/fs-store/main")
+    }
+
+    /// Fetch `{base_url}/{section}/catalog.toml` and deserialize as `Catalog<T>`.
+    ///
+    /// `force_refresh` is accepted for API compatibility but has no effect
+    /// (caching is handled by the caller via `fs-deploy`'s `StoreClient`).
+    pub async fn fetch_catalog<T>(
+        &mut self,
+        section: &str,
+        _force_refresh: bool,
+    ) -> anyhow::Result<Catalog<T>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let url = format!("{}/{}/catalog.toml", self.base_url, section);
+        let text = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("fetch catalog from {url}: {e}"))?
+            .error_for_status()
+            .map_err(|e| anyhow::anyhow!("catalog HTTP error: {e}"))?
+            .text()
+            .await
+            .map_err(|e| anyhow::anyhow!("read catalog body: {e}"))?;
+
+        toml::from_str(&text).map_err(|e| anyhow::anyhow!("parse catalog TOML: {e}"))
+    }
+
+    /// Fetch `{base_url}/{section}/{lang}.toml` and return an [`I18nBundle`].
+    pub async fn fetch_i18n(&self, section: &str, lang: &str) -> anyhow::Result<I18nBundle> {
+        let url = format!("{}/{}/{lang}.toml", self.base_url, section);
+        let text = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("fetch i18n from {url}: {e}"))?
+            .error_for_status()
+            .map_err(|e| anyhow::anyhow!("i18n HTTP error: {e}"))?
+            .text()
+            .await
+            .map_err(|e| anyhow::anyhow!("read i18n body: {e}"))?;
+
+        toml::from_str(&text).map_err(|e| anyhow::anyhow!("parse i18n TOML: {e}"))
     }
 }

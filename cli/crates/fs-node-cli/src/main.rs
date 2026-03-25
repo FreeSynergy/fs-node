@@ -55,7 +55,9 @@ async fn main() -> Result<()> {
 /// Load the cached ui.toml for `lang` from `~/.local/share/fsn/i18n/{lang}.toml`.
 /// Returns None if not found.
 fn load_cached_lang(lang: &str) -> Option<String> {
-    if lang == "en" { return None; }
+    if lang == "en" {
+        return None;
+    }
     let path = commands::store::I18nCmd::cache_dir().join(format!("{lang}.toml"));
     std::fs::read_to_string(path).ok()
 }

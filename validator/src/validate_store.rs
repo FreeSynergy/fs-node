@@ -23,17 +23,17 @@ struct CatalogFile {
 
 #[derive(Debug, Deserialize)]
 struct PackageEntry {
-    id:          Option<String>,
-    name:        Option<String>,
-    version:     Option<String>,
+    id: Option<String>,
+    name: Option<String>,
+    version: Option<String>,
     description: Option<String>,
     #[serde(default)]
-    tags:        Vec<String>,
-    icon:        Option<String>,
-    path:        Option<String>,
+    tags: Vec<String>,
+    icon: Option<String>,
+    path: Option<String>,
     #[serde(rename = "type")]
-    pkg_type:    Option<String>,
-    repo:        Option<String>,
+    pkg_type: Option<String>,
+    repo: Option<String>,
     distribution: Option<toml::Value>,
 }
 
@@ -41,13 +41,22 @@ struct PackageEntry {
 
 struct Issues {
     warnings: Vec<String>,
-    errors:   Vec<String>,
+    errors: Vec<String>,
 }
 
 impl Issues {
-    fn new() -> Self { Self { warnings: Vec::new(), errors: Vec::new() } }
-    fn warn(&mut self, msg: impl Into<String>) { self.warnings.push(msg.into()); }
-    fn error(&mut self, msg: impl Into<String>) { self.errors.push(msg.into()); }
+    fn new() -> Self {
+        Self {
+            warnings: Vec::new(),
+            errors: Vec::new(),
+        }
+    }
+    fn warn(&mut self, msg: impl Into<String>) {
+        self.warnings.push(msg.into());
+    }
+    fn error(&mut self, msg: impl Into<String>) {
+        self.errors.push(msg.into());
+    }
 }
 
 // ── PackageKind ───────────────────────────────────────────────────────────────
@@ -65,9 +74,9 @@ enum PackageKind {
 impl PackageKind {
     fn from_str(s: &str) -> Self {
         match s {
-            "app"            => Self::App,
+            "app" => Self::App,
             "container" | "" => Self::Container,
-            _                => Self::Unknown,
+            _ => Self::Unknown,
         }
     }
 
@@ -84,14 +93,17 @@ impl PackageKind {
             Self::Container => {
                 if let Some(path) = &entry.path {
                     let manifest_path = store_dir.join(path).join("manifest.toml");
-                    let legacy_toml   = store_dir.join(path);
+                    let legacy_toml = store_dir.join(path);
                     // Accept manifest.toml in subdir OR the path itself as a .toml
                     if !manifest_path.exists() && !legacy_toml.with_extension("toml").exists() {
                         // Try legacy: {category}/{name}.toml
                         let category = path.split('/').next_back().unwrap_or("");
                         let legacy = store_dir.join(path).join(format!("{category}.toml"));
                         if !legacy.exists() {
-                            issues.warn(format!("no manifest.toml found at {}", manifest_path.display()));
+                            issues.warn(format!(
+                                "no manifest.toml found at {}",
+                                manifest_path.display()
+                            ));
                         }
                     }
                 } else {
@@ -105,11 +117,21 @@ impl PackageKind {
 
 fn validate_entry(entry: &PackageEntry, store_dir: &Path, issues: &mut Issues) {
     // Required fields
-    if entry.id.as_deref().unwrap_or("").is_empty()          { issues.error("missing id"); }
-    if entry.name.as_deref().unwrap_or("").is_empty()        { issues.error("missing name"); }
-    if entry.version.as_deref().unwrap_or("").is_empty()     { issues.error("missing version"); }
-    if entry.description.as_deref().unwrap_or("").is_empty() { issues.warn("missing description"); }
-    if entry.tags.is_empty()                                  { issues.warn("no tags — package will be hard to find"); }
+    if entry.id.as_deref().unwrap_or("").is_empty() {
+        issues.error("missing id");
+    }
+    if entry.name.as_deref().unwrap_or("").is_empty() {
+        issues.error("missing name");
+    }
+    if entry.version.as_deref().unwrap_or("").is_empty() {
+        issues.error("missing version");
+    }
+    if entry.description.as_deref().unwrap_or("").is_empty() {
+        issues.warn("missing description");
+    }
+    if entry.tags.is_empty() {
+        issues.warn("no tags — package will be hard to find");
+    }
 
     // Icon
     match &entry.icon {
@@ -143,8 +165,8 @@ pub fn run(store_dir: &Path, namespace: &str) -> Result<()> {
 
     let raw = std::fs::read_to_string(&catalog_path)
         .with_context(|| format!("read {}", catalog_path.display()))?;
-    let catalog: CatalogFile = toml::from_str(&raw)
-        .with_context(|| format!("parse {}", catalog_path.display()))?;
+    let catalog: CatalogFile =
+        toml::from_str(&raw).with_context(|| format!("parse {}", catalog_path.display()))?;
 
     let total = catalog.packages.len();
     if total == 0 {
@@ -168,12 +190,18 @@ pub fn run(store_dir: &Path, namespace: &str) -> Result<()> {
             ok += 1;
         } else if issues.errors.is_empty() {
             println!("⚠️  {id}");
-            for w in &issues.warnings { println!("     ⚠  {w}"); }
+            for w in &issues.warnings {
+                println!("     ⚠  {w}");
+            }
             warn += 1;
         } else {
             println!("❌ {id}");
-            for e in &issues.errors   { println!("     ✗  {e}"); }
-            for w in &issues.warnings { println!("     ⚠  {w}"); }
+            for e in &issues.errors {
+                println!("     ✗  {e}");
+            }
+            for w in &issues.warnings {
+                println!("     ⚠  {w}");
+            }
             broken += 1;
         }
     }

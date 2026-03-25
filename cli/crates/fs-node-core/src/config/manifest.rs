@@ -5,16 +5,6 @@
 
 /// Re-export all plugin protocol types from `fs-plugin-sdk`.
 pub use fs_plugin_sdk::{
-    ModuleManifest,
-    ManifestInputs,
-    ManifestOutputFile,
-    PluginContext,
-    InstanceInfo,
-    PeerService,
-    PeerRoute,
-    PluginResponse,
-    OutputFile,
-    ShellCommand,
-    LogLine,
-    LogLevel,
+    InstanceInfo, LogLevel, LogLine, ManifestInputs, ManifestOutputFile, ModuleManifest,
+    OutputFile, PeerRoute, PeerService, PluginContext, PluginResponse, ShellCommand,
 };

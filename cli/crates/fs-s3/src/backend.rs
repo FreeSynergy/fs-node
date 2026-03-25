@@ -35,8 +35,8 @@ pub trait SyncBackend: Send + Sync {
 
 #[derive(Debug, Default)]
 pub struct SyncStats {
-    pub files_uploaded:    u64,
-    pub files_downloaded:  u64,
+    pub files_uploaded: u64,
+    pub files_downloaded: u64,
     pub bytes_transferred: u64,
 }
 
@@ -47,8 +47,8 @@ pub struct SyncStats {
 pub fn build(config: &StorageConfig) -> Option<Box<dyn SyncBackend>> {
     let sync = config.sync.as_ref()?;
     match sync.backend {
-        SyncBackendKind::None    => None,
-        SyncBackendKind::Sftp    => build_sftp(config),
+        SyncBackendKind::None => None,
+        SyncBackendKind::Sftp => build_sftp(config),
         SyncBackendKind::Hetzner => build_hetzner(config),
     }
 }
@@ -61,8 +61,7 @@ pub struct LocalBackend {
 
 impl LocalBackend {
     pub fn new(root: &Path) -> Result<Self> {
-        let builder = opendal::services::Fs::default()
-            .root(&root.to_string_lossy());
+        let builder = opendal::services::Fs::default().root(&root.to_string_lossy());
         let op = Operator::new(builder)?.finish();
         Ok(Self { op })
     }
@@ -170,7 +169,8 @@ impl SyncBackend for OdalBackend {
 
 async fn sync_dir_up(op: &Operator, local_path: &Path, remote_prefix: &str) -> Result<SyncStats> {
     let mut stats = SyncStats::default();
-    let mut entries = tokio::fs::read_dir(local_path).await
+    let mut entries = tokio::fs::read_dir(local_path)
+        .await
         .with_context(|| format!("read_dir {}", local_path.display()))?;
 
     while let Some(entry) = entries.next_entry().await? {
@@ -183,7 +183,8 @@ async fn sync_dir_up(op: &Operator, local_path: &Path, remote_prefix: &str) -> R
                 entry.file_name().to_string_lossy()
             );
             let len = data.len() as u64;
-            op.write(&remote_key, data).await
+            op.write(&remote_key, data)
+                .await
                 .with_context(|| format!("upload {remote_key}"))?;
             stats.files_uploaded += 1;
             stats.bytes_transferred += len;
@@ -194,7 +195,7 @@ async fn sync_dir_up(op: &Operator, local_path: &Path, remote_prefix: &str) -> R
                 entry.file_name().to_string_lossy()
             );
             let sub_stats = Box::pin(sync_dir_up(op, &entry.path(), &sub_prefix)).await?;
-            stats.files_uploaded    += sub_stats.files_uploaded;
+            stats.files_uploaded += sub_stats.files_uploaded;
             stats.bytes_transferred += sub_stats.bytes_transferred;
         }
     }
@@ -204,20 +205,25 @@ async fn sync_dir_up(op: &Operator, local_path: &Path, remote_prefix: &str) -> R
 async fn sync_dir_down(op: &Operator, remote_prefix: &str, local_path: &Path) -> Result<SyncStats> {
     let mut stats = SyncStats::default();
     let prefix = format!("{}/", remote_prefix.trim_end_matches('/'));
-    let entries = op.list(&prefix).await
+    let entries = op
+        .list(&prefix)
+        .await
         .with_context(|| format!("list {prefix}"))?;
 
     tokio::fs::create_dir_all(local_path).await?;
 
     for entry in entries {
         if entry.metadata().is_file() {
-            let data = op.read(entry.path()).await
+            let data = op
+                .read(entry.path())
+                .await
                 .with_context(|| format!("download {}", entry.path()))?
                 .to_bytes();
             let file_name = entry.name();
             let dest = local_path.join(file_name);
             let len = data.len() as u64;
-            tokio::fs::write(&dest, &data).await
+            tokio::fs::write(&dest, &data)
+                .await
                 .with_context(|| format!("write {}", dest.display()))?;
             stats.files_downloaded += 1;
             stats.bytes_transferred += len;

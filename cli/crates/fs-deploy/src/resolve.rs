@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use anyhow::{bail, Context, Result};
 
 use fs_node_core::{
-    config::{HostConfig, ServiceRegistry, ProjectConfig, VaultConfig},
+    config::{HostConfig, ProjectConfig, ServiceRegistry, VaultConfig},
     state::desired::{DesiredState, ServiceInstance},
 };
 
@@ -24,20 +24,25 @@ use crate::template::{CrossVars, ModuleVars, PluginVars, TemplateContext};
 // ── StateResolver ─────────────────────────────────────────────────────────────
 
 pub struct StateResolver<'a> {
-    project:  &'a ProjectConfig,
-    host:     &'a HostConfig,
+    project: &'a ProjectConfig,
+    host: &'a HostConfig,
     registry: &'a ServiceRegistry,
-    vault:    &'a VaultConfig,
+    vault: &'a VaultConfig,
 }
 
 impl<'a> StateResolver<'a> {
     pub fn new(
-        project:  &'a ProjectConfig,
-        host:     &'a HostConfig,
+        project: &'a ProjectConfig,
+        host: &'a HostConfig,
         registry: &'a ServiceRegistry,
-        vault:    &'a VaultConfig,
+        vault: &'a VaultConfig,
     ) -> Self {
-        Self { project, host, registry, vault }
+        Self {
+            project,
+            host,
+            registry,
+            vault,
+        }
     }
 
     /// Build the desired state from the three config layers.
@@ -55,7 +60,8 @@ impl<'a> StateResolver<'a> {
         let project_root_buf;
         let project_root: &str = match data_root {
             Some(dr) => {
-                project_root_buf = dr.parent()
+                project_root_buf = dr
+                    .parent()
                     .map(|p| p.to_string_lossy().into_owned())
                     .unwrap_or_default();
                 &project_root_buf
@@ -68,7 +74,9 @@ impl<'a> StateResolver<'a> {
 
         for (instance_name, module_ref) in &self.project.load.services {
             // Uniqueness check (per RULES.md: duplicate instance name = abort)
-            if let Some(existing) = seen_names.insert(instance_name.clone(), module_ref.service_class.clone()) {
+            if let Some(existing) =
+                seen_names.insert(instance_name.clone(), module_ref.service_class.clone())
+            {
                 bail!(
                     "Duplicate service name '{}' in project '{}' (already defined as {})",
                     instance_name,
@@ -77,15 +85,16 @@ impl<'a> StateResolver<'a> {
                 );
             }
 
-            let instance = self.resolve_instance(
-                instance_name,
-                &module_ref.service_class,
-                &module_ref.env,
-                None, // no parent
-                &cross_vars,
-                project_root,
-            )
-            .with_context(|| format!("Resolving module '{}'", instance_name))?;
+            let instance = self
+                .resolve_instance(
+                    instance_name,
+                    &module_ref.service_class,
+                    &module_ref.env,
+                    None, // no parent
+                    &cross_vars,
+                    project_root,
+                )
+                .with_context(|| format!("Resolving module '{}'", instance_name))?;
 
             instances.push(instance);
         }
@@ -107,7 +116,8 @@ impl<'a> StateResolver<'a> {
         cross_vars: &HashMap<String, String>,
         project_root: &str,
     ) -> Result<ServiceInstance> {
-        let class = self.registry
+        let class = self
+            .registry
             .get(class_key)
             .with_context(|| format!("Module class '{}' not found in registry", class_key))?
             .clone();
@@ -122,7 +132,13 @@ impl<'a> StateResolver<'a> {
 
         // Pre-compute [vars] block: render each var template with just the basic vars
         // (no module_vars self-reference). This gives us e.g. config_dir = "/projects/fs-net/data/zentinel".
-        let module_vars = Self::precompute_module_vars(&class.vars, project_root, name, &self.project.project.meta.name, &self.project.project.domain);
+        let module_vars = Self::precompute_module_vars(
+            &class.vars,
+            project_root,
+            name,
+            &self.project.project.meta.name,
+            &self.project.project.domain,
+        );
 
         // Collect plugin vars for proxy modules (dns_provider, acme_email, acme_ca_url, …).
         // For all other module types this is an empty map.
@@ -156,40 +172,55 @@ impl<'a> StateResolver<'a> {
         };
 
         // Expand environment variables (module defaults + instance overrides)
-        let mut resolved_env = self.resolve_env(&class.environment, &ctx)?;
+        let mut resolved_env = Self::resolve_env(&class.environment, &ctx)?;
         // Instance-level env overrides take precedence over module defaults
         for (k, v) in instance_env {
             resolved_env.insert(k.clone(), v.clone());
         }
 
         // Expand volume mount strings ({{ module_vars.config_dir }}/data:/data:Z → real path)
-        let container_volumes = class.container.as_ref().map(|c| c.volumes.as_slice()).unwrap_or(&[]);
-        let resolved_volumes = self.resolve_volumes(container_volumes, &ctx)?;
+        let container_volumes = class
+            .container
+            .as_ref()
+            .map(|c| c.volumes.as_slice())
+            .unwrap_or(&[]);
+        let resolved_volumes = Self::resolve_volumes(container_volumes, &ctx)?;
 
         // Expand native app args ({{ module_vars.config_dir }}/... → real path)
-        let raw_args = class.service.as_ref().map(|s| s.args.as_slice()).unwrap_or(&[]);
-        let resolved_args = raw_args.iter()
-            .map(|a| crate::template::render(a, &ctx).with_context(|| format!("Expanding arg '{}'", a)))
+        let raw_args = class
+            .service
+            .as_ref()
+            .map(|s| s.args.as_slice())
+            .unwrap_or(&[]);
+        let resolved_args = raw_args
+            .iter()
+            .map(|a| {
+                crate::template::render(a, &ctx).with_context(|| format!("Expanding arg '{}'", a))
+            })
             .collect::<Result<Vec<String>>>()?;
 
         // Resolve sub-modules recursively (same cross_vars for the whole project)
         let mut sub_services = Vec::new();
         for (sub_name_tpl, sub_ref) in &class.load.sub_services {
             let sub_name = format!("{}-{}", name, sub_name_tpl);
-            let sub = self.resolve_instance(
-                &sub_name,
-                &sub_ref.service_class,
-                &indexmap::IndexMap::new(),
-                Some(name),
-                cross_vars,
-                project_root,
-            )
-            .with_context(|| format!("Resolving sub-module '{}'", sub_name))?;
+            let sub = self
+                .resolve_instance(
+                    &sub_name,
+                    &sub_ref.service_class,
+                    &indexmap::IndexMap::new(),
+                    Some(name),
+                    cross_vars,
+                    project_root,
+                )
+                .with_context(|| format!("Resolving sub-module '{}'", sub_name))?;
             sub_services.push(sub);
         }
 
         // Merge capability set: type defaults + plugin-declared extras.
-        let mut capabilities: Vec<fs_node_core::config::Capability> = class.meta.service_types.iter()
+        let mut capabilities: Vec<fs_node_core::config::Capability> = class
+            .meta
+            .service_types
+            .iter()
             .flat_map(|t| t.capabilities())
             .collect();
         for cap in &class.meta.capabilities {
@@ -216,7 +247,6 @@ impl<'a> StateResolver<'a> {
 
     /// Expand all Jinja2 strings in the environment block.
     fn resolve_env(
-        &self,
         raw_env: &indexmap::IndexMap<String, String>,
         ctx: &TemplateContext,
     ) -> Result<HashMap<String, String>> {
@@ -230,7 +260,7 @@ impl<'a> StateResolver<'a> {
     }
 
     /// Expand Jinja2 templates in volume mount strings.
-    fn resolve_volumes(&self, raw_volumes: &[String], ctx: &TemplateContext) -> Result<Vec<String>> {
+    fn resolve_volumes(raw_volumes: &[String], ctx: &TemplateContext) -> Result<Vec<String>> {
         raw_volumes
             .iter()
             .map(|tpl| {
@@ -248,29 +278,45 @@ impl<'a> StateResolver<'a> {
     ///
     /// Services without `[contract.routes]` (e.g. databases, caches, the proxy itself)
     /// are excluded automatically.
-    fn collect_proxy_services(&self, _project_root: &str) -> Vec<crate::template::ProxyServiceSpec> {
+    fn collect_proxy_services(
+        &self,
+        _project_root: &str,
+    ) -> Vec<crate::template::ProxyServiceSpec> {
         let mut specs = Vec::new();
 
         for (instance_name, entry) in &self.project.load.services {
-            let Some(class) = self.registry.get(&entry.service_class) else { continue };
+            let Some(class) = self.registry.get(&entry.service_class) else {
+                continue;
+            };
 
             // Skip services with no declared routes — nothing to proxy.
-            if class.contract.routes.is_empty() { continue }
+            if class.contract.routes.is_empty() {
+                continue;
+            }
 
             // Skip services that are purely internal infrastructure (Database, Cache).
-            if class.meta.is_internal_only() { continue }
+            if class.meta.is_internal_only() {
+                continue;
+            }
 
             let subdomain = entry.subdomain.as_deref().unwrap_or(instance_name.as_str());
             let domain = format!("{}.{}", subdomain, self.project.project.domain);
 
             // Resolve container name (or use instance_name for native apps).
-            let container = class.container.as_ref()
-                .map(|c| c.name
-                    .replace("{{ instance_name }}", instance_name)
-                    .replace("{{ parent_instance_name }}", instance_name))
+            let container = class
+                .container
+                .as_ref()
+                .map(|c| {
+                    c.name
+                        .replace("{{ instance_name }}", instance_name)
+                        .replace("{{ parent_instance_name }}", instance_name)
+                })
                 .unwrap_or_else(|| instance_name.to_string());
 
-            let health_path = class.contract.health_path.clone()
+            let health_path = class
+                .contract
+                .health_path
+                .clone()
                 .or_else(|| class.meta.health_path.clone());
 
             specs.push(crate::template::ProxyServiceSpec {
@@ -306,9 +352,9 @@ impl<'a> StateResolver<'a> {
 
         // Build a minimal base context with the four root variables.
         let mut base = TemplateContext::new();
-        base.set_str("project_root",   project_root);
-        base.set_str("instance_name",  instance_name);
-        base.set_str("project_name",   project_name);
+        base.set_str("project_root", project_root);
+        base.set_str("instance_name", instance_name);
+        base.set_str("project_name", project_name);
         base.set_str("project_domain", project_domain);
 
         for (key, val) in vars {
@@ -316,7 +362,8 @@ impl<'a> StateResolver<'a> {
                 toml::Value::String(s) => s.clone(),
                 other => other.to_string(),
             };
-            let rendered = engine.render_str(&template_str, &base)
+            let rendered = engine
+                .render_str(&template_str, &base)
                 .unwrap_or_else(|_| template_str.clone());
             out.insert(key.clone(), rendered);
         }
@@ -335,4 +382,3 @@ pub fn resolve_desired(
 ) -> Result<DesiredState> {
     StateResolver::new(project, host, registry, vault).resolve(data_root)
 }
-

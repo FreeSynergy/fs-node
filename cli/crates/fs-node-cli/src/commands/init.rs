@@ -11,14 +11,11 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use fs_deploy::setup::collect_requirements;
 use fs_node_core::config::{
-    find_project,
-    resolve_plugins_dir,
-    service::FieldType,
-    registry::ServiceRegistry,
+    find_project, registry::ServiceRegistry, resolve_plugins_dir, service::FieldType,
     vault::VaultConfig,
 };
-use fs_deploy::setup::collect_requirements;
 
 pub async fn run(root: &Path) -> Result<()> {
     InitWizard::new(root).run().await
@@ -32,13 +29,17 @@ impl Prompt {
     fn ask(label: &str, default: Option<&str>) -> Result<String> {
         match default {
             Some(d) => print!("  {} [{}]: ", label, d),
-            None    => print!("  {}: ", label),
+            None => print!("  {}: ", label),
         }
         io::stdout().flush()?;
         let mut buf = String::new();
         io::stdin().read_line(&mut buf)?;
         let t = buf.trim().to_string();
-        Ok(if t.is_empty() { default.unwrap_or("").to_string() } else { t })
+        Ok(if t.is_empty() {
+            default.unwrap_or("").to_string()
+        } else {
+            t
+        })
     }
 
     fn optional(label: &str) -> Result<Option<String>> {
@@ -82,7 +83,9 @@ struct InitWizard<'a> {
 }
 
 impl<'a> InitWizard<'a> {
-    fn new(root: &'a Path) -> Self { Self { root } }
+    fn new(root: &'a Path) -> Self {
+        Self { root }
+    }
 
     async fn run(&self) -> Result<()> {
         println!("{}\n", fs_i18n::t("wizard.title"));
@@ -91,7 +94,7 @@ impl<'a> InitWizard<'a> {
 
         let modules_dir = resolve_plugins_dir(self.root);
         if modules_dir.exists() {
-            self.select_modules(&proj_dir, &slug, &modules_dir)?;
+            Self::select_modules(&proj_dir, &slug, &modules_dir)?;
         }
 
         self.collect_module_secrets(&proj_dir, &modules_dir)?;
@@ -110,21 +113,33 @@ impl<'a> InitWizard<'a> {
 
     fn ensure_project_skeleton(&self) -> Result<(String, PathBuf)> {
         if let Some(existing) = find_project(self.root, None) {
-            let stem = existing.file_stem().and_then(|s| s.to_str()).unwrap_or("project");
+            let stem = existing
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("project");
             let slug = stem.trim_end_matches(".project").to_string();
             let proj_dir = existing.parent().unwrap_or(self.root).to_path_buf();
-            println!("{}\n", fs_i18n::t_with("wizard.project-found", &[("path", &existing.display().to_string())]));
+            println!(
+                "{}\n",
+                fs_i18n::t_with(
+                    "wizard.project-found",
+                    &[("path", &existing.display().to_string())]
+                )
+            );
             return Ok((slug, proj_dir));
         }
 
         println!("{}", fs_i18n::t("wizard.project-header"));
         let project_name = Prompt::ask("Project name", None)?;
-        let domain       = Prompt::ask("Primary domain (e.g. example.com)", None)?;
-        let contact      = Prompt::ask("Contact / ACME email", None)?;
-        let host_ip      = Prompt::ask("Server IPv4 address", None)?;
-        let host_ipv6    = Prompt::optional("Server IPv6 address (optional)")?;
+        let domain = Prompt::ask("Primary domain (e.g. example.com)", None)?;
+        let contact = Prompt::ask("Contact / ACME email", None)?;
+        let host_ip = Prompt::ask("Server IPv4 address", None)?;
+        let host_ipv6 = Prompt::optional("Server IPv6 address (optional)")?;
         let dns_provider = Prompt::ask("DNS provider [hetzner/cloudflare/none]", Some("hetzner"))?;
-        let acme         = Prompt::ask("ACME provider [letsencrypt/smallstep-ca/none]", Some("letsencrypt"))?;
+        let acme = Prompt::ask(
+            "ACME provider [letsencrypt/smallstep-ca/none]",
+            Some("letsencrypt"),
+        )?;
 
         let slug = project_name.to_lowercase().replace(' ', "-");
         let proj_dir = self.root.join("projects").join(&slug);
@@ -140,7 +155,9 @@ impl<'a> InitWizard<'a> {
 
         let hosts_dir = self.root.join("hosts");
         std::fs::create_dir_all(&hosts_dir)?;
-        let ipv6_line = host_ipv6.map(|v| format!("\nipv6   = \"{}\"", v)).unwrap_or_default();
+        let ipv6_line = host_ipv6
+            .map(|v| format!("\nipv6   = \"{}\"", v))
+            .unwrap_or_default();
         std::fs::write(
             hosts_dir.join(format!("{}.host.toml", slug)),
             format!(
@@ -155,13 +172,16 @@ impl<'a> InitWizard<'a> {
             std::fs::write(&vault_path, "# Secrets (vault_ prefix required)\n")?;
         }
 
-        println!("\n{}\n", fs_i18n::t_with("wizard.skeleton-created", &[("path", &slug)]));
+        println!(
+            "\n{}\n",
+            fs_i18n::t_with("wizard.skeleton-created", &[("path", &slug)])
+        );
         Ok((slug, proj_dir))
     }
 
     // ── Phase 2: Module selection ─────────────────────────────────────────
 
-    fn select_modules(&self, proj_dir: &Path, slug: &str, modules_dir: &Path) -> Result<()> {
+    fn select_modules(proj_dir: &Path, slug: &str, modules_dir: &Path) -> Result<()> {
         let registry = ServiceRegistry::load(modules_dir)?;
         let mut all_classes: Vec<(&str, &fs_node_core::config::service::ServiceClass)> =
             registry.all().collect();
@@ -206,14 +226,23 @@ impl<'a> InitWizard<'a> {
 
         existing = existing.replace("# Added by wizard\n", &additions);
         std::fs::write(&proj_toml, existing)?;
-        println!("\n{}\n", fs_i18n::t_with("wizard.modules-added", &[("n", &selected.len().to_string())]));
+        println!(
+            "\n{}\n",
+            fs_i18n::t_with(
+                "wizard.modules-added",
+                &[("n", &selected.len().to_string())]
+            )
+        );
         Ok(())
     }
 
     // ── Phase 3: Module requirements ─────────────────────────────────────
 
     fn collect_module_secrets(&self, proj_dir: &Path, modules_dir: &Path) -> Result<()> {
-        let slug = proj_dir.file_name().and_then(|n| n.to_str()).unwrap_or("project");
+        let slug = proj_dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("project");
         let proj_toml = proj_dir.join(format!("{}.project.toml", slug));
         if !proj_toml.exists() {
             return Ok(());
@@ -267,9 +296,13 @@ impl<'a> InitWizard<'a> {
                 FieldType::Secret => {
                     if field.auto_generate {
                         let gen = generate_secret(32);
-                        let show = format!("{}...{}", &gen[..4], &gen[gen.len()-4..]);
+                        let show = format!("{}...{}", &gen[..4], &gen[gen.len() - 4..]);
                         let input = Prompt::secret(&format!("    auto [{}] (Enter=accept)", show))?;
-                        if input.is_empty() { gen } else { input }
+                        if input.is_empty() {
+                            gen
+                        } else {
+                            input
+                        }
                     } else {
                         Prompt::secret("    value (hidden)")?
                     }
@@ -278,17 +311,24 @@ impl<'a> InitWizard<'a> {
                     for (i, opt) in field.options.iter().enumerate() {
                         println!("      [{}] {}", i + 1, opt);
                     }
-                    let def_idx = field.default.as_deref()
+                    let def_idx = field
+                        .default
+                        .as_deref()
                         .and_then(|d| field.options.iter().position(|o| o == d))
                         .unwrap_or(0);
                     let sel = Prompt::ask("    choose", Some(&format!("{}", def_idx + 1)))?;
-                    sel.parse::<usize>().ok()
+                    sel.parse::<usize>()
+                        .ok()
                         .filter(|&n| n >= 1 && n <= field.options.len())
-                        .map(|n| field.options[n-1].clone())
+                        .map(|n| field.options[n - 1].clone())
                         .unwrap_or_else(|| field.options[def_idx].clone())
                 }
                 FieldType::Bool => {
-                    if Prompt::confirm_no("    yes/no")? { "true".into() } else { "false".into() }
+                    if Prompt::confirm_no("    yes/no")? {
+                        "true".into()
+                    } else {
+                        "false".into()
+                    }
                 }
                 _ => Prompt::ask("    value", field.default.as_deref())?,
             };
@@ -297,7 +337,10 @@ impl<'a> InitWizard<'a> {
                 vault_values.insert(field.key.clone(), value);
                 added += 1;
             } else {
-                println!("      Note: add {} = {:?} to project.toml [vars]\n", field.key, value);
+                println!(
+                    "      Note: add {} = {:?} to project.toml [vars]\n",
+                    field.key, value
+                );
             }
 
             println!();
@@ -309,7 +352,13 @@ impl<'a> InitWizard<'a> {
                 content.push_str(&format!("{} = {:?}\n", k, v));
             }
             std::fs::write(&vault_path, content)?;
-            println!("{}", fs_i18n::t_with("wizard.vault-updated", &[("n", &vault_values.len().to_string())]));
+            println!(
+                "{}",
+                fs_i18n::t_with(
+                    "wizard.vault-updated",
+                    &[("n", &vault_values.len().to_string())]
+                )
+            );
         }
 
         Ok(())
@@ -321,9 +370,9 @@ impl<'a> InitWizard<'a> {
 fn generate_secret(len: usize) -> String {
     use rand::Rng;
     const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     (0..len)
-        .map(|_| CHARSET[rng.gen_range(0..CHARSET.len())] as char)
+        .map(|_| CHARSET[rng.random_range(0..CHARSET.len())] as char)
         .collect()
 }
 
@@ -351,7 +400,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let proj_dir = tmp.path().join("projects").join("my-project");
         fs::create_dir_all(&proj_dir).unwrap();
-        fs::write(proj_dir.join("my-project.project.toml"), "[project]\nname = \"my-project\"\ndomain = \"example.com\"").unwrap();
+        fs::write(
+            proj_dir.join("my-project.project.toml"),
+            "[project]\nname = \"my-project\"\ndomain = \"example.com\"",
+        )
+        .unwrap();
 
         let found = find_project(tmp.path(), None);
         assert!(found.is_some(), "should find the project file");
@@ -383,7 +436,10 @@ mod tests {
     #[test]
     fn generate_secret_is_alphanumeric() {
         let s = generate_secret(64);
-        assert!(s.chars().all(|c| c.is_ascii_alphanumeric()), "secret must be alphanumeric");
+        assert!(
+            s.chars().all(|c| c.is_ascii_alphanumeric()),
+            "secret must be alphanumeric"
+        );
     }
 
     #[test]

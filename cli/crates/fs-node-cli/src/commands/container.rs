@@ -24,9 +24,9 @@ impl ContainerCmd {
     /// Full pipeline: parse → validate → generate quadlets → daemon-reload.
     pub async fn install(
         &self,
-        path:      &Path,
-        name:      Option<&str>,
-        dry_run:   bool,
+        path: &Path,
+        name: Option<&str>,
+        dry_run: bool,
         store_url: Option<&str>,
     ) -> Result<()> {
         fs_container::install(path, name, dry_run, store_url).await?;
@@ -36,7 +36,7 @@ impl ContainerCmd {
     /// Start a container-app-managed service.
     pub async fn start(&self, service: &str) -> Result<()> {
         SystemctlManager::user()
-            .start(&self.unit(service))
+            .start(&Self::unit(service))
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
         println!("Started: {service}");
@@ -46,7 +46,7 @@ impl ContainerCmd {
     /// Stop a container-app-managed service.
     pub async fn stop(&self, service: &str) -> Result<()> {
         SystemctlManager::user()
-            .stop(&self.unit(service))
+            .stop(&Self::unit(service))
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
         println!("Stopped: {service}");
@@ -56,7 +56,7 @@ impl ContainerCmd {
     /// Restart a container-app-managed service.
     pub async fn restart(&self, service: &str) -> Result<()> {
         SystemctlManager::user()
-            .restart(&self.unit(service))
+            .restart(&Self::unit(service))
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
         println!("Restarted: {service}");
@@ -78,7 +78,7 @@ impl ContainerCmd {
     /// Show systemctl status of a container-app-managed service.
     pub async fn status(&self, service: &str) -> Result<()> {
         let status = SystemctlManager::user()
-            .service_status(&self.unit(service))
+            .service_status(&Self::unit(service))
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
         println!("{:?}", status);
@@ -89,8 +89,11 @@ impl ContainerCmd {
     pub async fn list(&self) -> Result<()> {
         let output = tokio::process::Command::new("systemctl")
             .args([
-                "--user", "--type=service",
-                "--plain", "--no-legend", "--no-pager",
+                "--user",
+                "--type=service",
+                "--plain",
+                "--no-legend",
+                "--no-pager",
                 "--state=loaded",
             ])
             .output()
@@ -104,21 +107,21 @@ impl ContainerCmd {
             return Ok(());
         }
 
-        println!("{:<32} {:<12} {}", "SERVICE", "ACTIVE", "SUB");
+        println!("{:<32} {:<12} SUB", "SERVICE", "ACTIVE");
         println!("{}", "─".repeat(60));
         for line in units {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 3 {
-                let name   = parts[0].trim_end_matches(".service");
+                let name = parts[0].trim_end_matches(".service");
                 let active = parts.get(2).copied().unwrap_or("-");
-                let sub    = parts.get(3).copied().unwrap_or("-");
+                let sub = parts.get(3).copied().unwrap_or("-");
                 println!("{:<32} {:<12} {}", name, active, sub);
             }
         }
         Ok(())
     }
 
-    fn unit(&self, service: &str) -> String {
+    fn unit(service: &str) -> String {
         if service.ends_with(".service") {
             service.to_string()
         } else {

@@ -23,7 +23,10 @@ use clap::Parser;
 // ── CLI args ──────────────────────────────────────────────────────────────────
 
 #[derive(Parser, Debug)]
-#[command(name = "fs-installer", about = "FreeSynergy.Node – bootstrap installer")]
+#[command(
+    name = "fs-installer",
+    about = "FreeSynergy.Node – bootstrap installer"
+)]
 struct Args {
     /// FSN repository URL to clone
     #[arg(long, default_value = "https://github.com/FreeSynergy/Node")]
@@ -47,39 +50,45 @@ struct Args {
 struct Log;
 
 impl Log {
-    fn info(msg: &str)  { eprintln!("\x1b[1;34m==> \x1b[0m{msg}"); }
-    fn ok(msg: &str)    { eprintln!("\x1b[1;32m✓   \x1b[0m{msg}"); }
-    fn warn(msg: &str)  { eprintln!("\x1b[1;33m!   \x1b[0m{msg}"); }
+    fn info(msg: &str) {
+        eprintln!("\x1b[1;34m==> \x1b[0m{msg}");
+    }
+    fn ok(msg: &str) {
+        eprintln!("\x1b[1;32m✓   \x1b[0m{msg}");
+    }
+    fn warn(msg: &str) {
+        eprintln!("\x1b[1;33m!   \x1b[0m{msg}");
+    }
 }
 
 // ── Installer ─────────────────────────────────────────────────────────────────
 
 struct Installer {
-    repo:       String,
-    target:     PathBuf,
-    bin_path:   PathBuf,
+    repo: String,
+    target: PathBuf,
+    bin_path: PathBuf,
     skip_build: bool,
-    skip_init:  bool,
+    skip_init: bool,
 }
 
 impl Installer {
     fn new(args: Args) -> Self {
         let home = Self::home();
         Self {
-            target:     args.target.unwrap_or_else(|| home.join("FreeSynergy.Node")),
-            bin_path:   home.join(".local").join("bin").join("fsn"),
-            repo:       args.repo,
+            target: args.target.unwrap_or_else(|| home.join("FreeSynergy.Node")),
+            bin_path: home.join(".local").join("bin").join("fsn"),
+            repo: args.repo,
             skip_build: args.skip_build,
-            skip_init:  args.skip_init,
+            skip_init: args.skip_init,
         }
     }
 
     async fn run(&self) -> Result<()> {
-        let os = self.detect_os();
+        let os = Self::detect_os();
         Log::info(&format!("Detected OS: {os}"));
 
-        self.install_deps(&os)?;
-        self.enable_lingering();
+        Self::install_deps(&os)?;
+        Self::enable_lingering();
         self.ensure_repo()?;
 
         if self.skip_build {
@@ -117,7 +126,7 @@ impl Installer {
         Ok(())
     }
 
-    fn detect_os(&self) -> String {
+    fn detect_os() -> String {
         if let Ok(content) = std::fs::read_to_string("/etc/os-release") {
             for line in content.lines() {
                 if let Some(id) = line.strip_prefix("ID=") {
@@ -128,7 +137,7 @@ impl Installer {
         "unknown".to_string()
     }
 
-    fn install_deps(&self, os: &str) -> Result<()> {
+    fn install_deps(os: &str) -> Result<()> {
         let missing: Vec<&str> = ["git", "curl", "podman"]
             .into_iter()
             .filter(|cmd| Self::which(cmd).is_none())
@@ -143,7 +152,10 @@ impl Installer {
             return Ok(());
         }
 
-        Log::info(&format!("Installing missing packages: {}", missing.join(" ")));
+        Log::info(&format!(
+            "Installing missing packages: {}",
+            missing.join(" ")
+        ));
         let pkgs = missing.join(" ");
 
         let result = match os {
@@ -153,9 +165,7 @@ impl Installer {
             "debian" | "ubuntu" | "linuxmint" | "pop" => {
                 Self::run_cmd("sudo", &["apt-get", "install", "-y", &pkgs])
             }
-            "arch" | "manjaro" => {
-                Self::run_cmd("sudo", &["pacman", "-Sy", "--noconfirm", &pkgs])
-            }
+            "arch" | "manjaro" => Self::run_cmd("sudo", &["pacman", "-Sy", "--noconfirm", &pkgs]),
             os if os.starts_with("opensuse") || os == "sles" => {
                 Self::run_cmd("sudo", &["zypper", "install", "-y", &pkgs])
             }
@@ -168,7 +178,7 @@ impl Installer {
         result.with_context(|| format!("installing packages: {pkgs}"))
     }
 
-    fn enable_lingering(&self) {
+    fn enable_lingering() {
         if Self::which("loginctl").is_some() {
             let user = env::var("USER").unwrap_or_default();
             if !user.is_empty() {
@@ -185,11 +195,23 @@ impl Installer {
         let target = &self.target;
         if target.join(".git").exists() {
             Log::info(&format!("Updating existing repo at {}", target.display()));
-            Self::run_cmd("git", &["-C", &target.to_string_lossy(), "pull", "--ff-only"])
+            Self::run_cmd(
+                "git",
+                &["-C", &target.to_string_lossy(), "pull", "--ff-only"],
+            )
         } else {
             Log::info(&format!("Cloning FreeSynergy.Node to {}", target.display()));
             std::fs::create_dir_all(target.parent().unwrap_or(target))?;
-            Self::run_cmd("git", &["clone", "--depth", "1", &self.repo, &target.to_string_lossy()])
+            Self::run_cmd(
+                "git",
+                &[
+                    "clone",
+                    "--depth",
+                    "1",
+                    &self.repo,
+                    &target.to_string_lossy(),
+                ],
+            )
         }
     }
 
@@ -199,8 +221,11 @@ impl Installer {
             let sh = Self::fetch("https://sh.rustup.rs")?;
             let tmp = std::env::temp_dir().join("rustup-init.sh");
             std::fs::write(&tmp, sh)?;
-            Self::run_cmd("sh", &[&tmp.to_string_lossy(), "--", "-y", "--profile", "minimal"])
-                .context("installing rustup")?;
+            Self::run_cmd(
+                "sh",
+                &[&tmp.to_string_lossy(), "--", "-y", "--profile", "minimal"],
+            )
+            .context("installing rustup")?;
 
             let cargo_bin = Self::home().join(".cargo").join("bin");
             let old_path = env::var("PATH").unwrap_or_default();
@@ -211,9 +236,16 @@ impl Installer {
         let cli_dir = self.target.join("cli");
         Self::run_cmd(
             "cargo",
-            &["build", "--release", "-p", "fs-node-cli", "--manifest-path",
-              &cli_dir.join("Cargo.toml").to_string_lossy()],
-        ).context("cargo build")?;
+            &[
+                "build",
+                "--release",
+                "-p",
+                "fs-node-cli",
+                "--manifest-path",
+                &cli_dir.join("Cargo.toml").to_string_lossy(),
+            ],
+        )
+        .context("cargo build")?;
 
         let built = cli_dir.join("target").join("release").join("fsn");
         std::fs::create_dir_all(self.bin_path.parent().unwrap_or(&self.bin_path))?;
@@ -232,7 +264,10 @@ impl Installer {
 
     fn download_binary(&self) -> Result<()> {
         let arch = std::env::consts::ARCH;
-        let url = format!("{}/releases/latest/download/fs-{arch}-unknown-linux-musl", self.repo);
+        let url = format!(
+            "{}/releases/latest/download/fs-{arch}-unknown-linux-musl",
+            self.repo
+        );
         Log::info(&format!("Downloading pre-built fsn binary from {url}…"));
 
         let bytes = Self::fetch(&url)?;
@@ -278,7 +313,9 @@ impl Installer {
     }
 
     fn home() -> PathBuf {
-        env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+        env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
     }
 }
 

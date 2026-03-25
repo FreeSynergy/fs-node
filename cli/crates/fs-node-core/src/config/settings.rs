@@ -77,7 +77,12 @@ pub struct AppSettings {
 
 impl Default for AppSettings {
     fn default() -> Self {
-        Self { stores: default_stores(), preferred_lang: None, installed_modules: Vec::new(), service_roles: ServiceRoleMap::default() }
+        Self {
+            stores: default_stores(),
+            preferred_lang: None,
+            installed_modules: Vec::new(),
+            service_roles: ServiceRoleMap::default(),
+        }
     }
 }
 
@@ -102,12 +107,12 @@ impl AppSettings {
 
 fn default_stores() -> Vec<StoreConfig> {
     vec![StoreConfig {
-        name:       "FSN Official".into(),
-        url:        "https://raw.githubusercontent.com/FreeSynergy/Store/main".into(),
-        git_url:    Some("https://github.com/FreeSynergy/Store.git".into()),
+        name: "FSN Official".into(),
+        url: "https://raw.githubusercontent.com/FreeSynergy/Store/main".into(),
+        git_url: Some("https://github.com/FreeSynergy/Store.git".into()),
         local_path: None,
-        enabled:    true,
-        primary:    true,
+        enabled: true,
+        primary: true,
     }]
 }
 
@@ -147,7 +152,9 @@ pub struct StoreConfig {
     pub primary: bool,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 // ── Load / Save ───────────────────────────────────────────────────────────────
 
@@ -160,8 +167,7 @@ impl AppSettings {
             return Ok(Self::default());
         }
         let content = std::fs::read_to_string(&path)?;
-        toml::from_str(&content)
-            .map_err(|e| FsyError::Parse(format!("{}: {e}", path.display())))
+        toml::from_str(&content).map_err(|e| FsyError::Parse(format!("{}: {e}", path.display())))
     }
 
     /// Persist settings to `~/.config/fsn/settings.toml`.
@@ -170,8 +176,8 @@ impl AppSettings {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let content = toml::to_string_pretty(self)
-            .map_err(|e| FsyError::Internal(e.to_string()))?;
+        let content =
+            toml::to_string_pretty(self).map_err(|e| FsyError::Internal(e.to_string()))?;
         std::fs::write(&path, content)?;
         Ok(())
     }
@@ -181,7 +187,10 @@ impl AppSettings {
 /// Uses `$HOME/.config/fsn/settings.toml` (XDG-compatible).
 fn settings_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    PathBuf::from(home).join(".config").join("fsn").join("settings.toml")
+    PathBuf::from(home)
+        .join(".config")
+        .join("fsn")
+        .join("settings.toml")
 }
 
 // ── Container Plugins directory ────────────────────────────────────────────────
@@ -215,7 +224,11 @@ pub fn resolve_plugins_dir_no_fallback() -> Option<PathBuf> {
         return Some(PathBuf::from(dir));
     }
     if let Ok(settings) = AppSettings::load() {
-        if let Some(store) = settings.stores.iter().find(|s| s.enabled && s.local_path.is_some()) {
+        if let Some(store) = settings
+            .stores
+            .iter()
+            .find(|s| s.enabled && s.local_path.is_some())
+        {
             let base = PathBuf::from(store.local_path.as_deref().unwrap());
             return Some(base.join("node").join("containers"));
         }
@@ -268,10 +281,17 @@ impl ServiceRoleRegistry {
         }
 
         for entry in walkdir_toml(modules_dir) {
-            let Ok(content) = std::fs::read_to_string(&entry) else { continue };
-            let Ok(parsed) = toml::from_str::<MinimalModuleFile>(&content) else { continue };
+            let Ok(content) = std::fs::read_to_string(&entry) else {
+                continue;
+            };
+            let Ok(parsed) = toml::from_str::<MinimalModuleFile>(&content) else {
+                continue;
+            };
             for role in parsed.meta.roles.provides {
-                providers.entry(role).or_default().push(parsed.meta.name.clone());
+                providers
+                    .entry(role)
+                    .or_default()
+                    .push(parsed.meta.name.clone());
             }
         }
 
@@ -280,7 +300,10 @@ impl ServiceRoleRegistry {
 
     /// Returns all module names that claim to provide `role_id`.
     pub fn providers_for(&self, role_id: &str) -> &[String] {
-        self.providers.get(role_id).map(Vec::as_slice).unwrap_or(&[])
+        self.providers
+            .get(role_id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
 
     /// Returns all role IDs seen across all modules.
@@ -291,13 +314,15 @@ impl ServiceRoleRegistry {
 
 /// Walk `dir` recursively and return paths to all `*.toml` files.
 fn walkdir_toml(dir: &std::path::Path) -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
     let mut result = Vec::new();
     for e in entries.flatten() {
         let path = e.path();
         if path.is_dir() {
             result.extend(walkdir_toml(&path));
-        } else if path.extension().map_or(false, |ext| ext == "toml") {
+        } else if path.extension().is_some_and(|ext| ext == "toml") {
             result.push(path);
         }
     }

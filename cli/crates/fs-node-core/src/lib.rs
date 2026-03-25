@@ -5,17 +5,16 @@
 
 pub mod audit;
 pub mod config;
+pub mod error;
 pub mod health;
 pub mod resource;
 pub mod state;
-pub mod error;
 pub mod store;
 
 pub use audit::{AuditEntry, AuditLog};
 pub use config::bot::{BotConfig, BotMeta, BotType};
-pub use error::{FsyError, FsError};
+pub use error::{FsError, FsyError};
 pub use resource::{
-    Resource, ResourcePhase,
-    ProjectResource, HostResource, ServiceResource, BotResource,
+    BotResource, HostResource, ProjectResource, Resource, ResourcePhase, ServiceResource,
     VarProvider,
 };

@@ -17,8 +17,8 @@ use super::{common, HookContext};
 
 pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
     let data_dir = ctx.instance_data_dir();
-    let name     = &ctx.instance.name;
-    let domain   = &ctx.project.project.domain;
+    let name = &ctx.instance.name;
+    let domain = &ctx.project.project.domain;
 
     common::create_dir(&data_dir.join("data"), 0o755)?;
 
@@ -26,14 +26,17 @@ pub async fn run(ctx: &HookContext<'_>) -> Result<()> {
         info!("{}: reading initial admin password from logs…", name);
 
         // Stalwart logs the admin password during first startup
-        let logs = common::podman_logs_tail(name, 100).await
+        let logs = common::podman_logs_tail(name, 100)
+            .await
             .unwrap_or_default();
 
-        let admin_pass = extract_admin_password(&logs)
-            .unwrap_or_else(|| {
-                warn!("{}: could not find admin password in logs – check manually", name);
-                "(see container logs)".to_string()
-            });
+        let admin_pass = extract_admin_password(&logs).unwrap_or_else(|| {
+            warn!(
+                "{}: could not find admin password in logs – check manually",
+                name
+            );
+            "(see container logs)".to_string()
+        });
 
         let creds_path = data_dir.join("data/.admin-credentials");
         let content = format!(

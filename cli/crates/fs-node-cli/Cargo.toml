@@ -17,7 +17,6 @@ fs-deploy     = { workspace = true }
 fs-dns        = { workspace = true }
 fs-host       = { workspace = true }
 fs-container = { workspace = true }
-fs-store      = { workspace = true }
 fs-sysinfo    = { workspace = true }
 fs-i18n       = { workspace = true }
 fs-s3         = { workspace = true }

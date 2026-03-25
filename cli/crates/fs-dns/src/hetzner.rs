@@ -78,7 +78,7 @@ impl DnsProvider for HetznerDns {
 
     async fn remove_record(&self, record: &DnsRecord) -> Result<()> {
         let existing = self
-            .list_records(record.name.splitn(2, '.').nth(1).unwrap_or(""))
+            .list_records(record.name.split_once('.').map(|x| x.1).unwrap_or(""))
             .await?;
 
         let target = existing
@@ -114,13 +114,13 @@ impl DnsProvider for HetznerDns {
             .into_iter()
             .filter_map(|r| {
                 let rt = match r.record_type.as_str() {
-                    "A"     => RecordType::A,
-                    "AAAA"  => RecordType::Aaaa,
+                    "A" => RecordType::A,
+                    "AAAA" => RecordType::Aaaa,
                     "CNAME" => RecordType::Cname,
-                    "TXT"   => RecordType::Txt,
-                    "MX"    => RecordType::Mx,
-                    "SRV"   => RecordType::Srv,
-                    _       => return None,
+                    "TXT" => RecordType::Txt,
+                    "MX" => RecordType::Mx,
+                    "SRV" => RecordType::Srv,
+                    _ => return None,
                 };
                 Some(DnsRecord {
                     name: format!("{}.{}", r.name, domain),

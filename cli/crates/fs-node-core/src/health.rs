@@ -23,7 +23,10 @@ fn class_type(service_class: &str) -> &str {
 }
 
 fn project_has_type(project: &ProjectConfig, type_prefix: &str) -> bool {
-    project.load.services.values()
+    project
+        .load
+        .services
+        .values()
         .any(|e| class_type(&e.service_class) == type_prefix)
 }
 
@@ -31,26 +34,35 @@ fn project_has_type(project: &ProjectConfig, type_prefix: &str) -> bool {
 
 impl HealthCheck for HostConfig {
     fn health(&self) -> HealthStatus {
-        let has_project = self.host.project.as_deref()
+        let has_project = self
+            .host
+            .project
+            .as_deref()
             .map(|p| !p.is_empty())
             .unwrap_or(false);
 
         HealthRules::new()
             .require(!self.proxy.is_empty(), "health.host.no_proxy")
-            .require(has_project,            "health.host.no_project")
+            .require(has_project, "health.host.no_project")
             .build()
     }
 }
 
 impl HealthCheck for ServiceInstanceConfig {
     fn health(&self) -> HealthStatus {
-        let has_host = self.service.host.as_deref()
+        let has_host = self
+            .service
+            .host
+            .as_deref()
             .map(|h| !h.is_empty())
             .unwrap_or(false);
 
         HealthRules::new()
-            .require(!self.service.project.is_empty(), "health.service.no_project")
-            .require(has_host,                         "health.service.no_host")
+            .require(
+                !self.service.project.is_empty(),
+                "health.service.no_project",
+            )
+            .require(has_host, "health.service.no_host")
             .build()
     }
 }
@@ -82,7 +94,7 @@ impl HealthCheck for ProjectConfig {
 /// * `project`       — the project config to check
 /// * `host_projects` — project slugs referenced by all known hosts
 pub fn check_project_with_hosts(project: &ProjectConfig, host_projects: &[&str]) -> HealthStatus {
-    let has_host = host_projects.iter().any(|&p| p == project.project.meta.name.as_str());
+    let has_host = host_projects.contains(&project.project.meta.name.as_str());
     let self_status = project.health();
 
     let cross = HealthRules::new()
@@ -94,7 +106,6 @@ pub fn check_project_with_hosts(project: &ProjectConfig, host_projects: &[&str])
     combined
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,7 +113,8 @@ mod tests {
     use crate::config::project::{ProjectConfig, ServiceInstanceConfig};
 
     fn host_with_proxy_and_project() -> HostConfig {
-        toml::from_str(r#"
+        toml::from_str(
+            r#"
 [host]
 name = "myhost"
 address = "192.168.1.1"
@@ -110,30 +122,39 @@ project = "myproject"
 
 [proxy.zentinel]
 service_class = "proxy/zentinel"
-        "#).unwrap()
+        "#,
+        )
+        .unwrap()
     }
 
     fn host_without_proxy() -> HostConfig {
-        toml::from_str(r#"
+        toml::from_str(
+            r#"
 [host]
 name = "myhost"
 address = "192.168.1.1"
-        "#).unwrap()
+        "#,
+        )
+        .unwrap()
     }
 
     fn host_without_project() -> HostConfig {
-        toml::from_str(r#"
+        toml::from_str(
+            r#"
 [host]
 name = "myhost"
 address = "192.168.1.1"
 
 [proxy.zentinel]
 service_class = "proxy/zentinel"
-        "#).unwrap()
+        "#,
+        )
+        .unwrap()
     }
 
     fn project_with_mail_and_wiki() -> ProjectConfig {
-        toml::from_str(r#"
+        toml::from_str(
+            r#"
 [project]
 name = "myproject"
 domain = "example.com"
@@ -143,37 +164,51 @@ service_class = "mail/stalwart"
 
 [load.services.outline]
 service_class = "wiki/outline"
-        "#).unwrap()
+        "#,
+        )
+        .unwrap()
     }
 
     fn service_with_project_and_host() -> ServiceInstanceConfig {
-        toml::from_str(r#"
+        toml::from_str(
+            r#"
 [service]
 name = "forgejo"
 service_class = "git/forgejo"
 project = "myproject"
 host = "myhost"
-        "#).unwrap()
+        "#,
+        )
+        .unwrap()
     }
 
     #[test]
     fn host_health_ok_with_proxy_and_project() {
         let h = host_with_proxy_and_project();
-        assert!(h.health().is_ok(), "host with proxy+project should be healthy");
+        assert!(
+            h.health().is_ok(),
+            "host with proxy+project should be healthy"
+        );
     }
 
     #[test]
     fn host_health_error_without_proxy() {
         let status = host_without_proxy().health();
         assert_eq!(status.overall, HealthLevel::Error);
-        assert!(status.issues.iter().any(|i| i.msg_key == "health.host.no_proxy"));
+        assert!(status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.host.no_proxy"));
     }
 
     #[test]
     fn host_health_error_without_project() {
         let status = host_without_project().health();
         assert_eq!(status.overall, HealthLevel::Error);
-        assert!(status.issues.iter().any(|i| i.msg_key == "health.host.no_project"));
+        assert!(status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.host.no_project"));
     }
 
     #[test]
@@ -183,29 +218,41 @@ host = "myhost"
 
     #[test]
     fn service_health_error_without_host() {
-        let s: ServiceInstanceConfig = toml::from_str(r#"
+        let s: ServiceInstanceConfig = toml::from_str(
+            r#"
 [service]
 name = "forgejo"
 service_class = "git/forgejo"
 project = "myproject"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let status = s.health();
         assert_eq!(status.overall, HealthLevel::Error);
-        assert!(status.issues.iter().any(|i| i.msg_key == "health.service.no_host"));
+        assert!(status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.service.no_host"));
     }
 
     #[test]
     fn service_health_error_without_project() {
-        let s: ServiceInstanceConfig = toml::from_str(r#"
+        let s: ServiceInstanceConfig = toml::from_str(
+            r#"
 [service]
 name = "forgejo"
 service_class = "git/forgejo"
 project = ""
 host = "myhost"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let status = s.health();
         assert_eq!(status.overall, HealthLevel::Error);
-        assert!(status.issues.iter().any(|i| i.msg_key == "health.service.no_project"));
+        assert!(status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.service.no_project"));
     }
 
     #[test]
@@ -214,49 +261,73 @@ host = "myhost"
         // Has mail + wiki → no errors; missing monitoring + git → warnings
         assert_eq!(status.overall, HealthLevel::Warning);
         assert!(!status.issues.iter().any(|i| i.level == HealthLevel::Error));
-        assert!(status.issues.iter().any(|i| i.msg_key == "health.project.no_monitoring"));
-        assert!(status.issues.iter().any(|i| i.msg_key == "health.project.no_git"));
+        assert!(status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.project.no_monitoring"));
+        assert!(status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.project.no_git"));
     }
 
     #[test]
     fn project_health_error_without_mail() {
-        let p: ProjectConfig = toml::from_str(r#"
+        let p: ProjectConfig = toml::from_str(
+            r#"
 [project]
 name = "myproject"
 domain = "example.com"
 
 [load.services.outline]
 service_class = "wiki/outline"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let status = p.health();
-        assert!(status.issues.iter().any(|i| i.msg_key == "health.project.no_mail"));
+        assert!(status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.project.no_mail"));
     }
 
     #[test]
     fn project_health_error_without_wiki() {
-        let p: ProjectConfig = toml::from_str(r#"
+        let p: ProjectConfig = toml::from_str(
+            r#"
 [project]
 name = "myproject"
 domain = "example.com"
 
 [load.services.stalwart]
 service_class = "mail/stalwart"
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
         let status = p.health();
-        assert!(status.issues.iter().any(|i| i.msg_key == "health.project.no_wiki"));
+        assert!(status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.project.no_wiki"));
     }
 
     #[test]
     fn check_project_with_hosts_ok_when_referenced() {
         let p = project_with_mail_and_wiki();
         let status = check_project_with_hosts(&p, &["myproject"]);
-        assert!(!status.issues.iter().any(|i| i.msg_key == "health.project.no_host"));
+        assert!(!status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.project.no_host"));
     }
 
     #[test]
     fn check_project_with_hosts_error_when_no_host_references_it() {
         let p = project_with_mail_and_wiki();
         let status = check_project_with_hosts(&p, &[]);
-        assert!(status.issues.iter().any(|i| i.msg_key == "health.project.no_host"));
+        assert!(status
+            .issues
+            .iter()
+            .any(|i| i.msg_key == "health.project.no_host"));
     }
 }

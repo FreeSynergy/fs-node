@@ -9,8 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 
-const HOMARR_BASE: &str =
-    "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg";
+const HOMARR_BASE: &str = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg";
 const SIMPLE_BASE: &str = "https://cdn.simpleicons.org";
 
 /// Resolve a source specifier to a download URL.
@@ -56,13 +55,11 @@ async fn download_svg(url: &str, output: &Path) -> Result<()> {
     }
 
     if let Some(parent) = output.parent() {
-        std::fs::create_dir_all(parent).with_context(|| {
-            format!("create directory {}", parent.display())
-        })?;
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("create directory {}", parent.display()))?;
     }
 
-    std::fs::write(output, &bytes)
-        .with_context(|| format!("write {}", output.display()))?;
+    std::fs::write(output, &bytes).with_context(|| format!("write {}", output.display()))?;
 
     Ok(())
 }
@@ -70,7 +67,10 @@ async fn download_svg(url: &str, output: &Path) -> Result<()> {
 /// Main entry point for `fs-builder fetch-icon`.
 pub async fn run(source: &str, name: &str, store_dir: &Path) -> Result<()> {
     let url = resolve_url(source)?;
-    let output: PathBuf = store_dir.join("shared").join("icons").join(format!("{name}.svg"));
+    let output: PathBuf = store_dir
+        .join("shared")
+        .join("icons")
+        .join(format!("{name}.svg"));
 
     println!("Downloading icon '{name}' from {url}");
     download_svg(&url, &output).await?;

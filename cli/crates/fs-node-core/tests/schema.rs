@@ -17,9 +17,12 @@ fn service_class_schema_contains_required_properties() {
     let schema = schemars::schema_for!(ServiceClass);
     let json = serde_json::to_value(&schema).expect("schema to value");
 
-    // Top-level definitions must exist
-    let defs = &json["definitions"];
-    assert!(defs.is_object(), "schema must have definitions");
+    // Top-level definitions must exist (schemars 1.x uses "$defs", draft-07 used "definitions")
+    let defs = json.get("$defs").or_else(|| json.get("definitions"));
+    assert!(
+        defs.map(|d| d.is_object()).unwrap_or(false),
+        "schema must have $defs or definitions"
+    );
 
     // Root object must reference ServiceClass (or be it directly)
     let title = json["title"].as_str().unwrap_or("");
