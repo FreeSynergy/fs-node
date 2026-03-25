@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout fs-libs
+        run: git clone --depth=1 "https://x-access-token:${{ secrets.FS_LIBS_TOKEN }}@github.com/FreeSynergy/fs-libs.git" "${{ github.workspace }}/../fs-libs"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy

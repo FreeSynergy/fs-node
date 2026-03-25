@@ -7,6 +7,11 @@ exclude-dev = false
 # Deny crates with known security vulnerabilities
 version = 2
 yanked = "deny"
+ignore = [
+    # rsa: Marvin Attack timing sidechannel — no upstream patch available yet
+    # Used transitively via russh-keys. Acceptable for internal SSH auth.
+    "RUSTSEC-2023-0071",
+]
 
 [licenses]
 version = 2
@@ -23,7 +28,6 @@ allow = [
     "OpenSSL",
     "Zlib",
 ]
-deny = []
 # Ring has a non-standard license — allow it explicitly
 exceptions = [
     { allow = ["ISC", "MIT", "OpenSSL"], name = "ring" },
