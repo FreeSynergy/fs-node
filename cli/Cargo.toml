@@ -10,8 +10,6 @@ members = [
     "crates/fs-s3",
     "crates/fs-container",
     "crates/fs-builder",
-    "crates/fs-auth",
-    "crates/fs-federation",
 ]
 resolver = "2"
 
@@ -48,8 +46,8 @@ fs-host      = { path = "crates/fs-host" }
 fs-wizard    = { path = "crates/fs-wizard" }
 fs-s3        = { path = "crates/fs-s3" }
 fs-container  = { path = "crates/fs-container" }
-fs-auth       = { path = "crates/fs-auth" }
-fs-federation = { path = "crates/fs-federation" }
+fs-auth       = { path = "../../fs-auth" }
+fs-federation = { path = "../../fs-federation" }
 
 # Auth / Federation
 jsonwebtoken          = { version = "10" }
