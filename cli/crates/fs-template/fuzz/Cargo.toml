@@ -1,0 +1,22 @@
+[package]
+name    = "fs-template-fuzz"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+fs-template  = { path = ".." }
+
+[[bin]]
+name = "fuzz_render_str"
+path = "fuzz_targets/fuzz_render_str.rs"
+doc  = false
+
+[[bin]]
+name = "fuzz_render_str_with_vars"
+path = "fuzz_targets/fuzz_render_str_with_vars.rs"
+doc  = false

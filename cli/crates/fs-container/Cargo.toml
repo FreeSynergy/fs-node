@@ -7,7 +7,7 @@ license.workspace    = true
 
 [dependencies]
 # Lib.Ext fs-container: low-level container abstraction (ServiceConfig, QuadletManager, …)
-fs-container-ext = { path = "../../../../fs-libs/fs-container", package = "fs-container" }
+fs-container-ext = { path = "../../../../fs-container", package = "fs-container" }
 serde         = { workspace = true }
 serde_yml     = { workspace = true }
 indexmap      = { workspace = true }

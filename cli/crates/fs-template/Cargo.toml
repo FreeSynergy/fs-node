@@ -1,0 +1,16 @@
+[package]
+name        = "fs-template"
+description = "Tera template wrapper for FreeSynergy"
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+authors.workspace    = true
+repository.workspace = true
+
+[dependencies]
+fs-error   = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+tera       = { version = "1" }
+indexmap   = { version = "2" }
+glob       = { version = "0.3" }

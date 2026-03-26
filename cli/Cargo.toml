@@ -10,6 +10,7 @@ members = [
     "crates/fs-s3",
     "crates/fs-container",
     "crates/fs-builder",
+    "crates/fs-template",
 ]
 resolver = "2"
 
@@ -27,17 +28,18 @@ fs-types     = { path = "../../fs-libs/fs-types" }
 fs-error     = { path = "../../fs-libs/fs-error" }
 fs-config    = { path = "../../fs-config" }
 fs-health    = { path = "../../fs-libs/fs-health" }
-fs-template  = { path = "../../fs-libs/fs-template" }
+fs-template  = { path = "crates/fs-template" }
 fs-db        = { path = "../../fs-db", features = ["sqlite"] }
 fs-crypto    = { path = "../../fs-libs/fs-crypto" }
 fs-bus       = { path = "../../fs-bus" }
 fs-inventory = { path = "../../fs-inventory" }
-fs-sysinfo   = { path = "../../fs-libs/fs-sysinfo" }
-fs-i18n      = { path = "../../fs-libs/fs-i18n" }
-fs-theme     = { path = "../../fs-libs/fs-theme" }
+fs-sysinfo   = { path = "../../fs-info", package = "fs-info" }
+fs-i18n      = { path = "../../fs-i18n" }
+fs-theme     = { path = "../../fs-theme" }
 fs-help      = { path = "../../fs-libs/fs-help" }
-fs-plugin-sdk     = { path = "../../fs-libs/fs-plugin-sdk" }
-fs-plugin-runtime = { path = "../../fs-libs/fs-plugin-runtime" }
+fs-pkg            = { path = "../../fs-packages/fs-pkg" }
+fs-plugin-sdk     = { path = "../../fs-packages/fs-plugin-sdk" }
+fs-plugin-runtime = { path = "../../fs-packages/fs-plugin-runtime" }
 # Internal crates
 fs-node-core = { path = "crates/fs-node-core" }
 fs-deploy    = { path = "crates/fs-deploy" }
