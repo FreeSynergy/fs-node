@@ -378,6 +378,7 @@ async fn record_service_installed(
             .to_string_lossy()
             .into_owned(),
         validation: ValidationStatus::Incomplete,
+        caption: None,
     };
     if let Err(e) = inv.upsert_resource(&resource).await {
         warn!("inventory upsert_resource({}) failed: {e:#}", instance.name);

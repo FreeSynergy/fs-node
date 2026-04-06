@@ -5,7 +5,7 @@
 // the module is added to the project config.
 
 use anyhow::{Context, Result};
-use fs_db::{repository::CrudRepo, InstalledPackageRepo};
+use fs_db::InstalledPackageRepo;
 use fs_node_core::store::{Catalog, NodeStoreClient, StoreEntry};
 use fs_pkg::versioning::{VersionManager, VersionRecord};
 
